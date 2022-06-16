@@ -112,8 +112,9 @@ func (ms *Messages) NumMessages(
 	return len(*messages)
 }
 
-// Prune prunes out all old messages from the message queues
-func (ms *Messages) Prune(view *proto.View) {
+// PruneByHeight prunes out all old messages from the message queues
+// by the specified height in the view
+func (ms *Messages) PruneByHeight(view *proto.View) {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -128,5 +129,29 @@ func (ms *Messages) Prune(view *proto.View) {
 	for _, messageType := range possibleMaps {
 		messageMap := ms.getMessageMap(messageType)
 		delete(*messageMap, view.Height)
+	}
+}
+
+// PruneByRound prunes out all old messages from the message queues
+// by the specified round in the view
+func (ms *Messages) PruneByRound(view *proto.View) {
+	ms.Lock()
+	defer ms.Unlock()
+
+	possibleMaps := []proto.MessageType{
+		proto.MessageType_PREPREPARE,
+		proto.MessageType_PREPARE,
+		proto.MessageType_COMMIT,
+		proto.MessageType_ROUND_CHANGE,
+	}
+
+	// Prune out the rounds from all possible message types
+	for _, messageType := range possibleMaps {
+		typeMap := ms.getMessageMap(messageType)
+
+		heightMap, exists := (*typeMap)[view.Height]
+		if exists {
+			delete(*heightMap, view.Round)
+		}
 	}
 }

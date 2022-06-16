@@ -62,29 +62,52 @@ func TestMessages_Prune(t *testing.T) {
 	t.Parallel()
 
 	numMessages := 5
-	initialView := &proto.View{
-		Height: 1,
-		Round:  1,
-	}
-
+	messageType := proto.MessageType_PREPARE
 	messages := NewMessages()
 
+	views := make([]*proto.View, 0)
+	for index := uint64(1); index <= 3; index++ {
+		views = append(views, &proto.View{
+			Height: 1,
+			Round:  index,
+		})
+	}
+
 	// Append random message types
-	randomMessages := generateRandomMessages(
-		numMessages,
-		initialView,
-		proto.MessageType_PREPARE,
-	)
+	randomMessages := make([]*proto.Message, 0)
+	for _, view := range views {
+		randomMessages = append(
+			randomMessages,
+			generateRandomMessages(
+				numMessages,
+				view,
+				messageType,
+			)...,
+		)
+	}
 
 	for _, message := range randomMessages {
 		messages.AddMessage(message)
 	}
 
 	// Prune out the messages from this view
-	messages.Prune(&proto.View{
-		Height: 1,
-		Round:  1,
-	})
+	messages.PruneByRound(views[0])
 
-	assert.Equal(t, 0, messages.NumMessages(initialView, proto.MessageType_PREPARE))
+	// Make sure the round 1 messages are pruned out
+	assert.Equal(t, 0, messages.NumMessages(views[0], messageType))
+
+	// Make sure the round 2 messages are still present
+	assert.Equal(t, numMessages, messages.NumMessages(views[1], messageType))
+
+	// Make sure the round 3 messages are still present
+	assert.Equal(t, numMessages, messages.NumMessages(views[2], messageType))
+
+	// Prune out the messages from this view
+	messages.PruneByHeight(views[1])
+
+	// Make sure the round 2 messages are pruned out
+	assert.Equal(t, 0, messages.NumMessages(views[1], messageType))
+
+	// Make sure the round 3 messages are pruned out
+	assert.Equal(t, 0, messages.NumMessages(views[2], messageType))
 }
