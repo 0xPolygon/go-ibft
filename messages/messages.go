@@ -5,9 +5,6 @@ import (
 	"sync"
 )
 
-// typeMessageMap maps the message type -> height message map
-type typeMessageMap map[proto.MessageType]*heightMessageMap
-
 // heightMessageMap maps the height number -> round message map
 type heightMessageMap map[uint64]*roundMessageMap
 
@@ -22,8 +19,11 @@ type Messages struct {
 	// used for thread safety
 	sync.RWMutex
 
-	// messageMap contains the relevant view -> message queues mapping
-	messageMap *typeMessageMap
+	// message maps for different message types
+	preprepareMessageMap  *heightMessageMap
+	prepareMessageMap     *heightMessageMap
+	commitMessageMap      *heightMessageMap
+	roundChangeMessageMap *heightMessageMap
 }
 
 func (h *heightMessageMap) getViewMessages(view *proto.View) *protoMessages {
@@ -51,13 +51,27 @@ func (h *heightMessageMap) getViewMessages(view *proto.View) *protoMessages {
 // NewMessages returns a new Messages wrapper
 func NewMessages() *Messages {
 	return &Messages{
-		messageMap: &typeMessageMap{
-			proto.MessageType_PREPREPARE:   &heightMessageMap{},
-			proto.MessageType_PREPARE:      &heightMessageMap{},
-			proto.MessageType_COMMIT:       &heightMessageMap{},
-			proto.MessageType_ROUND_CHANGE: &heightMessageMap{},
-		},
+		preprepareMessageMap:  &heightMessageMap{},
+		prepareMessageMap:     &heightMessageMap{},
+		commitMessageMap:      &heightMessageMap{},
+		roundChangeMessageMap: &heightMessageMap{},
 	}
+}
+
+// getMessageMap fetches the corresponding message map by type
+func (ms *Messages) getMessageMap(messageType proto.MessageType) *heightMessageMap {
+	switch messageType {
+	case proto.MessageType_PREPREPARE:
+		return ms.preprepareMessageMap
+	case proto.MessageType_PREPARE:
+		return ms.prepareMessageMap
+	case proto.MessageType_COMMIT:
+		return ms.commitMessageMap
+	case proto.MessageType_ROUND_CHANGE:
+		return ms.roundChangeMessageMap
+	}
+
+	return nil
 }
 
 // AddMessage adds a new message to the message queue
@@ -66,7 +80,7 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	defer ms.Unlock()
 
 	// Get the corresponding height map
-	heightMsgMap := (*ms.messageMap)[message.Type]
+	heightMsgMap := ms.getMessageMap(message.Type)
 
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
@@ -81,11 +95,7 @@ func (ms *Messages) NumMessages(
 	ms.RLock()
 	defer ms.RUnlock()
 
-	// Check if the height map is present
-	heightMsgMap, found := (*ms.messageMap)[messageType]
-	if !found {
-		return 0
-	}
+	heightMsgMap := ms.getMessageMap(messageType)
 
 	// Check if the round map is present
 	roundMsgMap, found := (*heightMsgMap)[view.Height]
@@ -116,7 +126,7 @@ func (ms *Messages) Prune(view *proto.View) {
 
 	// Prune out the views from all possible message types
 	for _, messageType := range possibleMaps {
-		messageMap := (*ms.messageMap)[messageType]
+		messageMap := ms.getMessageMap(messageType)
 		delete(*messageMap, view.Height)
 	}
 }
