@@ -11,8 +11,9 @@ type heightMessageMap map[uint64]*roundMessageMap
 // roundMessageMap maps the round number -> messages
 type roundMessageMap map[uint64]*protoMessages
 
-// protoMessages is the array of messages that circulate
-type protoMessages []*proto.Message
+// protoMessages is the set of messages that circulate.
+// It contains a mapping between the sender and their messages to avoid duplicates
+type protoMessages map[string]*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
@@ -84,7 +85,7 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
-	*messages = append(*messages, message)
+	(*messages)[string(message.From)] = message
 }
 
 // NumMessages returns the number of messages received for the specific type

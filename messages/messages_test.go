@@ -3,6 +3,7 @@ package messages
 import (
 	"github.com/Trapesys/go-ibft/proto"
 	"github.com/stretchr/testify/assert"
+	"strconv"
 	"testing"
 )
 
@@ -10,12 +11,14 @@ import (
 func generateRandomMessages(
 	count int,
 	view *proto.View,
-	messageTypes ...proto.MessageType) []*proto.Message {
+	messageTypes ...proto.MessageType,
+) []*proto.Message {
 	messages := make([]*proto.Message, 0)
 
 	for index := 0; index < count; index++ {
 		for _, messageType := range messageTypes {
 			messages = append(messages, &proto.Message{
+				From: []byte(strconv.Itoa(index)),
 				View: view,
 				Type: messageType,
 			})
@@ -55,6 +58,39 @@ func TestMessages_AddMessage(t *testing.T) {
 	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_PREPARE))
 	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_COMMIT))
 	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_ROUND_CHANGE))
+}
+
+// TestMessages_AddDuplicates tests that no duplicates
+// can be added to the height -> round -> message queue,
+// meaning a sender cannot fill the message queue with duplicate messages
+// of the same view for the same message type
+func TestMessages_AddDuplicates(t *testing.T) {
+	t.Parallel()
+
+	numMessages := 5
+	commonSender := strconv.Itoa(1)
+	commonType := proto.MessageType_PREPARE
+	initialView := &proto.View{
+		Height: 1,
+		Round:  1,
+	}
+
+	messages := NewMessages()
+
+	// Append random message types
+	randomMessages := generateRandomMessages(
+		numMessages,
+		initialView,
+		commonType,
+	)
+
+	for _, message := range randomMessages {
+		message.From = []byte(commonSender)
+		messages.AddMessage(message)
+	}
+
+	// Check that only 1 message has been added
+	assert.Equal(t, 1, messages.NumMessages(initialView, commonType))
 }
 
 // TestMessages_Prune tests if pruning of certain messages works
