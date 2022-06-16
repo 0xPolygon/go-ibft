@@ -12,7 +12,10 @@ type typeMessageMap map[proto.MessageType]*heightMessageMap
 type heightMessageMap map[uint64]*roundMessageMap
 
 // roundMessageMap maps the round number -> messages
-type roundMessageMap map[uint64]*messageHeap
+type roundMessageMap map[uint64]*protoMessages
+
+// protoMessages is the array of messages that circulate
+type protoMessages []*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
@@ -23,26 +26,26 @@ type Messages struct {
 	messageMap *typeMessageMap
 }
 
-func (h *heightMessageMap) getViewMessageHeap(view *proto.View) *messageHeap {
+func (h *heightMessageMap) getViewMessages(view *proto.View) *protoMessages {
 	// Check if the height is present
 	roundMessages, exists := (*h)[view.Height]
 	if !exists {
 		roundMessages = &roundMessageMap{
-			view.Round: &messageHeap{},
+			view.Round: &protoMessages{},
 		}
 
 		(*h)[view.Height] = roundMessages
 	}
 
 	// Check if the round is present
-	heap, exists := (*roundMessages)[view.Round]
+	messages, exists := (*roundMessages)[view.Round]
 	if !exists {
-		heap = &messageHeap{}
+		messages = &protoMessages{}
 
-		(*roundMessages)[view.Round] = heap
+		(*roundMessages)[view.Round] = messages
 	}
 
-	return heap
+	return messages
 }
 
 // NewMessages returns a new Messages wrapper
@@ -66,8 +69,8 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	heightMsgMap := (*ms.messageMap)[message.Type]
 
 	// Append the message to the appropriate queue
-	heap := heightMsgMap.getViewMessageHeap(message.View)
-	heap.Push(message)
+	messages := heightMsgMap.getViewMessages(message.View)
+	*messages = append(*messages, message)
 }
 
 // NumMessages returns the number of messages received for the specific type
@@ -85,18 +88,18 @@ func (ms *Messages) NumMessages(
 	}
 
 	// Check if the round map is present
-	roundMsgHeap, found := (*heightMsgMap)[view.Height]
+	roundMsgMap, found := (*heightMsgMap)[view.Height]
 	if !found {
 		return 0
 	}
 
-	// Check if the heap is present
-	heap, found := (*roundMsgHeap)[view.Round]
+	// Check if the messages array is present
+	messages, found := (*roundMsgMap)[view.Round]
 	if !found {
 		return 0
 	}
 
-	return heap.Len()
+	return len(*messages)
 }
 
 // Prune prunes out all old messages from the message queues
