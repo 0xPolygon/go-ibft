@@ -28,14 +28,17 @@ message Message {
   // from defines who is the message sender
   bytes from = 2;
 
+  // the signature of the sender, if any
+  bytes signature = 3;
+
   // type defines the message type
-  MessageType type = 3;
+  MessageType type = 4;
 
   // payload is the specific message payload
   oneof payload {
-    PrePrepareMessage preprepareData = 4;
-    PrepareMessage prepareData = 5;
-    CommitMessage commitData = 6;
+    PrePrepareMessage preprepareData = 5;
+    PrepareMessage prepareData = 6;
+    CommitMessage commitData = 7;
   }
 }
 
