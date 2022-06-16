@@ -46,9 +46,6 @@ message Message {
 message PrePrepareMessage {
   // proposal is the actual data being proposed for consensus
   bytes proposal = 1;
-
-  // proposerSeal is the signature of the proposer
-  bytes proposerSeal = 2;
 }
 
 // PrepareMessage is the message for the PREPARE phase

@@ -129,7 +129,12 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 	// Prune out the views from all possible message types
 	for _, messageType := range possibleMaps {
 		messageMap := ms.getMessageMap(messageType)
-		delete(*messageMap, view.Height)
+
+		// Delete all height maps up until and including the specified
+		// view height
+		for height := uint64(0); height <= view.Height; height++ {
+			delete(*messageMap, height)
+		}
 	}
 }
 
@@ -152,7 +157,11 @@ func (ms *Messages) PruneByRound(view *proto.View) {
 
 		heightMap, exists := (*typeMap)[view.Height]
 		if exists {
-			delete(*heightMap, view.Round)
+			// Delete all round maps up until and including the specified
+			// view round
+			for round := uint64(0); round <= view.Round; round++ {
+				delete(*heightMap, round)
+			}
 		}
 	}
 }
