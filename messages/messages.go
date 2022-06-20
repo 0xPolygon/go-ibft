@@ -27,6 +27,45 @@ type Messages struct {
 	roundChangeMessages heightMessageMap
 }
 
+// NewMessages returns a new Messages wrapper
+func NewMessages() *Messages {
+	return &Messages{
+		preprepareMessages:  make(heightMessageMap),
+		prepareMessages:     make(heightMessageMap),
+		commitMessages:      make(heightMessageMap),
+		roundChangeMessages: make(heightMessageMap),
+	}
+}
+
+// AddMessage adds a new message to the message queue
+func (ms *Messages) AddMessage(message *proto.Message) {
+	ms.Lock()
+	defer ms.Unlock()
+
+	// Get the corresponding height map
+	heightMsgMap := ms.getMessageMap(message.Type)
+
+	// Append the message to the appropriate queue
+	messages := heightMsgMap.getViewMessages(message.View)
+	messages[string(message.From)] = message
+}
+
+// getMessageMap fetches the corresponding message map by type
+func (ms *Messages) getMessageMap(messageType proto.MessageType) heightMessageMap {
+	switch messageType {
+	case proto.MessageType_PREPREPARE:
+		return ms.preprepareMessages
+	case proto.MessageType_PREPARE:
+		return ms.prepareMessages
+	case proto.MessageType_COMMIT:
+		return ms.commitMessages
+	case proto.MessageType_ROUND_CHANGE:
+		return ms.roundChangeMessages
+	}
+
+	return nil
+}
+
 // getViewMessages fetches the message queue for the specified view (height + round).
 // It will initialize a new message array if it's not found
 func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
@@ -52,45 +91,6 @@ func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	}
 
 	return messages
-}
-
-// NewMessages returns a new Messages wrapper
-func NewMessages() *Messages {
-	return &Messages{
-		preprepareMessages:  make(heightMessageMap),
-		prepareMessages:     make(heightMessageMap),
-		commitMessages:      make(heightMessageMap),
-		roundChangeMessages: make(heightMessageMap),
-	}
-}
-
-// getMessageMap fetches the corresponding message map by type
-func (ms *Messages) getMessageMap(messageType proto.MessageType) heightMessageMap {
-	switch messageType {
-	case proto.MessageType_PREPREPARE:
-		return ms.preprepareMessages
-	case proto.MessageType_PREPARE:
-		return ms.prepareMessages
-	case proto.MessageType_COMMIT:
-		return ms.commitMessages
-	case proto.MessageType_ROUND_CHANGE:
-		return ms.roundChangeMessages
-	}
-
-	return nil
-}
-
-// AddMessage adds a new message to the message queue
-func (ms *Messages) AddMessage(message *proto.Message) {
-	ms.Lock()
-	defer ms.Unlock()
-
-	// Get the corresponding height map
-	heightMsgMap := ms.getMessageMap(message.Type)
-
-	// Append the message to the appropriate queue
-	messages := heightMsgMap.getViewMessages(message.View)
-	messages[string(message.From)] = message
 }
 
 // NumMessages returns the number of messages received for the specific type
