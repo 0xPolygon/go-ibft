@@ -28,6 +28,8 @@ type Messages struct {
 	roundChangeMessages heightMessageMap
 }
 
+// getViewMessages fetches the message queue for the specified view (height + round).
+// It will initialize a new message array if it's not found
 func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	var (
 		height = view.Height
