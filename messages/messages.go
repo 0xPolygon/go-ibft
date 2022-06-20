@@ -36,7 +36,7 @@ func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	// Check if the height is present
 	roundMessages, exists := m[height]
 	if !exists {
-		roundMessages = roundMessageMap{round: protoMessages{}}
+		roundMessages = roundMessageMap{}
 
 		m[height] = roundMessages
 	}
