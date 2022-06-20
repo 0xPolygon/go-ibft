@@ -18,7 +18,6 @@ type protoMessages map[string]*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
-	// used for thread safety
 	sync.RWMutex
 
 	// message maps for different message types
