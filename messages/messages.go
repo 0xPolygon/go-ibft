@@ -18,7 +18,6 @@ type protoMessages map[string]*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
-	// used for thread safety
 	sync.RWMutex
 
 	// message maps for different message types
@@ -39,7 +38,7 @@ func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	// Check if the height is present
 	roundMessages, exists := m[height]
 	if !exists {
-		roundMessages = roundMessageMap{round: protoMessages{}}
+		roundMessages = roundMessageMap{}
 
 		m[height] = roundMessages
 	}
