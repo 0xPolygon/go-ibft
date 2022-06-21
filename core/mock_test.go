@@ -149,3 +149,58 @@ func (l *mockLogger) Error(msg string, args ...interface{}) {
 func (l *mockLogger) HookError(fn opLogDelegate) {
 	l.errorFn = fn
 }
+
+type backendConfigCallback func(*mockBackend)
+type loggerConfigCallback func(*mockLogger)
+type transportConfigCallback func(*mockTransport)
+
+func newMockCluster(
+	numNodes int,
+	backendCallbackMap map[int]backendConfigCallback,
+	loggerCallbackMap map[int]loggerConfigCallback,
+	transportCallbackMap map[int]transportConfigCallback,
+) *mockCluster {
+	if numNodes < 1 {
+		return nil
+	}
+
+	nodes := make([]*IBFT, numNodes)
+
+	for index := 0; index < numNodes; index++ {
+		var (
+			logger    = &mockLogger{}
+			transport = &mockTransport{}
+			backend   = &mockBackend{}
+		)
+
+		// Execute set callbacks, if any
+		// TODO Eat the spaghetti
+		if backendCallbackMap != nil {
+			if backendCallback, isSet := backendCallbackMap[index]; isSet {
+				backendCallback(backend)
+			}
+		}
+
+		if loggerCallbackMap != nil {
+			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
+				loggerCallback(logger)
+			}
+		}
+
+		if transportCallbackMap != nil {
+			if transportCallback, isSet := transportCallbackMap[index]; isSet {
+				transportCallback(transport)
+			}
+		}
+
+		nodes[index] = NewIBFT(logger, backend, transport)
+	}
+
+	return &mockCluster{
+		nodes: nodes,
+	}
+}
+
+type mockCluster struct {
+	nodes []*IBFT
+}
