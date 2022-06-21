@@ -52,6 +52,8 @@ type IBFT struct {
 	transport Transport
 
 	quorumFn QuorumFn
+
+	roundDone chan error
 }
 
 func NewIBFT(
@@ -63,6 +65,7 @@ func NewIBFT(
 		log:       log,
 		backend:   backend,
 		transport: transport,
+		roundDone: make(chan error),
 	}
 }
 
@@ -78,7 +81,9 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 				proposal, err := i.backend.BuildProposal(i.state.view.Height)
 				if err != nil {
-					//	nesto
+					i.state.name = round_change
+					i.roundDone <- err
+
 					return
 				}
 

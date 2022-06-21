@@ -13,7 +13,7 @@ import (
 
 func TestNewRound_Proposer(t *testing.T) {
 	t.Run(
-		"proposer builds proposal",
+		"unlocked proposer builds proposal",
 		func(t *testing.T) {
 			i := NewIBFT(
 				&mockLogger{},
@@ -36,10 +36,11 @@ func TestNewRound_Proposer(t *testing.T) {
 			i.runRound(quit)
 
 			assert.Equal(t, prepare, i.state.name)
-		})
+		},
+	)
 
 	t.Run(
-		"proposer fails to build proposal",
+		"unlocked proposer fails to build proposal",
 		func(t *testing.T) {
 			//	#1:	setup prestate
 			i := NewIBFT(
@@ -57,26 +58,15 @@ func TestNewRound_Proposer(t *testing.T) {
 
 			i.state.locked = false
 
-			//	close the channel so runRound completes
-			quit := make(chan struct{})
+			//	unblock runRound
 			go func() {
-				close(quit)
+				<-i.roundDone
 			}()
 
-			i.runRound(quit)
+			i.runRound(nil)
 
 			assert.Equal(t, round_change, i.state.name)
-			//	create ibft (proposer)
-
-			//	not locked
-
-			//	#2:	run cycle
-
-			//	build proposal
-
-			//	!ok -> round change
-
-			//	#3:	assert
-		})
+		},
+	)
 
 }
