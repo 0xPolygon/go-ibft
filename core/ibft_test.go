@@ -98,3 +98,33 @@ func TestNewRound_Proposer(t *testing.T) {
 		},
 	)
 }
+
+func TestNewRound_Validator(t *testing.T) {
+	t.Run(
+		"invalid PRE-PREPARE received",
+		func(t *testing.T) {
+
+		},
+	)
+
+	t.Run(
+		"valid PRE-PREPARE received",
+		func(t *testing.T) {
+
+		},
+	)
+
+	t.Run(
+		"PRE-PREPARE matches locked block",
+		func(t *testing.T) {
+
+		},
+	)
+
+	t.Run(
+		"PRE-PREPARE does not match locked block",
+		func(t *testing.T) {
+
+		},
+	)
+}
