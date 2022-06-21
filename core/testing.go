@@ -91,3 +91,35 @@ func (m *MockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 func (m *MockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
 	m.isValidCommittedSealFn = fn
 }
+
+// Define delegation methods for hooks
+type multicastFn func(message *proto.Message)
+
+// MockBackend is the mock core structure that is configurable
+type mockTransport struct {
+	multicastFn
+}
+
+func (t *mockTransport) Multicast(msg *proto.Message) {
+	t.multicastFn(msg)
+}
+
+type opLog func(string, ...interface{})
+
+type mockLogger struct {
+	info,
+	debug,
+	error opLog
+}
+
+func (l *mockLogger) Info(msg string, args ...interface{}) {
+	l.info(msg, args)
+}
+
+func (l *mockLogger) Debug(msg string, args ...interface{}) {
+	l.debug(msg, args)
+}
+
+func (l *mockLogger) Error(msg string, args ...interface{}) {
+	l.error(msg, args)
+}
