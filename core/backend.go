@@ -1,6 +1,6 @@
 package core
 
-import "github.com/Trapesys/go-ibft/proto"
+import "github.com/Trapesys/go-ibft/messages/proto"
 
 // Backend defines an interface all core implementations
 // need to implement

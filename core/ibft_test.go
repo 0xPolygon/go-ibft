@@ -1,9 +1,11 @@
 package core
 
 import (
-	"github.com/Trapesys/go-ibft/proto"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
 //	New Round
@@ -24,10 +26,8 @@ func TestNewRound_Proposer(t *testing.T) {
 
 			i.state.locked = false
 
-			//	#2:	run cycle
-			quit := make(chan struct{})
-
 			//	close the channel so runRound completes
+			quit := make(chan struct{})
 			go func() {
 				close(quit)
 			}()

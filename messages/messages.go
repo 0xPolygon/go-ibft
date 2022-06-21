@@ -3,7 +3,7 @@ package messages
 import (
 	"sync"
 
-	"github.com/Trapesys/go-ibft/proto"
+	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
 // heightMessageMap maps the height number -> round message map

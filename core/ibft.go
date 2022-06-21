@@ -2,7 +2,7 @@ package core
 
 import (
 	"github.com/Trapesys/go-ibft/messages"
-	"github.com/Trapesys/go-ibft/proto"
+	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
 type Logger interface {

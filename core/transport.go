@@ -1,6 +1,6 @@
 package core
 
-import "github.com/Trapesys/go-ibft/proto"
+import "github.com/Trapesys/go-ibft/messages/proto"
 
 // Transport defines an interface
 // the node uses to communicate with other peers
