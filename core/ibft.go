@@ -74,34 +74,15 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 		switch i.state.name {
 		case new_round:
-			//	TODO: id of this node
-			id := []byte("my id")
+			if err := i.runNewRound(); err != nil {
+				//	something wrong -> go to round change
+				i.roundDone <- err
+				i.state.name = round_change
 
-			if i.backend.IsProposer(id, i.state.view.Height, i.state.view.Round) {
-
-				proposal, err := i.backend.BuildProposal(i.state.view.Height)
-				if err != nil {
-					i.state.name = round_change
-					i.roundDone <- err
-
-					return
-				}
-
-				i.transport.Multicast(&proto.Message{
-					View:      &i.state.view,
-					From:      nil,
-					Signature: nil,
-					Type:      0,
-					Payload: &proto.Message_PreprepareData{
-						PreprepareData: &proto.PrePrepareMessage{
-							Proposal: proposal,
-						},
-					},
-				})
-
-				i.state.name = prepare
+				return
 			}
 
+			i.state.name = prepare
 		case prepare:
 		}
 
@@ -114,4 +95,44 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		}
 
 	}
+}
+
+func (i *IBFT) runNewRound() error {
+	var (
+		height = i.state.view.Height
+		round  = i.state.view.Round
+		id     = []byte("my id") //	TODO: id of this node
+
+	)
+
+	if i.backend.IsProposer(id, height, round) {
+		var (
+			proposal []byte
+			err      error
+		)
+
+		if i.state.locked {
+			proposal = i.state.proposal
+		} else {
+			proposal, err = i.backend.BuildProposal(height)
+			if err != nil {
+				return err
+			}
+		}
+
+		i.transport.Multicast(&proto.Message{
+			View:      &i.state.view,
+			From:      nil,
+			Signature: nil,
+			Type:      0,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal: proposal,
+				},
+			},
+		})
+
+	}
+
+	return nil
 }
