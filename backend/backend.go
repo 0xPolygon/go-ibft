@@ -1,6 +1,6 @@
 package backend
 
-import "github.com/Trapesys/go-ibft/proto"
+import "github.com/Trapesys/go-ibft/messages/proto"
 
 // Backend defines an interface all backend implementations
 // need to implement
