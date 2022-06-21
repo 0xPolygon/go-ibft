@@ -1,6 +1,6 @@
 package backend
 
-import "github.com/Trapesys/go-ibft/proto"
+import "github.com/Trapesys/go-ibft/messages/proto"
 
 // Define delegation methods for hooks
 type isValidBlockDelegate func([]byte) bool

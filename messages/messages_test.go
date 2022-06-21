@@ -1,7 +1,7 @@
 package messages
 
 import (
-	"github.com/Trapesys/go-ibft/proto"
+	"github.com/Trapesys/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"

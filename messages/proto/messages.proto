@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "/proto";
+option go_package = "/messages/proto";
 
 // MessageType defines the types of messages
 // circulating in the system
