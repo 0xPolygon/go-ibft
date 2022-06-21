@@ -1,4 +1,4 @@
-package messages
+package core
 
 import "github.com/Trapesys/go-ibft/proto"
 

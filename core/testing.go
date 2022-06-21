@@ -1,4 +1,4 @@
-package backend
+package core
 
 import "github.com/Trapesys/go-ibft/proto"
 
@@ -10,7 +10,7 @@ type buildProposalDelegate func(uint64) ([]byte, error)
 type verifyProposalHashDelegate func([]byte, []byte) error
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
-// MockBackend is the mock backend structure that is configurable
+// MockBackend is the mock core structure that is configurable
 type MockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
 	isValidMessageFn       isValidMessageDelegate

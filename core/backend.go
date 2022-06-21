@@ -1,8 +1,8 @@
-package backend
+package core
 
 import "github.com/Trapesys/go-ibft/proto"
 
-// Backend defines an interface all backend implementations
+// Backend defines an interface all core implementations
 // need to implement
 type Backend interface {
 	// IsValidBlock checks if the proposed block is child of parent
