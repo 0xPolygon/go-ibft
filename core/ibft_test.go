@@ -69,4 +69,32 @@ func TestNewRound_Proposer(t *testing.T) {
 		},
 	)
 
+	t.Run(
+		"locked proposer builds proposal",
+		func(t *testing.T) {
+			//	#1:	setup prestate
+			i := NewIBFT(
+				&mockLogger{},
+				&MockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return true
+					},
+				},
+				&mockTransport{func(message *proto.Message) {}},
+			)
+
+			i.state.locked = true
+			i.state.proposal = []byte("previously locked block")
+
+			//	close the channel so runRound completes
+			quit := make(chan struct{})
+			go func() {
+				close(quit)
+			}()
+
+			i.runRound(quit)
+
+			assert.Equal(t, prepare, i.state.name)
+		},
+	)
 }
