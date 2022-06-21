@@ -20,10 +20,10 @@ type view struct {
 type stateName int
 
 const (
-	new_round stateName = iota
+	newRound stateName = iota
 	prepare
 	commit
-	round_change
+	roundChange
 	fin
 )
 
@@ -71,13 +71,12 @@ func NewIBFT(
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
-
 		switch i.state.name {
-		case new_round:
+		case newRound:
 			if err := i.runNewRound(); err != nil {
 				//	something wrong -> go to round change
 				i.roundDone <- err
-				i.state.name = round_change
+				i.state.name = roundChange
 
 				return
 			}
@@ -93,7 +92,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			return
 		default:
 		}
-
 	}
 }
 
@@ -131,7 +129,6 @@ func (i *IBFT) runNewRound() error {
 				},
 			},
 		})
-
 	}
 
 	return nil

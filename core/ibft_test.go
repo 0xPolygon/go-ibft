@@ -65,7 +65,7 @@ func TestNewRound_Proposer(t *testing.T) {
 
 			i.runRound(nil)
 
-			assert.Equal(t, round_change, i.state.name)
+			assert.Equal(t, roundChange, i.state.name)
 		},
 	)
 
