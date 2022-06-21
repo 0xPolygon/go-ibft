@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +42,30 @@ func TestNewRound_Proposer(t *testing.T) {
 		"proposer fails to build proposal",
 		func(t *testing.T) {
 			//	#1:	setup prestate
+			i := NewIBFT(
+				&mockLogger{},
+				&MockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return true
+					},
+					buildProposalFn: func(u uint64) ([]byte, error) {
+						return nil, errors.New("bad")
+					},
+				},
+				&mockTransport{func(message *proto.Message) {}},
+			)
 
+			i.state.locked = false
+
+			//	close the channel so runRound completes
+			quit := make(chan struct{})
+			go func() {
+				close(quit)
+			}()
+
+			i.runRound(quit)
+
+			assert.Equal(t, round_change, i.state.name)
 			//	create ibft (proposer)
 
 			//	not locked

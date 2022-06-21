@@ -23,6 +23,7 @@ const (
 	new_round stateName = iota
 	prepare
 	commit
+	round_change
 	fin
 )
 
@@ -74,10 +75,11 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			id := []byte("my id")
 
 			if i.backend.IsProposer(id, i.state.view.Height, i.state.view.Round) {
-				proposal, err := i.backend.BuildProposal(i.state.view.Height)
 
+				proposal, err := i.backend.BuildProposal(i.state.view.Height)
 				if err != nil {
 					//	nesto
+					return
 				}
 
 				i.transport.Multicast(&proto.Message{
