@@ -10,8 +10,8 @@ type buildProposalDelegate func(uint64) ([]byte, error)
 type verifyProposalHashDelegate func([]byte, []byte) error
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
-// MockBackend is the mock core structure that is configurable
-type MockBackend struct {
+// mockBackend is the mock core structure that is configurable
+type mockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
 	isValidMessageFn       isValidMessageDelegate
 	isProposerFn           isProposerDelegate
@@ -20,7 +20,7 @@ type MockBackend struct {
 	isValidCommittedSealFn isValidCommittedSealDelegate
 }
 
-func (m *MockBackend) IsValidBlock(block []byte) bool {
+func (m *mockBackend) IsValidBlock(block []byte) bool {
 	if m.isValidBlockFn != nil {
 		return m.isValidBlockFn(block)
 	}
@@ -28,11 +28,11 @@ func (m *MockBackend) IsValidBlock(block []byte) bool {
 	return true
 }
 
-func (m *MockBackend) HookIsValidBlock(fn isValidBlockDelegate) {
+func (m *mockBackend) HookIsValidBlock(fn isValidBlockDelegate) {
 	m.isValidBlockFn = fn
 }
 
-func (m *MockBackend) IsValidMessage(msg *proto.Message) bool {
+func (m *mockBackend) IsValidMessage(msg *proto.Message) bool {
 	if m.isValidBlockFn != nil {
 		return m.isValidMessageFn(msg)
 	}
@@ -40,11 +40,11 @@ func (m *MockBackend) IsValidMessage(msg *proto.Message) bool {
 	return true
 }
 
-func (m *MockBackend) HookIsValidMessage(fn isValidMessageDelegate) {
+func (m *mockBackend) HookIsValidMessage(fn isValidMessageDelegate) {
 	m.isValidMessageFn = fn
 }
 
-func (m *MockBackend) IsProposer(id []byte, sequence, round uint64) bool {
+func (m *mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	if m.isProposerFn != nil {
 		return m.isProposerFn(id, sequence, round)
 	}
@@ -52,11 +52,11 @@ func (m *MockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m *MockBackend) HookIsProposer(fn isProposerDelegate) {
+func (m *mockBackend) HookIsProposer(fn isProposerDelegate) {
 	m.isProposerFn = fn
 }
 
-func (m *MockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
+func (m *mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 	if m.buildProposalFn != nil {
 		return m.buildProposalFn(blockNumber)
 	}
@@ -64,11 +64,11 @@ func (m *MockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 	return nil, nil
 }
 
-func (m *MockBackend) HookBuildProposal(fn buildProposalDelegate) {
+func (m *mockBackend) HookBuildProposal(fn buildProposalDelegate) {
 	m.buildProposalFn = fn
 }
 
-func (m *MockBackend) VerifyProposalHash(proposal, hash []byte) error {
+func (m *mockBackend) VerifyProposalHash(proposal, hash []byte) error {
 	if m.verifyProposalHashFn != nil {
 		return m.verifyProposalHashFn(proposal, hash)
 	}
@@ -76,11 +76,11 @@ func (m *MockBackend) VerifyProposalHash(proposal, hash []byte) error {
 	return nil
 }
 
-func (m *MockBackend) HookVerifyProposalHash(fn verifyProposalHashDelegate) {
+func (m *mockBackend) HookVerifyProposalHash(fn verifyProposalHashDelegate) {
 	m.verifyProposalHashFn = fn
 }
 
-func (m *MockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
+func (m *mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 	if m.isValidCommittedSealFn != nil {
 		return m.isValidCommittedSealFn(proposal, seal)
 	}
@@ -88,38 +88,64 @@ func (m *MockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 	return true
 }
 
-func (m *MockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
+func (m *mockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
 	m.isValidCommittedSealFn = fn
 }
 
 // Define delegation methods for hooks
-type multicastFn func(message *proto.Message)
+type multicastFnDelegate func(*proto.Message)
 
-// MockBackend is the mock core structure that is configurable
+// mockTransport is the mock transport structure that is configurable
 type mockTransport struct {
-	multicastFn
+	multicastFn multicastFnDelegate
 }
 
 func (t *mockTransport) Multicast(msg *proto.Message) {
-	t.multicastFn(msg)
+	if t.multicastFn != nil {
+		t.multicastFn(msg)
+	}
 }
 
-type opLog func(string, ...interface{})
+func (t *mockTransport) HookMulticast(fn multicastFnDelegate) {
+	t.multicastFn = fn
+}
 
+// Define delegation methods for hooks
+type opLogDelegate func(string, ...interface{})
+
+// mockLogger is the mock logging structure that is configurable
 type mockLogger struct {
-	info,
-	debug,
-	error opLog
+	infoFn,
+	debugFn,
+	errorFn opLogDelegate
 }
 
 func (l *mockLogger) Info(msg string, args ...interface{}) {
-	l.info(msg, args)
+	if l.infoFn != nil {
+		l.infoFn(msg, args)
+	}
+}
+
+func (l *mockLogger) HookInfo(fn opLogDelegate) {
+	l.infoFn = fn
 }
 
 func (l *mockLogger) Debug(msg string, args ...interface{}) {
-	l.debug(msg, args)
+	if l.debugFn != nil {
+		l.debugFn(msg, args)
+	}
+}
+
+func (l *mockLogger) HookDebug(fn opLogDelegate) {
+	l.debugFn = fn
 }
 
 func (l *mockLogger) Error(msg string, args ...interface{}) {
-	l.error(msg, args)
+	if l.errorFn != nil {
+		l.errorFn(msg, args)
+	}
+}
+
+func (l *mockLogger) HookError(fn opLogDelegate) {
+	l.errorFn = fn
 }

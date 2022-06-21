@@ -17,7 +17,7 @@ func TestNewRound_Proposer(t *testing.T) {
 		func(t *testing.T) {
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return true
 					},
@@ -45,7 +45,7 @@ func TestNewRound_Proposer(t *testing.T) {
 			//	#1:	setup prestate
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return true
 					},
@@ -75,7 +75,7 @@ func TestNewRound_Proposer(t *testing.T) {
 			//	#1:	setup prestate
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return true
 					},
