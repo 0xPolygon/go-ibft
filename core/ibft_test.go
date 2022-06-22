@@ -86,7 +86,37 @@ func TestRunNewRound_Proposer(t *testing.T) {
 
 func TestRunNewRound_Validator(t *testing.T) {
 	t.Run(
-		"validator receives invalid block",
+		"validator receives valid block proposal",
+		func(t *testing.T) {
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{func(message *proto.Message) {}}
+				backend   = mockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return false
+					},
+					isValidBlockFn: func(bytes []byte) bool {
+						return true
+					},
+				}
+				messages = mockMessages{
+					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+						return 1
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
+
+			assert.NoError(t, i.runNewRound())
+			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, []byte("new block"), i.state.proposal) // TODO: fix
+		},
+	)
+
+	t.Run(
+		"validator receives invalid block proposal",
 		func(t *testing.T) {
 			var (
 				log       = mockLogger{}
@@ -147,44 +177,6 @@ func TestRunNewRound_Validator(t *testing.T) {
 			i.runRound(nil)
 
 			assert.Equal(t, roundChange, i.state.name)
-		},
-	)
-
-	t.Run(
-		"valid PRE-PREPARE received",
-		func(t *testing.T) {
-			i := NewIBFT(
-				&mockLogger{},
-				&mockBackend{
-					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
-						return false
-					},
-					isValidBlockFn: func(bytes []byte) bool {
-						return true
-					},
-				},
-				&mockTransport{
-					func(message *proto.Message) {},
-				},
-			)
-
-			i.messages = mockMessages{
-				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
-					return 1
-				},
-			}
-
-			i.state.name = newRound
-			i.state.locked = false
-
-			quit := make(chan struct{})
-			go func() {
-				close(quit)
-			}()
-
-			i.runRound(quit)
-
-			assert.Equal(t, prepare, i.state.name)
 		},
 	)
 
