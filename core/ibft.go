@@ -20,8 +20,9 @@ type Messages interface {
 }
 
 var (
-	errBuildProposal = errors.New("failed to build proposal")
-	errInvalidBlock  = errors.New("invalid block newProposal")
+	errBuildProposal    = errors.New("failed to build proposal")
+	errInvalidBlock     = errors.New("invalid block newProposal")
+	errProposalMismatch = errors.New("newProposal mismatch locked block")
 )
 
 type QuorumFn func(num uint64) uint64
@@ -185,7 +186,7 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 	if i.state.locked &&
 		!bytes.Equal(i.state.proposal, newProposal) {
 		//	proposed block does not match my locked block
-		return errors.New("newProposal mismatch locked block")
+		return errProposalMismatch
 	}
 
 	if !i.backend.IsValidBlock(newProposal) {

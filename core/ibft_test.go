@@ -144,39 +144,35 @@ func TestRunNewRound_Validator(t *testing.T) {
 	)
 
 	t.Run(
-		"PRE-PREPARE does not match locked block",
+		"(locked) validator receives mismatching proposal",
 		func(t *testing.T) {
-			i := NewIBFT(
-				&mockLogger{},
-				&mockBackend{
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
 					isValidBlockFn: func(bytes []byte) bool {
 						return true
 					},
-				},
-				&mockTransport{},
+				}
+				messages = mockMessages{
+					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+						return 1
+					},
+				}
 			)
 
-			i.messages = mockMessages{
-				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
-					return 1
-				},
-			}
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
 
-			i.state.name = newRound
 			i.state.locked = true
 			i.state.proposal = []byte("old block")
 
-			go func() {
-				//	unblock runRound
-				<-i.roundDone
-			}()
-
-			i.runRound(nil)
-
+			assert.ErrorIs(t, errProposalMismatch, i.runNewRound())
 			assert.Equal(t, roundChange, i.state.name)
+			assert.Equal(t, []byte("old block"), i.state.proposal)
 		},
 	)
 
