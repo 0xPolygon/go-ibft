@@ -10,42 +10,11 @@ import (
 type heightMessageMap map[uint64]roundMessageMap
 
 // roundMessageMap maps the round number -> messages
-type roundMessageMap map[uint64]*protoMessages
+type roundMessageMap map[uint64]protoMessages
 
 // protoMessages is the set of messages that circulate.
 // It contains a mapping between the sender and their messages to avoid duplicates
-type protoMessages struct {
-	messageMap map[string]*proto.Message
-	senders    []string
-}
-
-func (p *protoMessages) add(message *proto.Message) {
-	sender := string(message.From)
-
-	// Check if the sender sent a similar message
-	if _, exists := p.messageMap[sender]; !exists {
-		p.senders = append(p.senders, sender)
-	}
-
-	p.messageMap[sender] = message
-}
-
-func (p *protoMessages) pop() *proto.Message {
-	if len(p.senders) == 0 {
-		return nil
-	}
-
-	message := p.messageMap[p.senders[0]]
-	delete(p.messageMap, p.senders[0])
-
-	p.senders = p.senders[1:]
-
-	return message
-}
-
-func (p *protoMessages) len() int {
-	return len(p.messageMap)
-}
+type protoMessages map[string]*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
@@ -78,7 +47,7 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
-	messages.add(message)
+	messages[string(message.From)] = message
 }
 
 // getMessageMap fetches the corresponding message map by type
@@ -99,7 +68,7 @@ func (ms *Messages) getMessageMap(messageType proto.MessageType) heightMessageMa
 
 // getViewMessages fetches the message queue for the specified view (height + round).
 // It will initialize a new message array if it's not found
-func (m heightMessageMap) getViewMessages(view *proto.View) *protoMessages {
+func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -116,10 +85,7 @@ func (m heightMessageMap) getViewMessages(view *proto.View) *protoMessages {
 	// Check if the round is present
 	messages, exists := roundMessages[round]
 	if !exists {
-		messages = &protoMessages{
-			messageMap: make(map[string]*proto.Message),
-			senders:    make([]string, 0),
-		}
+		messages = protoMessages{}
 
 		roundMessages[round] = messages
 	}
@@ -149,7 +115,7 @@ func (ms *Messages) NumMessages(
 		return 0
 	}
 
-	return messages.len()
+	return len(messages)
 }
 
 // PruneByHeight prunes out all old messages from the message queues
@@ -210,7 +176,7 @@ func (ms *Messages) PruneByRound(view *proto.View) {
 func (ms *Messages) getProtoMessages(
 	view *proto.View,
 	messageType proto.MessageType,
-) *protoMessages {
+) protoMessages {
 	heightMsgMap := ms.getMessageMap(messageType)
 
 	// Check if the round map is present
@@ -222,50 +188,62 @@ func (ms *Messages) getProtoMessages(
 	return roundMsgMap[view.Round]
 }
 
-// GetPrePrepareMessage returns a single PREPREPARE message, if any
+// GetPrePrepareMessage returns a PREPREPARE message, if any
 func (ms *Messages) GetPrePrepareMessage(view *proto.View) *PrePrepareMessage {
 	ms.Lock()
 	defer ms.Unlock()
 
 	if messages := ms.getProtoMessages(view, proto.MessageType_PREPREPARE); messages != nil {
-		toPrePrepareFromProto(messages.pop())
+		for _, message := range messages {
+			return toPrePrepareFromProto(message)
+		}
 	}
 
 	return nil
 }
 
-// GetPrepareMessage returns a single PREPARE message, if any
-func (ms *Messages) GetPrepareMessage(view *proto.View) *PrepareMessage {
+// GetPrepareMessages returns all PREPARE messages, if any
+func (ms *Messages) GetPrepareMessages(view *proto.View) []*PrepareMessage {
 	ms.Lock()
 	defer ms.Unlock()
 
+	prepareMessages := make([]*PrepareMessage, 0)
 	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
-		toPrepareFromProto(messages.pop())
+		for _, message := range messages {
+			prepareMessages = append(prepareMessages, toPrepareFromProto(message))
+		}
 	}
 
-	return nil
+	return prepareMessages
 }
 
-// GetCommitMessage returns a single COMMIT message, if any
-func (ms *Messages) GetCommitMessage(view *proto.View) *CommitMessage {
+// GetCommitMessages returns all COMMIT messages, if any
+func (ms *Messages) GetCommitMessages(view *proto.View) []*CommitMessage {
 	ms.Lock()
 	defer ms.Unlock()
 
+	commitMessages := make([]*CommitMessage, 0)
 	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
-		toCommitFromProto(messages.pop())
+		for _, message := range messages {
+			commitMessages = append(commitMessages, toCommitFromProto(message))
+
+		}
 	}
 
-	return nil
+	return commitMessages
 }
 
-// GetRoundChangeMessage returns a single ROUND_CHANGE message, if any
-func (ms *Messages) GetRoundChangeMessage(view *proto.View) *RoundChangeMessage {
+// GetRoundChangeMessages returns all ROUND_CHANGE message, if any
+func (ms *Messages) GetRoundChangeMessages(view *proto.View) []*RoundChangeMessage {
 	ms.Lock()
 	defer ms.Unlock()
 
+	roundChangeMessages := make([]*RoundChangeMessage, 0)
 	if messages := ms.getProtoMessages(view, proto.MessageType_ROUND_CHANGE); messages != nil {
-		toRoundChangeFromProto(messages.pop())
+		for _, message := range messages {
+			roundChangeMessages = append(roundChangeMessages, toRoundChangeFromProto(message))
+		}
 	}
 
-	return nil
+	return roundChangeMessages
 }

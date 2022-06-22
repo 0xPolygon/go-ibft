@@ -30,6 +30,10 @@ type RoundChangeMessage struct {
 
 // toPrePrepareFromProto transforms a proto message to an internal PREPREPARE message
 func toPrePrepareFromProto(message *proto.Message) *PrePrepareMessage {
+	if message == nil {
+		return nil
+	}
+
 	messagePayload, _ := message.Payload.(*proto.Message_PreprepareData)
 
 	return &PrePrepareMessage{
@@ -39,6 +43,10 @@ func toPrePrepareFromProto(message *proto.Message) *PrePrepareMessage {
 
 // toPrepareFromProto transforms a proto message to an internal PREPARE message
 func toPrepareFromProto(message *proto.Message) *PrepareMessage {
+	if message == nil {
+		return nil
+	}
+
 	messagePayload, _ := message.Payload.(*proto.Message_PrepareData)
 
 	return &PrepareMessage{
@@ -48,6 +56,10 @@ func toPrepareFromProto(message *proto.Message) *PrepareMessage {
 
 // toCommitFromProto transforms a proto message to an internal COMMIT message
 func toCommitFromProto(message *proto.Message) *CommitMessage {
+	if message == nil {
+		return nil
+	}
+
 	messagePayload, _ := message.Payload.(*proto.Message_CommitData)
 
 	return &CommitMessage{
@@ -58,6 +70,10 @@ func toCommitFromProto(message *proto.Message) *CommitMessage {
 
 // toRoundChangeFromProto transforms a proto message to an internal COMMIT message
 func toRoundChangeFromProto(message *proto.Message) *RoundChangeMessage {
+	if message == nil {
+		return nil
+	}
+
 	return &RoundChangeMessage{
 		Height: message.View.Height,
 		Round:  message.View.Round,

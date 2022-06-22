@@ -235,24 +235,22 @@ func TestMessages_GetMessage(t *testing.T) {
 			)
 
 			// Start fetching messages and making sure they're cleared
-			for i := 0; i < numMessages; i++ {
-				switch testCase.messageType {
-				case proto.MessageType_PREPREPARE:
-					messages.GetPrePrepareMessage(defaultView)
-				case proto.MessageType_PREPARE:
-					messages.GetPrepareMessage(defaultView)
-				case proto.MessageType_COMMIT:
-					messages.GetCommitMessage(defaultView)
-				case proto.MessageType_ROUND_CHANGE:
-					messages.GetRoundChangeMessage(defaultView)
-				}
-
-				assert.Equal(
-					t,
-					numMessages-i-1,
-					messages.NumMessages(defaultView, testCase.messageType),
-				)
+			switch testCase.messageType {
+			case proto.MessageType_PREPREPARE:
+				messages.GetPrePrepareMessage(defaultView)
+			case proto.MessageType_PREPARE:
+				messages.GetPrepareMessages(defaultView)
+			case proto.MessageType_COMMIT:
+				messages.GetCommitMessages(defaultView)
+			case proto.MessageType_ROUND_CHANGE:
+				messages.GetRoundChangeMessages(defaultView)
 			}
+
+			assert.Equal(
+				t,
+				numMessages,
+				messages.NumMessages(defaultView, testCase.messageType),
+			)
 		})
 	}
 }
