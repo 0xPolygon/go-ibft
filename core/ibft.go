@@ -137,7 +137,6 @@ func (i *IBFT) runNewRound() error {
 		//	TODO: construct a PREPARE message and gossip
 		prepare := &proto.Message{}
 		i.transport.Multicast(prepare)
-
 	} else {
 		//	we are not the proposer, so we're checking for a PRE-PREPARE msg
 		if num := i.messages.NumMessages(
@@ -159,16 +158,13 @@ func (i *IBFT) runNewRound() error {
 				i.state.name = roundChange
 
 				return errors.New("invalid block newProposal")
-
 			}
-
 			i.state.proposal = newProposal
 			i.state.name = prepare
 
 			//	TODO: construct a PREPARE message and gossip
 			prepare := &proto.Message{}
 			i.transport.Multicast(prepare)
-
 		}
 
 		return nil
