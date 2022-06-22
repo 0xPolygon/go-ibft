@@ -177,41 +177,34 @@ func TestRunNewRound_Validator(t *testing.T) {
 	)
 
 	t.Run(
-		"PRE-PREPARE matches locked block",
+		"(locked) validator receives matching proposal",
 		func(t *testing.T) {
-			i := NewIBFT(
-				&mockLogger{},
-				&mockBackend{
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
 					isValidBlockFn: func(bytes []byte) bool {
 						return true
 					},
-				},
-				&mockTransport{
-					func(message *proto.Message) {},
-				},
+				}
+				messages = mockMessages{
+					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+						return 1
+					},
+				}
 			)
 
-			i.messages = mockMessages{
-				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
-					return 1
-				},
-			}
-
-			i.state.name = newRound
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
 			i.state.locked = true
 			i.state.proposal = []byte("new block")
 
-			quit := make(chan struct{})
-			go func() {
-				close(quit)
-			}()
-
-			i.runRound(quit)
-
+			assert.NoError(t, i.runNewRound())
 			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, []byte("new block"), i.state.proposal)
 		},
 	)
 
