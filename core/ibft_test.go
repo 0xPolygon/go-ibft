@@ -234,5 +234,4 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 		},
 	)
-
 }

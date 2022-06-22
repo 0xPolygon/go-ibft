@@ -170,3 +170,80 @@ func (ms *Messages) PruneByRound(view *proto.View) {
 		}
 	}
 }
+
+// getProtoMessages fetches the underlying proto messages for the specified view
+// and message type
+func (ms *Messages) getProtoMessages(
+	view *proto.View,
+	messageType proto.MessageType,
+) protoMessages {
+	heightMsgMap := ms.getMessageMap(messageType)
+
+	// Check if the round map is present
+	roundMsgMap, found := heightMsgMap[view.Height]
+	if !found {
+		return nil
+	}
+
+	return roundMsgMap[view.Round]
+}
+
+// GetPrePrepareMessage returns a PREPREPARE message, if any
+func (ms *Messages) GetPrePrepareMessage(view *proto.View) *PrePrepareMessage {
+	ms.Lock()
+	defer ms.Unlock()
+
+	if messages := ms.getProtoMessages(view, proto.MessageType_PREPREPARE); messages != nil {
+		for _, message := range messages {
+			return toPrePrepareFromProto(message)
+		}
+	}
+
+	return nil
+}
+
+// GetPrepareMessages returns all PREPARE messages, if any
+func (ms *Messages) GetPrepareMessages(view *proto.View) []*PrepareMessage {
+	ms.Lock()
+	defer ms.Unlock()
+
+	prepareMessages := make([]*PrepareMessage, 0)
+	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
+		for _, message := range messages {
+			prepareMessages = append(prepareMessages, toPrepareFromProto(message))
+		}
+	}
+
+	return prepareMessages
+}
+
+// GetCommitMessages returns all COMMIT messages, if any
+func (ms *Messages) GetCommitMessages(view *proto.View) []*CommitMessage {
+	ms.Lock()
+	defer ms.Unlock()
+
+	commitMessages := make([]*CommitMessage, 0)
+	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
+		for _, message := range messages {
+			commitMessages = append(commitMessages, toCommitFromProto(message))
+
+		}
+	}
+
+	return commitMessages
+}
+
+// GetRoundChangeMessages returns all ROUND_CHANGE message, if any
+func (ms *Messages) GetRoundChangeMessages(view *proto.View) []*RoundChangeMessage {
+	ms.Lock()
+	defer ms.Unlock()
+
+	roundChangeMessages := make([]*RoundChangeMessage, 0)
+	if messages := ms.getProtoMessages(view, proto.MessageType_ROUND_CHANGE); messages != nil {
+		for _, message := range messages {
+			roundChangeMessages = append(roundChangeMessages, toRoundChangeFromProto(message))
+		}
+	}
+
+	return roundChangeMessages
+}
