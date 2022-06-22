@@ -28,8 +28,8 @@ type RoundChangeMessage struct {
 	Round  uint64
 }
 
-// ToPrePrepareFromProto transforms a proto message to an internal PREPREPARE message
-func ToPrePrepareFromProto(message *proto.Message) *PrePrepareMessage {
+// toPrePrepareFromProto transforms a proto message to an internal PREPREPARE message
+func toPrePrepareFromProto(message *proto.Message) *PrePrepareMessage {
 	messagePayload, _ := message.Payload.(*proto.Message_PreprepareData)
 
 	return &PrePrepareMessage{
@@ -37,8 +37,8 @@ func ToPrePrepareFromProto(message *proto.Message) *PrePrepareMessage {
 	}
 }
 
-// ToPrepareFromProto transforms a proto message to an internal PREPARE message
-func ToPrepareFromProto(message *proto.Message) *PrepareMessage {
+// toPrepareFromProto transforms a proto message to an internal PREPARE message
+func toPrepareFromProto(message *proto.Message) *PrepareMessage {
 	messagePayload, _ := message.Payload.(*proto.Message_PrepareData)
 
 	return &PrepareMessage{
@@ -46,8 +46,8 @@ func ToPrepareFromProto(message *proto.Message) *PrepareMessage {
 	}
 }
 
-// ToCommitFromProto transforms a proto message to an internal COMMIT message
-func ToCommitFromProto(message *proto.Message) *CommitMessage {
+// toCommitFromProto transforms a proto message to an internal COMMIT message
+func toCommitFromProto(message *proto.Message) *CommitMessage {
 	messagePayload, _ := message.Payload.(*proto.Message_CommitData)
 
 	return &CommitMessage{
@@ -56,8 +56,8 @@ func ToCommitFromProto(message *proto.Message) *CommitMessage {
 	}
 }
 
-// ToRoundChangeFromProto transforms a proto message to an internal COMMIT message
-func ToRoundChangeFromProto(message *proto.Message) *RoundChangeMessage {
+// toRoundChangeFromProto transforms a proto message to an internal COMMIT message
+func toRoundChangeFromProto(message *proto.Message) *RoundChangeMessage {
 	return &RoundChangeMessage{
 		Height: message.View.Height,
 		Round:  message.View.Round,

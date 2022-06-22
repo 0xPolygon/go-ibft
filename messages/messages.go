@@ -228,7 +228,7 @@ func (ms *Messages) GetPrePrepareMessage(view *proto.View) *PrePrepareMessage {
 	defer ms.Unlock()
 
 	if messages := ms.getProtoMessages(view, proto.MessageType_PREPREPARE); messages != nil {
-		ToPrePrepareFromProto(messages.pop())
+		toPrePrepareFromProto(messages.pop())
 	}
 
 	return nil
@@ -240,7 +240,7 @@ func (ms *Messages) GetPrepareMessage(view *proto.View) *PrepareMessage {
 	defer ms.Unlock()
 
 	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
-		ToPrepareFromProto(messages.pop())
+		toPrepareFromProto(messages.pop())
 	}
 
 	return nil
@@ -252,7 +252,7 @@ func (ms *Messages) GetCommitMessage(view *proto.View) *CommitMessage {
 	defer ms.Unlock()
 
 	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
-		ToCommitFromProto(messages.pop())
+		toCommitFromProto(messages.pop())
 	}
 
 	return nil
@@ -264,7 +264,7 @@ func (ms *Messages) GetRoundChangeMessage(view *proto.View) *RoundChangeMessage 
 	defer ms.Unlock()
 
 	if messages := ms.getProtoMessages(view, proto.MessageType_ROUND_CHANGE); messages != nil {
-		ToRoundChangeFromProto(messages.pop())
+		toRoundChangeFromProto(messages.pop())
 	}
 
 	return nil
