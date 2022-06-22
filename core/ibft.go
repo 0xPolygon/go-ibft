@@ -19,6 +19,10 @@ type Messages interface {
 	PruneByRound(view *proto.View)
 }
 
+var (
+	errBuildProposal = errors.New("failed to build proposal")
+)
+
 type QuorumFn func(num uint64) uint64
 
 type view struct {
@@ -88,7 +92,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			if err := i.runNewRound(); err != nil {
 				//	something wrong -> go to round change
 				i.roundDone <- err
-				i.state.name = roundChange
+				//i.state.name = roundChange
 
 				return
 			}
@@ -110,65 +114,95 @@ func (i *IBFT) runNewRound() error {
 	var (
 		height = i.state.view.Height
 		round  = i.state.view.Round
-		id     = []byte("my id") //	TODO: id of this node
-
+		id     = []byte("my id") //	TODO (backend): id of this node
 	)
 
 	if i.backend.IsProposer(id, height, round) {
-		var (
-			proposal []byte
-			err      error
-		)
+		return i.proposeBlock(height)
+	}
 
-		if i.state.locked {
-			proposal = i.state.proposal
-		} else {
-			proposal, err = i.backend.BuildProposal(height)
-			if err != nil {
-				i.state.name = roundChange
-
-				return err
-			}
-		}
-
-		i.state.proposal = proposal
-		i.state.name = prepare
-
-		//	TODO: construct a PREPARE message and gossip
-		prepare := &proto.Message{}
-		i.transport.Multicast(prepare)
-	} else {
-		//	we are not the proposer, so we're checking for a PRE-PREPARE msg
-		if num := i.messages.NumMessages(
-			&i.state.view,
-			proto.MessageType_PREPREPARE,
-		); num > 0 {
-			//	TODO: fetch pre-prepare message
-			newProposal := []byte("new block")
-
-			//	I'm locked and block newProposal matches my accepted block
-			if i.state.locked && !bytes.Equal(i.state.proposal, newProposal) {
-				//	proposed block does not match my locked block
-				i.state.name = roundChange
-
-				return errors.New("newProposal mismatch locked block")
-			}
-
-			if !i.backend.IsValidBlock(newProposal) {
-				i.state.name = roundChange
-
-				return errors.New("invalid block newProposal")
-			}
-			i.state.proposal = newProposal
-			i.state.name = prepare
-
-			//	TODO: construct a PREPARE message and gossip
-			prepare := &proto.Message{}
-			i.transport.Multicast(prepare)
-		}
-
+	//	we are not the proposer, so we're checking on a PRE-PREPARE msg
+	if i.messages.NumMessages(
+		&i.state.view,
+		proto.MessageType_PREPREPARE,
+	) == 0 {
+		//	no PRE-PREPARE message received (yet)
 		return nil
 	}
+
+	//	TODO (messages): extract proposal from PRE-PREPARE message
+	newProposal := []byte("new block")
+
+	if err := i.acceptProposal(newProposal); err != nil {
+		i.state.name = roundChange
+
+		return err
+	}
+
+	//	TODO (backend): construct a PREPARE message and gossip
+	prepare := &proto.Message{}
+	i.transport.Multicast(prepare)
+
+	return nil
+}
+
+func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
+	if i.state.locked {
+		return i.state.proposal, nil
+	}
+
+	proposal, err := i.backend.BuildProposal(height)
+	if err != nil {
+		return nil, errBuildProposal
+	}
+
+	return proposal, nil
+
+}
+
+func (i *IBFT) proposeBlock(height uint64) error {
+	proposal, err := i.buildProposal(height)
+	if err != nil {
+		i.state.name = roundChange
+
+		return err
+	}
+
+	i.state.proposal = proposal
+	i.state.name = prepare
+
+	//	TODO (backend): construct a PREPARE message and gossip
+	prepare := &proto.Message{}
+	i.transport.Multicast(prepare)
+
+	return nil
+}
+
+func (i *IBFT) validateProposal(newProposal []byte) error {
+	//	In case I was previously locked on a block proposal,
+	//	the new one must match the old
+	if i.state.locked &&
+		!bytes.Equal(i.state.proposal, newProposal) {
+		//	proposed block does not match my locked block
+		return errors.New("newProposal mismatch locked block")
+	}
+
+	if !i.backend.IsValidBlock(newProposal) {
+		return errors.New("invalid block newProposal")
+
+	}
+
+	return nil
+}
+
+func (i *IBFT) acceptProposal(proposal []byte) error {
+	if err := i.validateProposal(proposal); err != nil {
+		return err
+	}
+
+	//	accept newly proposed block and move to PREPARE state
+	i.state.proposal = proposal
+	i.state.name = prepare
 
 	return nil
 }

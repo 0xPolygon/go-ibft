@@ -30,7 +30,7 @@ type mockBackend struct {
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
 }
 
-func (m *mockBackend) IsValidBlock(block []byte) bool {
+func (m mockBackend) IsValidBlock(block []byte) bool {
 	if m.isValidBlockFn != nil {
 		return m.isValidBlockFn(block)
 	}
@@ -38,11 +38,11 @@ func (m *mockBackend) IsValidBlock(block []byte) bool {
 	return true
 }
 
-func (m *mockBackend) HookIsValidBlock(fn isValidBlockDelegate) {
+func (m mockBackend) HookIsValidBlock(fn isValidBlockDelegate) {
 	m.isValidBlockFn = fn
 }
 
-func (m *mockBackend) IsValidMessage(msg *proto.Message) bool {
+func (m mockBackend) IsValidMessage(msg *proto.Message) bool {
 	if m.isValidBlockFn != nil {
 		return m.isValidMessageFn(msg)
 	}
@@ -50,11 +50,11 @@ func (m *mockBackend) IsValidMessage(msg *proto.Message) bool {
 	return true
 }
 
-func (m *mockBackend) HookIsValidMessage(fn isValidMessageDelegate) {
+func (m mockBackend) HookIsValidMessage(fn isValidMessageDelegate) {
 	m.isValidMessageFn = fn
 }
 
-func (m *mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
+func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	if m.isProposerFn != nil {
 		return m.isProposerFn(id, sequence, round)
 	}
@@ -62,11 +62,11 @@ func (m *mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m *mockBackend) HookIsProposer(fn isProposerDelegate) {
+func (m mockBackend) HookIsProposer(fn isProposerDelegate) {
 	m.isProposerFn = fn
 }
 
-func (m *mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
+func (m mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 	if m.buildProposalFn != nil {
 		return m.buildProposalFn(blockNumber)
 	}
@@ -74,11 +74,11 @@ func (m *mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 	return nil, nil
 }
 
-func (m *mockBackend) HookBuildProposal(fn buildProposalDelegate) {
+func (m mockBackend) HookBuildProposal(fn buildProposalDelegate) {
 	m.buildProposalFn = fn
 }
 
-func (m *mockBackend) VerifyProposalHash(proposal, hash []byte) error {
+func (m mockBackend) VerifyProposalHash(proposal, hash []byte) error {
 	if m.verifyProposalHashFn != nil {
 		return m.verifyProposalHashFn(proposal, hash)
 	}
@@ -86,11 +86,11 @@ func (m *mockBackend) VerifyProposalHash(proposal, hash []byte) error {
 	return nil
 }
 
-func (m *mockBackend) HookVerifyProposalHash(fn verifyProposalHashDelegate) {
+func (m mockBackend) HookVerifyProposalHash(fn verifyProposalHashDelegate) {
 	m.verifyProposalHashFn = fn
 }
 
-func (m *mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
+func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 	if m.isValidCommittedSealFn != nil {
 		return m.isValidCommittedSealFn(proposal, seal)
 	}
@@ -98,7 +98,7 @@ func (m *mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 	return true
 }
 
-func (m *mockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
+func (m mockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
 	m.isValidCommittedSealFn = fn
 }
 
@@ -110,13 +110,13 @@ type mockTransport struct {
 	multicastFn multicastFnDelegate
 }
 
-func (t *mockTransport) Multicast(msg *proto.Message) {
+func (t mockTransport) Multicast(msg *proto.Message) {
 	if t.multicastFn != nil {
 		t.multicastFn(msg)
 	}
 }
 
-func (t *mockTransport) HookMulticast(fn multicastFnDelegate) {
+func (t mockTransport) HookMulticast(fn multicastFnDelegate) {
 	t.multicastFn = fn
 }
 
@@ -130,33 +130,33 @@ type mockLogger struct {
 	errorFn opLogDelegate
 }
 
-func (l *mockLogger) Info(msg string, args ...interface{}) {
+func (l mockLogger) Info(msg string, args ...interface{}) {
 	if l.infoFn != nil {
 		l.infoFn(msg, args)
 	}
 }
 
-func (l *mockLogger) HookInfo(fn opLogDelegate) {
+func (l mockLogger) HookInfo(fn opLogDelegate) {
 	l.infoFn = fn
 }
 
-func (l *mockLogger) Debug(msg string, args ...interface{}) {
+func (l mockLogger) Debug(msg string, args ...interface{}) {
 	if l.debugFn != nil {
 		l.debugFn(msg, args)
 	}
 }
 
-func (l *mockLogger) HookDebug(fn opLogDelegate) {
+func (l mockLogger) HookDebug(fn opLogDelegate) {
 	l.debugFn = fn
 }
 
-func (l *mockLogger) Error(msg string, args ...interface{}) {
+func (l mockLogger) Error(msg string, args ...interface{}) {
 	if l.errorFn != nil {
 		l.errorFn(msg, args)
 	}
 }
 
-func (l *mockLogger) HookError(fn opLogDelegate) {
+func (l mockLogger) HookError(fn opLogDelegate) {
 	l.errorFn = fn
 }
 
@@ -183,7 +183,7 @@ func (m mockMessages) PruneByRound(view *proto.View) {
 	m.pruneByRoundFn(view)
 }
 
-func (m *mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
+func (m mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
 	if m.buildPrePrepareMessageFn != nil {
 		return m.buildPrePrepareMessageFn(proposal)
 	}
@@ -191,11 +191,11 @@ func (m *mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
 	return nil
 }
 
-func (m *mockBackend) HookBuildPrePrepareMessage(fn buildPrePrepareMessageDelegate) {
+func (m mockBackend) HookBuildPrePrepareMessage(fn buildPrePrepareMessageDelegate) {
 	m.buildPrePrepareMessageFn = fn
 }
 
-func (m *mockBackend) BuildPrepareMessage(proposal []byte) *proto.Message {
+func (m mockBackend) BuildPrepareMessage(proposal []byte) *proto.Message {
 	if m.buildPrepareMessageFn != nil {
 		return m.buildPrepareMessageFn(proposal)
 	}
@@ -203,11 +203,11 @@ func (m *mockBackend) BuildPrepareMessage(proposal []byte) *proto.Message {
 	return nil
 }
 
-func (m *mockBackend) HookBuildPrepareMessage(fn buildPrepareMessageDelegate) {
+func (m mockBackend) HookBuildPrepareMessage(fn buildPrepareMessageDelegate) {
 	m.buildPrepareMessageFn = fn
 }
 
-func (m *mockBackend) BuildCommitMessage(proposal []byte) *proto.Message {
+func (m mockBackend) BuildCommitMessage(proposal []byte) *proto.Message {
 	if m.buildCommitMessageFn != nil {
 		return m.buildCommitMessageFn(proposal)
 	}
@@ -215,11 +215,11 @@ func (m *mockBackend) BuildCommitMessage(proposal []byte) *proto.Message {
 	return nil
 }
 
-func (m *mockBackend) HookBuildCommitMessage(fn buildCommitMessageDelegate) {
+func (m mockBackend) HookBuildCommitMessage(fn buildCommitMessageDelegate) {
 	m.buildCommitMessageFn = fn
 }
 
-func (m *mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
+func (m mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
 	if m.buildRoundChangeMessageFn != nil {
 		return m.buildRoundChangeMessageFn(height, round)
 	}
@@ -227,6 +227,6 @@ func (m *mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *prot
 	return nil
 }
 
-func (m *mockBackend) HookBuildRoundChangeMessage(fn buildRoundChangeMessageDelegate) {
+func (m mockBackend) HookBuildRoundChangeMessage(fn buildRoundChangeMessageDelegate) {
 	m.buildRoundChangeMessageFn = fn
 }
