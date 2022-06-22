@@ -28,10 +28,10 @@ type view struct {
 type stateName int
 
 const (
-	new_round stateName = iota
+	newRound stateName = iota
 	prepare
 	commit
-	round_change
+	roundChange
 	fin
 )
 
@@ -83,12 +83,12 @@ func (i *IBFT) runSequence(h uint64) {
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
-
 		switch i.state.name {
-		case new_round:
+		case newRound:
 			if err := i.runNewRound(); err != nil {
 				//	something wrong -> go to round change
 				i.roundDone <- err
+				i.state.name = roundChange
 
 				return
 			}
@@ -103,7 +103,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			return
 		default:
 		}
-
 	}
 }
 
@@ -126,7 +125,7 @@ func (i *IBFT) runNewRound() error {
 		} else {
 			proposal, err = i.backend.BuildProposal(height)
 			if err != nil {
-				i.state.name = round_change
+				i.state.name = roundChange
 
 				return err
 			}
@@ -151,13 +150,13 @@ func (i *IBFT) runNewRound() error {
 			//	I'm locked and block newProposal matches my accepted block
 			if i.state.locked && !bytes.Equal(i.state.proposal, newProposal) {
 				//	proposed block does not match my locked block
-				i.state.name = round_change
+				i.state.name = roundChange
 
 				return errors.New("newProposal mismatch locked block")
 			}
 
 			if !i.backend.IsValidBlock(newProposal) {
-				i.state.name = round_change
+				i.state.name = roundChange
 
 				return errors.New("invalid block newProposal")
 
