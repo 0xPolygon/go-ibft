@@ -10,6 +10,11 @@ type buildProposalDelegate func(uint64) ([]byte, error)
 type verifyProposalHashDelegate func([]byte, []byte) error
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
+type buildPrePrepareMessageDelegate func([]byte) *proto.Message
+type buildPrepareMessageDelegate func([]byte) *proto.Message
+type buildCommitMessageDelegate func([]byte) *proto.Message
+type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
+
 // MockBackend is the mock backend structure that is configurable
 type MockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
@@ -18,6 +23,11 @@ type MockBackend struct {
 	buildProposalFn        buildProposalDelegate
 	verifyProposalHashFn   verifyProposalHashDelegate
 	isValidCommittedSealFn isValidCommittedSealDelegate
+
+	buildPrePrepareMessageFn  buildPrePrepareMessageDelegate
+	buildPrepareMessageFn     buildPrepareMessageDelegate
+	buildCommitMessageFn      buildCommitMessageDelegate
+	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
 }
 
 func (m *MockBackend) IsValidBlock(block []byte) bool {
@@ -90,4 +100,52 @@ func (m *MockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 
 func (m *MockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
 	m.isValidCommittedSealFn = fn
+}
+
+func (m *MockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
+	if m.buildPrePrepareMessageFn != nil {
+		return m.buildPrePrepareMessageFn(proposal)
+	}
+
+	return nil
+}
+
+func (m *MockBackend) HookBuildPrePrepareMessage(fn buildPrePrepareMessageDelegate) {
+	m.buildPrePrepareMessageFn = fn
+}
+
+func (m *MockBackend) BuildPrepareMessage(proposal []byte) *proto.Message {
+	if m.buildPrepareMessageFn != nil {
+		return m.buildPrepareMessageFn(proposal)
+	}
+
+	return nil
+}
+
+func (m *MockBackend) HookBuildPrepareMessage(fn buildPrepareMessageDelegate) {
+	m.buildPrepareMessageFn = fn
+}
+
+func (m *MockBackend) BuildCommitMessage(proposal []byte) *proto.Message {
+	if m.buildCommitMessageFn != nil {
+		return m.buildCommitMessageFn(proposal)
+	}
+
+	return nil
+}
+
+func (m *MockBackend) HookBuildCommitMessage(fn buildCommitMessageDelegate) {
+	m.buildCommitMessageFn = fn
+}
+
+func (m *MockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
+	if m.buildRoundChangeMessageFn != nil {
+		return m.buildRoundChangeMessageFn(height, round)
+	}
+
+	return nil
+}
+
+func (m *MockBackend) HookBuildRoundChangeMessage(fn buildRoundChangeMessageDelegate) {
+	m.buildRoundChangeMessageFn = fn
 }
