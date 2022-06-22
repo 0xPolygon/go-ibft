@@ -1,7 +1,8 @@
 package core
 
 import (
-	"github.com/Trapesys/go-ibft/messages"
+	"bytes"
+	"errors"
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
@@ -9,6 +10,13 @@ type Logger interface {
 	Info(msg string, args ...interface{})
 	Debug(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
+}
+
+type Messages interface {
+	AddMessage(message *proto.Message)
+	NumMessages(view *proto.View, messageType proto.MessageType) int
+	PruneByHeight(view *proto.View)
+	PruneByRound(view *proto.View)
 }
 
 type QuorumFn func(num uint64) uint64
@@ -45,7 +53,7 @@ type IBFT struct {
 
 	state state
 
-	messages messages.Messages
+	messages Messages
 
 	backend Backend
 
@@ -69,6 +77,10 @@ func NewIBFT(
 	}
 }
 
+func (i *IBFT) runSequence(h uint64) {
+	//	TODO
+}
+
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
 
@@ -77,12 +89,10 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			if err := i.runNewRound(); err != nil {
 				//	something wrong -> go to round change
 				i.roundDone <- err
-				i.state.name = round_change
 
 				return
 			}
 
-			i.state.name = prepare
 		case prepare:
 		}
 
@@ -116,6 +126,8 @@ func (i *IBFT) runNewRound() error {
 		} else {
 			proposal, err = i.backend.BuildProposal(height)
 			if err != nil {
+				i.state.name = round_change
+
 				return err
 			}
 		}
@@ -132,8 +144,35 @@ func (i *IBFT) runNewRound() error {
 			},
 		})
 
-	} else {
+		i.state.name = prepare
 
+	} else {
+		//	we are not the proposer, so we're checking for a PRE-PREPARE msg
+		if num := i.messages.NumMessages(
+			&i.state.view,
+			proto.MessageType_PREPREPARE,
+		); num > 0 {
+			//	TODO: fetch pre-prepare message
+			newProposal := []byte("new block newProposal")
+
+			if !i.backend.IsValidBlock(newProposal) {
+				i.state.name = round_change
+
+				return errors.New("invalid block newProposal")
+
+			}
+
+			//	#2: I'm locked and block newProposal matches my accepted block
+			if i.state.locked && !bytes.Equal(i.state.proposal, newProposal) {
+				//	proposed block does not match my locked block
+				i.state.name = round_change
+
+				return errors.New("newProposal mismatch locked block")
+			}
+
+		}
+
+		return nil
 	}
 
 	return nil

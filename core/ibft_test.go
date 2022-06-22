@@ -103,6 +103,36 @@ func TestNewRound_Validator(t *testing.T) {
 	t.Run(
 		"invalid PRE-PREPARE received",
 		func(t *testing.T) {
+			i := NewIBFT(
+				&mockLogger{},
+				&MockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return false
+					},
+					isValidBlockFn: func(bytes []byte) bool {
+						return false
+					},
+				},
+				&mockTransport{},
+			)
+
+			i.messages = mockMessages{
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					return 1
+				},
+			}
+
+			i.state.name = new_round
+			i.state.locked = false
+
+			go func() {
+				//	unblock runRound
+				<-i.roundDone
+			}()
+
+			i.runRound(nil)
+
+			assert.Equal(t, round_change, i.state.name)
 
 		},
 	)

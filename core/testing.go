@@ -123,3 +123,26 @@ func (l *mockLogger) Debug(msg string, args ...interface{}) {
 func (l *mockLogger) Error(msg string, args ...interface{}) {
 	l.error(msg, args)
 }
+
+type mockMessages struct {
+	addMessageFn    func(message *proto.Message)
+	numMessagesFn   func(view *proto.View, messageType proto.MessageType) int
+	pruneByHeightFn func(view *proto.View)
+	pruneByRoundFn  func(view *proto.View)
+}
+
+func (m mockMessages) AddMessage(msg *proto.Message) {
+	m.addMessageFn(msg)
+}
+
+func (m mockMessages) NumMessages(view *proto.View, messageType proto.MessageType) int {
+	return m.numMessagesFn(view, messageType)
+}
+
+func (m mockMessages) PruneByHeight(view *proto.View) {
+	m.pruneByHeightFn(view)
+}
+
+func (m mockMessages) PruneByRound(view *proto.View) {
+	m.pruneByRoundFn(view)
+}
