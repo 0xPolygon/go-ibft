@@ -132,19 +132,12 @@ func (i *IBFT) runNewRound() error {
 			}
 		}
 
-		i.transport.Multicast(&proto.Message{
-			View:      &i.state.view,
-			From:      nil,
-			Signature: nil,
-			Type:      0,
-			Payload: &proto.Message_PreprepareData{
-				PreprepareData: &proto.PrePrepareMessage{
-					Proposal: proposal,
-				},
-			},
-		})
-
+		i.state.proposal = proposal
 		i.state.name = prepare
+
+		//	TODO: construct a PREPARE message and gossip
+		prepare := &proto.Message{}
+		i.transport.Multicast(prepare)
 
 	} else {
 		//	we are not the proposer, so we're checking for a PRE-PREPARE msg
