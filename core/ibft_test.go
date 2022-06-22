@@ -86,37 +86,29 @@ func TestRunNewRound_Proposer(t *testing.T) {
 
 func TestRunNewRound_Validator(t *testing.T) {
 	t.Run(
-		"invalid PRE-PREPARE received",
+		"validator receives invalid block",
 		func(t *testing.T) {
-			i := NewIBFT(
-				&mockLogger{},
-				&mockBackend{
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
 					isValidBlockFn: func(bytes []byte) bool {
 						return false
 					},
-				},
-				&mockTransport{},
+				}
 			)
 
+			i := NewIBFT(log, backend, transport)
 			i.messages = mockMessages{
 				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
 					return 1
 				},
 			}
 
-			i.state.name = newRound
-			i.state.locked = false
-
-			go func() {
-				//	unblock runRound
-				<-i.roundDone
-			}()
-
-			i.runRound(nil)
-
+			assert.ErrorIs(t, errInvalidBlock, i.runNewRound())
 			assert.Equal(t, roundChange, i.state.name)
 		},
 	)

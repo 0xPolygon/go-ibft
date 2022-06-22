@@ -21,6 +21,7 @@ type Messages interface {
 
 var (
 	errBuildProposal = errors.New("failed to build proposal")
+	errInvalidBlock  = errors.New("invalid block newProposal")
 )
 
 type QuorumFn func(num uint64) uint64
@@ -188,7 +189,7 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 	}
 
 	if !i.backend.IsValidBlock(newProposal) {
-		return errors.New("invalid block newProposal")
+		return errInvalidBlock
 
 	}
 
