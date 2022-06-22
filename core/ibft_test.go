@@ -11,31 +11,26 @@ import (
 
 //	New Round
 
-func TestNewRound_Proposer(t *testing.T) {
+func TestRunNewRound_Proposer(t *testing.T) {
 	t.Run(
-		"unlocked proposer builds proposal",
+		"proposer builds proposal",
 		func(t *testing.T) {
-			i := NewIBFT(
-				&mockLogger{},
-				&mockBackend{
-					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
-						return true
-					},
-				},
-				&mockTransport{func(message *proto.Message) {}},
+			var (
+				newProposal = []byte("new block")
+
+				log       = mockLogger{}
+				transport = mockTransport{func(message *proto.Message) {}}
+				backend   = mockBackend{
+					isProposerFn:    func(bytes []byte, u uint64, u2 uint64) bool { return true },
+					buildProposalFn: func(u uint64) ([]byte, error) { return newProposal, nil },
+				}
 			)
 
-			i.state.locked = false
+			i := NewIBFT(log, backend, transport)
 
-			//	close the channel so runRound completes
-			quit := make(chan struct{})
-			go func() {
-				close(quit)
-			}()
-
-			i.runRound(quit)
-
+			assert.NoError(t, i.runNewRound())
 			assert.Equal(t, prepare, i.state.name)
+			assert.Equal(t, newProposal, i.state.proposal)
 		},
 	)
 
