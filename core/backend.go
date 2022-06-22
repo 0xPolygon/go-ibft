@@ -2,9 +2,26 @@ package core
 
 import "github.com/Trapesys/go-ibft/messages/proto"
 
-// Backend defines an interface all core implementations
+// messageConstructor defines a message constructor interface
+type messageConstructor interface {
+	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
+	BuildPrePrepareMessage(proposal []byte) *proto.Message
+
+	// BuildPrepareMessage builds a PREPARE message based on the passed in proposal
+	BuildPrepareMessage(proposal []byte) *proto.Message
+
+	// BuildCommitMessage builds a COMMIT message based on the passed in proposal
+	BuildCommitMessage(proposal []byte) *proto.Message
+
+	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
+	BuildRoundChangeMessage(height, round uint64) *proto.Message
+}
+
+// Backend defines an interface all backend implementations
 // need to implement
 type Backend interface {
+	messageConstructor
+
 	// IsValidBlock checks if the proposed block is child of parent
 	IsValidBlock(block []byte) bool
 

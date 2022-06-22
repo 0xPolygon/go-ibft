@@ -207,5 +207,4 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.Equal(t, []byte("new block"), i.state.proposal)
 		},
 	)
-
 }
