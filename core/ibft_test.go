@@ -105,7 +105,7 @@ func TestNewRound_Validator(t *testing.T) {
 		func(t *testing.T) {
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -122,7 +122,7 @@ func TestNewRound_Validator(t *testing.T) {
 				},
 			}
 
-			i.state.name = new_round
+			i.state.name = newRound
 			i.state.locked = false
 
 			go func() {
@@ -132,7 +132,7 @@ func TestNewRound_Validator(t *testing.T) {
 
 			i.runRound(nil)
 
-			assert.Equal(t, round_change, i.state.name)
+			assert.Equal(t, roundChange, i.state.name)
 		},
 	)
 
@@ -141,7 +141,7 @@ func TestNewRound_Validator(t *testing.T) {
 		func(t *testing.T) {
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -158,7 +158,7 @@ func TestNewRound_Validator(t *testing.T) {
 				},
 			}
 
-			i.state.name = new_round
+			i.state.name = newRound
 			i.state.locked = true
 			i.state.proposal = []byte("old block")
 
@@ -169,7 +169,7 @@ func TestNewRound_Validator(t *testing.T) {
 
 			i.runRound(nil)
 
-			assert.Equal(t, round_change, i.state.name)
+			assert.Equal(t, roundChange, i.state.name)
 		},
 	)
 
@@ -178,7 +178,7 @@ func TestNewRound_Validator(t *testing.T) {
 		func(t *testing.T) {
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -197,7 +197,7 @@ func TestNewRound_Validator(t *testing.T) {
 				},
 			}
 
-			i.state.name = new_round
+			i.state.name = newRound
 			i.state.locked = false
 
 			quit := make(chan struct{})
@@ -216,7 +216,7 @@ func TestNewRound_Validator(t *testing.T) {
 		func(t *testing.T) {
 			i := NewIBFT(
 				&mockLogger{},
-				&MockBackend{
+				&mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -235,7 +235,7 @@ func TestNewRound_Validator(t *testing.T) {
 				},
 			}
 
-			i.state.name = new_round
+			i.state.name = newRound
 			i.state.locked = true
 			i.state.proposal = []byte("new block")
 
