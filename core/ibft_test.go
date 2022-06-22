@@ -84,7 +84,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 	)
 }
 
-func TestNewRound_Validator(t *testing.T) {
+func TestRunNewRound_Validator(t *testing.T) {
 	t.Run(
 		"invalid PRE-PREPARE received",
 		func(t *testing.T) {

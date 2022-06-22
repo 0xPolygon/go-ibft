@@ -130,6 +130,7 @@ func (i *IBFT) runNewRound() error {
 		return nil
 	}
 
+	//	TODO (messages): extract proposal from PRE-PREPARE message
 	newProposal := []byte("new block")
 
 	if err := i.acceptProposal(newProposal); err != nil {
