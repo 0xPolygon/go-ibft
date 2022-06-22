@@ -155,6 +155,14 @@ func (i *IBFT) runNewRound() error {
 			//	TODO: fetch pre-prepare message
 			newProposal := []byte("new block")
 
+			//	I'm locked and block newProposal matches my accepted block
+			if i.state.locked && !bytes.Equal(i.state.proposal, newProposal) {
+				//	proposed block does not match my locked block
+				i.state.name = round_change
+
+				return errors.New("newProposal mismatch locked block")
+			}
+
 			if !i.backend.IsValidBlock(newProposal) {
 				i.state.name = round_change
 
@@ -162,13 +170,12 @@ func (i *IBFT) runNewRound() error {
 
 			}
 
-			//	#2: I'm locked and block newProposal matches my accepted block
-			if i.state.locked && !bytes.Equal(i.state.proposal, newProposal) {
-				//	proposed block does not match my locked block
-				i.state.name = round_change
+			i.state.proposal = newProposal
+			i.state.name = prepare
 
-				return errors.New("newProposal mismatch locked block")
-			}
+			//	TODO: construct a PREPARE message and gossip
+			prepare := &proto.Message{}
+			i.transport.Multicast(prepare)
 
 		}
 

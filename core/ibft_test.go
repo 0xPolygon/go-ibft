@@ -176,14 +176,77 @@ func TestNewRound_Validator(t *testing.T) {
 	t.Run(
 		"valid PRE-PREPARE received",
 		func(t *testing.T) {
+			i := NewIBFT(
+				&mockLogger{},
+				&MockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return false
+					},
+					isValidBlockFn: func(bytes []byte) bool {
+						return true
+					},
+				},
+				&mockTransport{
+					func(message *proto.Message) {},
+				},
+			)
 
+			i.messages = mockMessages{
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					return 1
+				},
+			}
+
+			i.state.name = new_round
+			i.state.locked = false
+
+			quit := make(chan struct{})
+			go func() {
+				close(quit)
+			}()
+
+			i.runRound(quit)
+
+			assert.Equal(t, prepare, i.state.name)
 		},
 	)
 
 	t.Run(
 		"PRE-PREPARE matches locked block",
 		func(t *testing.T) {
+			i := NewIBFT(
+				&mockLogger{},
+				&MockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return false
+					},
+					isValidBlockFn: func(bytes []byte) bool {
+						return true
+					},
+				},
+				&mockTransport{
+					func(message *proto.Message) {},
+				},
+			)
 
+			i.messages = mockMessages{
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					return 1
+				},
+			}
+
+			i.state.name = new_round
+			i.state.locked = true
+			i.state.proposal = []byte("new block")
+
+			quit := make(chan struct{})
+			go func() {
+				close(quit)
+			}()
+
+			i.runRound(quit)
+
+			assert.Equal(t, prepare, i.state.name)
 		},
 	)
 
