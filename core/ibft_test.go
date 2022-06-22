@@ -35,32 +35,26 @@ func TestRunNewRound_Proposer(t *testing.T) {
 	)
 
 	t.Run(
-		"unlocked proposer fails to build proposal",
+		"proposer fails to build proposal",
 		func(t *testing.T) {
-			//	#1:	setup prestate
-			i := NewIBFT(
-				&mockLogger{},
-				&mockBackend{
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{func(message *proto.Message) {}}
+				backend   = mockBackend{
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return true
 					},
 					buildProposalFn: func(u uint64) ([]byte, error) {
 						return nil, errors.New("bad")
 					},
-				},
-				&mockTransport{func(message *proto.Message) {}},
+				}
 			)
 
-			i.state.locked = false
+			i := NewIBFT(log, backend, transport)
 
-			//	unblock runRound
-			go func() {
-				<-i.roundDone
-			}()
-
-			i.runRound(nil)
-
+			assert.ErrorIs(t, errBuildProposal, i.runNewRound())
 			assert.Equal(t, roundChange, i.state.name)
+			assert.Equal(t, []byte(nil), i.state.proposal)
 		},
 	)
 

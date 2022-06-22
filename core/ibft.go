@@ -19,6 +19,10 @@ type Messages interface {
 	PruneByRound(view *proto.View)
 }
 
+var (
+	errBuildProposal = errors.New("failed to build proposal")
+)
+
 type QuorumFn func(num uint64) uint64
 
 type view struct {
@@ -148,7 +152,7 @@ func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 
 	proposal, err := i.backend.BuildProposal(height)
 	if err != nil {
-		return nil, err
+		return nil, errBuildProposal
 	}
 
 	return proposal, nil
