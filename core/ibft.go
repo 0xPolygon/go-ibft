@@ -153,7 +153,7 @@ func (i *IBFT) runNewRound() error {
 			proto.MessageType_PREPREPARE,
 		); num > 0 {
 			//	TODO: fetch pre-prepare message
-			newProposal := []byte("new block newProposal")
+			newProposal := []byte("new block")
 
 			if !i.backend.IsValidBlock(newProposal) {
 				i.state.name = round_change

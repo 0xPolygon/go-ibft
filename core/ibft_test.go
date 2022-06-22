@@ -133,7 +133,43 @@ func TestNewRound_Validator(t *testing.T) {
 			i.runRound(nil)
 
 			assert.Equal(t, round_change, i.state.name)
+		},
+	)
 
+	t.Run(
+		"PRE-PREPARE does not match locked block",
+		func(t *testing.T) {
+			i := NewIBFT(
+				&mockLogger{},
+				&MockBackend{
+					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+						return false
+					},
+					isValidBlockFn: func(bytes []byte) bool {
+						return true
+					},
+				},
+				&mockTransport{},
+			)
+
+			i.messages = mockMessages{
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					return 1
+				},
+			}
+
+			i.state.name = new_round
+			i.state.locked = true
+			i.state.proposal = []byte("old block")
+
+			go func() {
+				//	unblock runRound
+				<-i.roundDone
+			}()
+
+			i.runRound(nil)
+
+			assert.Equal(t, round_change, i.state.name)
 		},
 	)
 
@@ -151,10 +187,4 @@ func TestNewRound_Validator(t *testing.T) {
 		},
 	)
 
-	t.Run(
-		"PRE-PREPARE does not match locked block",
-		func(t *testing.T) {
-
-		},
-	)
 }
