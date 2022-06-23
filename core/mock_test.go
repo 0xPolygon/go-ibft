@@ -17,6 +17,7 @@ type buildPrePrepareMessageDelegate func([]byte) *proto.Message
 type buildPrepareMessageDelegate func([]byte) *proto.Message
 type buildCommitMessageDelegate func([]byte) *proto.Message
 type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
+type validatorCountDelegate func(blockNumber uint64) uint64
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -31,6 +32,11 @@ type mockBackend struct {
 	buildPrepareMessageFn     buildPrepareMessageDelegate
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
+	validatorCountFn          validatorCountDelegate
+}
+
+func (m mockBackend) ValidatorCount(blockNumber uint64) uint64 {
+	return m.validatorCountFn(blockNumber)
 }
 
 func (m mockBackend) IsValidBlock(block []byte) bool {

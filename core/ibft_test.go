@@ -236,6 +236,9 @@ func TestRunPrepare(t *testing.T) {
 							3: {ProposalHash: []byte("hash")},
 						}
 					},
+					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+						return 4
+					},
 				}
 			)
 
@@ -246,5 +249,42 @@ func TestRunPrepare(t *testing.T) {
 			assert.NoError(t, i.runPrepare())
 			assert.Equal(t, commit, i.state.name)
 			assert.True(t, i.state.locked)
+		})
+
+	t.Run(
+		"validator not (yet) received quorum",
+		func(t *testing.T) {
+			var (
+				quorum   = uint64(4)
+				quorumFn = QuorumFn(func(num uint64) uint64 { return quorum })
+
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					validatorCountFn: func(blockNumber uint64) uint64 {
+						return 4
+					},
+				}
+				messages = mockMessages{
+					getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+						return []*messages.PrepareMessage{
+							0: {ProposalHash: []byte("hash")},
+						}
+					},
+					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+						return 4
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
+			i.quorumFn = quorumFn
+			i.state.name = prepare
+
+			//println(i.runPrepare())
+			assert.ErrorIs(t, errQuorumNotReached, i.runPrepare())
+			assert.Equal(t, prepare, i.state.name)
+			assert.False(t, i.state.locked)
 		})
 }

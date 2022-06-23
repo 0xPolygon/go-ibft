@@ -26,9 +26,11 @@ type Messages interface {
 }
 
 var (
-	errBuildProposal    = errors.New("failed to build proposal")
-	errProposalMismatch = errors.New("proposal mot matching locked block")
-	errInvalidBlock     = errors.New("invalid block proposal")
+	errBuildProposal           = errors.New("failed to build proposal")
+	errPrePrepareBlockMismatch = errors.New("(pre-prepare) proposal not matching locked block")
+	errInvalidBlock            = errors.New("invalid block proposal")
+	errPrepareHashMismatch     = errors.New("(prepare) block hash not matching accepted block")
+	errQuorumNotReached        = errors.New("quorum on messages not reached")
 )
 
 type QuorumFn func(num uint64) uint64
@@ -106,6 +108,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			}
 
 		case prepare:
+			i.runPrepare()
 		}
 
 		//	TODO: check f+1 RC
@@ -118,8 +121,36 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	}
 }
 
-func (i *IBFT) runPrepare() {
+func (i *IBFT) runPrepare() error {
+	var (
+		view          = &i.state.view
+		acceptedBlock = i.state.proposal
+		numValidators = i.backend.ValidatorCount(view.Height)
+		quorum        = int(i.quorumFn(numValidators))
+	)
 
+	prepareMessages := i.messages.GetPrepareMessages(view)
+	if len(prepareMessages) < quorum {
+		return errQuorumNotReached
+
+	}
+
+	for _, msg := range i.messages.GetPrepareMessages(view) {
+		if err := i.backend.VerifyProposalHash(acceptedBlock, msg.ProposalHash); err != nil {
+			return errPrepareHashMismatch
+		}
+	}
+
+	//	quorum on prepare message reached:
+	//	lock on the accepted proposal and move to commit state
+	i.state.name = commit
+	i.state.locked = true
+
+	commitMsg := i.backend.BuildCommitMessage(i.state.proposal)
+
+	i.transport.Multicast(commitMsg)
+
+	return nil
 }
 
 func (i *IBFT) runNewRound() error {
@@ -196,7 +227,7 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 	if i.state.locked &&
 		!bytes.Equal(i.state.proposal, newProposal) {
 		//	proposed block does not match my locked block
-		return errProposalMismatch
+		return errPrePrepareBlockMismatch
 	}
 
 	if !i.backend.IsValidBlock(newProposal) {
