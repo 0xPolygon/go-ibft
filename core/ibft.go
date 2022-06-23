@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"errors"
+	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
@@ -17,12 +18,17 @@ type Messages interface {
 	NumMessages(view *proto.View, messageType proto.MessageType) int
 	PruneByHeight(view *proto.View)
 	PruneByRound(view *proto.View)
+
+	GetPrePrepareMessage(view *proto.View) *messages.PrePrepareMessage
+	GetPrepareMessages(view *proto.View) []*messages.PrepareMessage
+	GetCommitMessages(view *proto.View) []*messages.CommitMessage
+	GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage
 }
 
 var (
 	errBuildProposal    = errors.New("failed to build proposal")
-	errInvalidBlock     = errors.New("invalid block newProposal")
-	errProposalMismatch = errors.New("newProposal mismatch locked block")
+	errProposalMismatch = errors.New("proposal mot matching locked block")
+	errInvalidBlock     = errors.New("invalid block proposal")
 )
 
 type QuorumFn func(num uint64) uint64
@@ -110,6 +116,10 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		default:
 		}
 	}
+}
+
+func (i *IBFT) runPrepare() {
+
 }
 
 func (i *IBFT) runNewRound() error {

@@ -1,6 +1,9 @@
 package core
 
-import "github.com/Trapesys/go-ibft/messages/proto"
+import (
+	"github.com/Trapesys/go-ibft/messages"
+	"github.com/Trapesys/go-ibft/messages/proto"
+)
 
 // Define delegation methods for hooks
 type isValidBlockDelegate func([]byte) bool
@@ -165,6 +168,11 @@ type mockMessages struct {
 	numMessagesFn   func(view *proto.View, messageType proto.MessageType) int
 	pruneByHeightFn func(view *proto.View)
 	pruneByRoundFn  func(view *proto.View)
+
+	getPrePrepareMessageFn   func(view *proto.View) *messages.PrePrepareMessage
+	getPrepareMessagesFn     func(view *proto.View) []*messages.PrepareMessage
+	getCommitMessagesFn      func(view *proto.View) []*messages.CommitMessage
+	getRoundChangeMessagesFn func(view *proto.View) []*messages.RoundChangeMessage
 }
 
 func (m mockMessages) AddMessage(msg *proto.Message) {
@@ -181,6 +189,25 @@ func (m mockMessages) PruneByHeight(view *proto.View) {
 
 func (m mockMessages) PruneByRound(view *proto.View) {
 	m.pruneByRoundFn(view)
+}
+
+func (m mockMessages) GetPrePrepareMessage(view *proto.View) *messages.PrePrepareMessage {
+	return m.getPrePrepareMessageFn(view)
+}
+
+// GetPrepareMessages returns all PREPARE messages, if any
+func (m mockMessages) GetPrepareMessages(view *proto.View) []*messages.PrepareMessage {
+	return m.getPrepareMessagesFn(view)
+}
+
+// GetCommitMessages returns all COMMIT messages, if any
+func (m mockMessages) GetCommitMessages(view *proto.View) []*messages.CommitMessage {
+	return m.getCommitMessagesFn(view)
+}
+
+// GetRoundChangeMessages returns all ROUND_CHANGE message, if any
+func (m mockMessages) GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage {
+	return m.getRoundChangeMessagesFn(view)
 }
 
 func (m mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
