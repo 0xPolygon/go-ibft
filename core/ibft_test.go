@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"github.com/Trapesys/go-ibft/messages"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -170,7 +171,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			i.state.locked = true
 			i.state.proposal = []byte("old block")
 
-			assert.ErrorIs(t, errProposalMismatch, i.runNewRound())
+			assert.ErrorIs(t, errPrePrepareBlockMismatch, i.runNewRound())
 			assert.Equal(t, roundChange, i.state.name)
 			assert.Equal(t, []byte("old block"), i.state.proposal)
 		},
@@ -207,4 +208,43 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.Equal(t, []byte("new block"), i.state.proposal)
 		},
 	)
+}
+
+func TestRunPrepare(t *testing.T) {
+	t.Run(
+		"validator receives quorum of PREPARE messages",
+		func(t *testing.T) {
+			var (
+				quorum   = uint64(4)
+				quorumFn = QuorumFn(func(num uint64) uint64 { return quorum })
+
+				log       = mockLogger{}
+				transport = mockTransport{func(message *proto.Message) {}}
+				backend   = mockBackend{
+					buildCommitMessageFn: func(bytes []byte) *proto.Message { return &proto.Message{} },
+					verifyProposalHashFn: func(bytes []byte, bytes2 []byte) error { return nil },
+					validatorCountFn: func(blockNumber uint64) uint64 {
+						return 4
+					},
+				}
+				messages = mockMessages{
+					getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+						return []*messages.PrepareMessage{
+							0: {ProposalHash: []byte("hash")},
+							1: {ProposalHash: []byte("hash")},
+							2: {ProposalHash: []byte("hash")},
+							3: {ProposalHash: []byte("hash")},
+						}
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
+			i.quorumFn = quorumFn
+
+			assert.NoError(t, i.runPrepare())
+			assert.Equal(t, commit, i.state.name)
+			assert.True(t, i.state.locked)
+		})
 }
