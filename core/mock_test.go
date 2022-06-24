@@ -187,10 +187,11 @@ type mockMessages struct {
 	pruneByHeightFn func(view *proto.View)
 	pruneByRoundFn  func(view *proto.View)
 
-	getPrePrepareMessageFn   func(view *proto.View) *messages.PrePrepareMessage
-	getPrepareMessagesFn     func(view *proto.View) []*messages.PrepareMessage
-	getCommitMessagesFn      func(view *proto.View) []*messages.CommitMessage
-	getRoundChangeMessagesFn func(view *proto.View) []*messages.RoundChangeMessage
+	getPrePrepareMessageFn       func(view *proto.View) *messages.PrePrepareMessage
+	getPrepareMessagesFn         func(view *proto.View) []*messages.PrepareMessage
+	getCommitMessagesFn          func(view *proto.View) []*messages.CommitMessage
+	getRoundChangeMessagesFn     func(view *proto.View) []*messages.RoundChangeMessage
+	getMostRoundChangeMessagesFn func() []*messages.RoundChangeMessage
 }
 
 func (m mockMessages) AddMessage(msg *proto.Message) {
@@ -226,6 +227,10 @@ func (m mockMessages) GetCommitMessages(view *proto.View) []*messages.CommitMess
 // GetRoundChangeMessages returns all ROUND_CHANGE message, if any
 func (m mockMessages) GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage {
 	return m.getRoundChangeMessagesFn(view)
+}
+
+func (m mockMessages) GetMostRoundChangeMessages() []*messages.RoundChangeMessage {
+	return m.getMostRoundChangeMessagesFn()
 }
 
 func (m mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {

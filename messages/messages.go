@@ -247,3 +247,56 @@ func (ms *Messages) GetRoundChangeMessages(view *proto.View) []*RoundChangeMessa
 
 	return roundChangeMessages
 }
+
+// GetMostRoundChangeMessages returns an array of most round change messages
+// gathered out of any round
+func (ms *Messages) GetMostRoundChangeMessages() []*RoundChangeMessage {
+	ms.Lock()
+	defer ms.Unlock()
+
+	type maxData struct {
+		maxRound        uint64
+		maxHeight       uint64
+		maxMessagesSize int
+
+		found bool
+	}
+
+	var (
+		data = maxData{
+			maxRound:        0,
+			maxHeight:       0,
+			maxMessagesSize: 0,
+			found:           false,
+		}
+
+		heightMsgMap = ms.getMessageMap(proto.MessageType_ROUND_CHANGE)
+	)
+
+	// Find the view with the max round change messages
+	for heightIndex, roundMessageMap := range heightMsgMap {
+		for roundIndex, roundMessages := range roundMessageMap {
+			if len(roundMessages) > data.maxMessagesSize || !data.found {
+				data.maxRound = roundIndex
+				data.maxHeight = heightIndex
+
+				data.maxMessagesSize = len(roundMessages)
+				data.found = true
+			}
+		}
+	}
+
+	roundChangeMessages := make([]*RoundChangeMessage, 0)
+	if data.found {
+		if messages := ms.getProtoMessages(&proto.View{
+			Height: data.maxHeight,
+			Round:  data.maxRound,
+		}, proto.MessageType_ROUND_CHANGE); messages != nil {
+			for _, message := range messages {
+				roundChangeMessages = append(roundChangeMessages, toRoundChangeFromProto(message))
+			}
+		}
+	}
+
+	return roundChangeMessages
+}
