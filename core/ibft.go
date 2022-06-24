@@ -125,7 +125,26 @@ func (i *IBFT) runSequence(h uint64) {
 			}
 		}
 
-		//	TODO: round change flow
+		i.waitForNewRoundStart()
+	}
+}
+
+func (i *IBFT) waitForNewRoundStart() {
+	for {
+		msgs := i.messages.GetMostRoundChangeMessages()
+		//	wait for quorum of rc messages
+		if len(msgs) < int(i.quorumFn(i.backend.ValidatorCount(
+			i.state.view.Height))) {
+			continue
+		}
+
+		newRound := msgs[0].Round
+		if i.state.view.Round < newRound ||
+			(i.state.view.Round == newRound && !i.state.roundStarted) {
+			i.state.view.Round = newRound
+			break
+		}
+
 	}
 }
 
@@ -164,7 +183,28 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			return
 		}
 
-		//	TODO: check f+1 RC
+		msgs := i.messages.GetMostRoundChangeMessages()
+		if len(msgs) > 0 {
+			suggestedRound := msgs[0].Round
+			if i.state.view.Round < suggestedRound &&
+				len(msgs) > 1000+1 {
+				//	TODO: 1000 + 1 -> f(n) + 1
+				//		move to new round
+				i.state.view.Round = suggestedRound
+				i.state.proposal = nil
+				i.state.roundStarted = false
+
+				i.transport.Multicast(
+					i.backend.BuildRoundChangeMessage(
+						i.state.view.Height,
+						suggestedRound,
+					))
+
+				i.roundDone <- errors.New("higher round change received")
+
+				return
+			}
+		}
 
 		select {
 		case <-quit:
@@ -311,6 +351,7 @@ func (i *IBFT) runNewRound() error {
 	newProposal := preprepareMsg.Proposal
 	if err := i.acceptProposal(newProposal); err != nil {
 		i.state.name = roundChange
+		i.state.roundStarted = false
 
 		return err
 	}
