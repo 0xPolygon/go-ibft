@@ -296,8 +296,9 @@ func (i *IBFT) runNewRound() error {
 		return err
 	}
 
-	prepareMsg := i.backend.BuildPrepareMessage(newProposal)
-	i.transport.Multicast(prepareMsg)
+	i.transport.Multicast(
+		i.backend.BuildPrepareMessage(newProposal),
+	)
 
 	return nil
 }

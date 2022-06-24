@@ -96,17 +96,17 @@ func TestRunNewRound_Validator(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{func(message *proto.Message) {}}
 				backend   = mockBackend{
-					idFn: func() []byte { return nil },
-					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
-						return false
-					},
-					isValidBlockFn: func(bytes []byte) bool {
-						return true
-					},
+					idFn:                  func() []byte { return nil },
+					buildPrepareMessageFn: func(bytes []byte) *proto.Message { return &proto.Message{} },
+					isProposerFn:          func(bytes []byte, u uint64, u2 uint64) bool { return false },
+					isValidBlockFn:        func(bytes []byte) bool { return true },
 				}
 				messages = mockMessages{
 					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
 						return 1
+					},
+					getPrePrepareMessageFn: func(view *proto.View) *messages.PrePrepareMessage {
+						return &messages.PrePrepareMessage{Proposal: []byte("new block")}
 					},
 				}
 			)
@@ -135,14 +135,18 @@ func TestRunNewRound_Validator(t *testing.T) {
 						return false
 					},
 				}
+				messages = mockMessages{
+					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+						return 1
+					},
+					getPrePrepareMessageFn: func(view *proto.View) *messages.PrePrepareMessage {
+						return &messages.PrePrepareMessage{}
+					},
+				}
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.messages = mockMessages{
-				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
-					return 1
-				},
-			}
+			i.messages = messages
 
 			assert.ErrorIs(t, errInvalidBlock, i.runNewRound())
 			assert.Equal(t, roundChange, i.state.name)
@@ -167,6 +171,9 @@ func TestRunNewRound_Validator(t *testing.T) {
 				messages = mockMessages{
 					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
 						return 1
+					},
+					getPrePrepareMessageFn: func(view *proto.View) *messages.PrePrepareMessage {
+						return &messages.PrePrepareMessage{}
 					},
 				}
 			)
@@ -201,6 +208,9 @@ func TestRunNewRound_Validator(t *testing.T) {
 				messages = mockMessages{
 					numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
 						return 1
+					},
+					getPrePrepareMessageFn: func(view *proto.View) *messages.PrePrepareMessage {
+						return &messages.PrePrepareMessage{Proposal: []byte("new block")}
 					},
 				}
 			)
