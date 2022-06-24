@@ -423,3 +423,46 @@ func (i *IBFT) acceptProposal(proposal []byte) error {
 
 	return nil
 }
+
+func (i *IBFT) AddMessage(msg *proto.Message) {
+	if msg == nil {
+		return
+
+	}
+	//	TODO: basic validation (not consensus errors)
+
+	/*	PRE-PREPARE	*/
+	//	#1: matches current view
+
+	//	#2:	signed by the designated proposer for this round
+
+	//	#3:	accepted proposal == false
+
+	// TODO: check this is consensus
+	//	#4:	if locked, proposal matches locked	(consensus err)
+
+	// TODO: check this is consensus
+	//	#5:	proposal is a valid eth block for this height	(consensus err)
+
+	/*	PREPARE	*/
+	//	#1: matches current view
+
+	//	#2:	kec(proposal) == kec(prepared-block)
+
+	//	#3:	message is from validator for this round
+
+	/*	COMMIT	*/
+	//	#1: matches current view
+
+	//	#2:	kec(proposal) == kec(accepted-block)
+
+	//	#3:	message is from validator for this round
+
+	/*	ROUND-CHANGE	*/
+	//	#1: matches current **height** (round can be greater)
+
+	//	#2:	message is from validator for this round
+
+	//	add message to messages
+	i.messages.AddMessage(msg)
+}
