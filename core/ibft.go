@@ -130,7 +130,14 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 }
 
 func (i *IBFT) runFin() error {
+	if err := i.backend.InsertBlock(
+		i.state.proposal,
+		i.state.seals,
+	); err != nil {
+		return errors.New("failed to insert block")
+	}
 
+	return nil
 }
 
 func (i *IBFT) runCommit() error {
@@ -152,8 +159,13 @@ func (i *IBFT) runCommit() error {
 	//	validate each (on error, go to round change)
 	for _, msg := range commitMessages {
 		if !i.backend.IsValidCommittedSeal(lockedProposal, msg.CommittedSeal) {
+			//	reset
+			i.state.seals = nil
+
 			return errInvalidCommittedSeal
 		}
+
+		i.state.seals = append(i.state.seals, msg.CommittedSeal)
 	}
 
 	//	block proposal finalized -> fin state

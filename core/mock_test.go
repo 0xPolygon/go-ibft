@@ -18,6 +18,7 @@ type buildPrepareMessageDelegate func([]byte) *proto.Message
 type buildCommitMessageDelegate func([]byte) *proto.Message
 type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
 type validatorCountDelegate func(blockNumber uint64) uint64
+type insertBlockDelegate func([]byte, [][]byte) error
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -33,6 +34,11 @@ type mockBackend struct {
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
 	validatorCountFn          validatorCountDelegate
+	insertBlockFn             insertBlockDelegate
+}
+
+func (m mockBackend) InsertBlock(proposal []byte, seals [][]byte) error {
+	return m.insertBlockFn(proposal, seals)
 }
 
 func (m mockBackend) ValidatorCount(blockNumber uint64) uint64 {
