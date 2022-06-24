@@ -360,5 +360,42 @@ func TestRunCommit(t *testing.T) {
 
 			assert.ErrorIs(t, errQuorumNotReached, i.runCommit())
 			assert.NotEqual(t, fin, i.state.name)
+		},
+	)
+
+	t.Run(
+		"validator received commit messages with invalid seals",
+		func(t *testing.T) {
+			var (
+				quorum   = 2
+				quorumFn = QuorumFn(func(num uint64) uint64 { return uint64(quorum) })
+
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					validatorCountFn: func(blockNumber uint64) uint64 {
+						return 4
+					},
+					isValidCommittedSealFn: func(bytes []byte, bytes2 []byte) bool {
+						return false
+					},
+				}
+				messages = mockMessages{
+					getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
+						return []*messages.CommitMessage{
+							{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
+							{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
+						}
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
+			i.quorumFn = quorumFn
+
+			assert.ErrorIs(t, errInvalidCommittedSeal, i.runCommit())
+			assert.NotEqual(t, fin, i.state.name)
 		})
+
 }
