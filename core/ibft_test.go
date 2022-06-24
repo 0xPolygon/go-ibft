@@ -411,7 +411,7 @@ func TestRunCommit(t *testing.T) {
 			i.messages = messages
 			i.quorumFn = quorumFn
 
-			assert.ErrorIs(t, errInvalidCommittedSeal, i.runCommit())
+			assert.ErrorIs(t, errQuorumNotReached, i.runCommit())
 			assert.NotEqual(t, fin, i.state.name)
 		})
 

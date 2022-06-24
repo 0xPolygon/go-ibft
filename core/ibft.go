@@ -200,31 +200,47 @@ func (i *IBFT) runFin() error {
 	return nil
 }
 
+func (i *IBFT) commitMessages(view *proto.View) []*messages.CommitMessage {
+	var valid []*messages.CommitMessage
+
+	for _, msg := range i.messages.GetCommitMessages(view) {
+		//	check hash
+		if err := i.backend.VerifyProposalHash(
+			i.state.proposal,
+			msg.ProposalHash,
+		); err != nil {
+			continue
+		}
+
+		//	check commit seal
+		if !i.backend.IsValidCommittedSeal(
+			i.state.proposal,
+			msg.CommittedSeal,
+		) {
+			continue
+		}
+
+		valid = append(valid, msg)
+	}
+
+	return valid
+}
+
 func (i *IBFT) runCommit() error {
 	var (
-		view           = &i.state.view
-		height         = view.Height
-		lockedProposal = i.state.proposal
-		quorum         = i.quorumFn(i.backend.ValidatorCount(height))
+		view   = &i.state.view
+		quorum = int(i.quorumFn(i.backend.ValidatorCount(view.Height)))
 	)
 
 	//	get commit messages
-	commitMessages := i.messages.GetCommitMessages(view)
-
-	//	see if there is a quorum of them
-	if len(commitMessages) < int(quorum) {
+	commitMessages := i.commitMessages(view)
+	if len(commitMessages) < quorum {
 		return errQuorumNotReached
 	}
 
-	//	validate each (on error, go to round change)
+	//	add seals
 	for _, msg := range commitMessages {
-		if !i.backend.IsValidCommittedSeal(lockedProposal, msg.CommittedSeal) {
-			//	reset
-			i.state.seals = nil
-
-			return errInvalidCommittedSeal
-		}
-
+		//	TODO: these need to be pruned before each new round
 		i.state.seals = append(i.state.seals, msg.CommittedSeal)
 	}
 
