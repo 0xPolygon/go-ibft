@@ -57,6 +57,9 @@ type state struct {
 	//	block proposal for current round
 	proposal []byte
 
+	//	validated commit seals
+	seals [][]byte
+
 	//	flags for different states
 	roundStarted, locked bool
 
