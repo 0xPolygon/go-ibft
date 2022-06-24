@@ -25,6 +25,7 @@ type Messages interface {
 	GetPrepareMessages(view *proto.View) []*messages.PrepareMessage
 	GetCommitMessages(view *proto.View) []*messages.CommitMessage
 	GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage
+	GetMostRoundChangeMessages() []*messages.RoundChangeMessage
 }
 
 var (

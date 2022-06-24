@@ -254,3 +254,45 @@ func TestMessages_GetMessage(t *testing.T) {
 		})
 	}
 }
+
+// TestMessages_GetMostRoundChangeMessages makes sure
+// the round messages for the round with the most round change
+// messages are fetched
+func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	mostMessageCount := 3
+	mostMessagesRound := uint64(2)
+
+	// Generate round messages
+	randomMessages := map[uint64][]*proto.Message{
+		0: generateRandomMessages(mostMessageCount-2, &proto.View{
+			Height: 0,
+			Round:  0,
+		}, proto.MessageType_ROUND_CHANGE),
+		1: generateRandomMessages(mostMessageCount-1, &proto.View{
+			Height: 0,
+			Round:  1,
+		}, proto.MessageType_ROUND_CHANGE),
+		mostMessagesRound: generateRandomMessages(mostMessageCount, &proto.View{
+			Height: 0,
+			Round:  mostMessagesRound,
+		}, proto.MessageType_ROUND_CHANGE),
+	}
+
+	// Add the messages
+	for _, roundMessages := range randomMessages {
+		for _, message := range roundMessages {
+			messages.AddMessage(message)
+		}
+	}
+
+	roundChangeMessages := messages.GetMostRoundChangeMessages()
+
+	if len(roundChangeMessages) != mostMessageCount {
+		t.Fatalf("Invalid number of round change messages, %d", len(roundChangeMessages))
+	}
+
+	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].Round)
+}
