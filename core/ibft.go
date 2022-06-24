@@ -35,7 +35,7 @@ var (
 	errQuorumNotReached        = errors.New("quorum on messages not reached")
 	errInvalidCommittedSeal    = errors.New("invalid commit seal in commit message")
 	errInsertBlock             = errors.New("failed to insert block")
-	//
+
 	roundZeroTimeout = 10 * time.Second
 )
 
@@ -234,39 +234,41 @@ func (i *IBFT) runCommit() error {
 	return nil
 }
 
+func (i *IBFT) prepareMessages(view *proto.View) []*messages.PrepareMessage {
+	var valid []*messages.PrepareMessage
+
+	for _, msg := range i.messages.GetPrepareMessages(view) {
+		if err := i.backend.VerifyProposalHash(
+			i.state.proposal,
+			msg.ProposalHash,
+		); err != nil {
+			continue
+		}
+
+		valid = append(valid, msg)
+	}
+
+	return valid
+}
+
 func (i *IBFT) runPrepare() error {
 	var (
 		view          = &i.state.view
-		acceptedBlock = i.state.proposal
 		numValidators = i.backend.ValidatorCount(view.Height)
 		quorum        = int(i.quorumFn(numValidators))
 	)
 
 	//	TODO: Q(P+C)
-
-	prepareMessages := i.messages.GetPrepareMessages(view)
-	if len(prepareMessages) < quorum {
+	if len(i.prepareMessages(view)) < quorum {
 		return errQuorumNotReached
-
 	}
 
-	//	TODO: if there is a quorum of valid prepare messages
-	//		but some there are additional invalid prepare messages
-	//		we can still go to commit state
-	for _, msg := range i.messages.GetPrepareMessages(view) {
-		if err := i.backend.VerifyProposalHash(acceptedBlock, msg.ProposalHash); err != nil {
-			return errPrepareHashMismatch
-		}
-	}
-
-	//	quorum on prepare message reached:
-	//	lock on the accepted proposal and move to commit state
 	i.state.name = commit
 	i.state.locked = true
 
-	commitMsg := i.backend.BuildCommitMessage(i.state.proposal)
-
-	i.transport.Multicast(commitMsg)
+	i.transport.Multicast(
+		i.backend.BuildCommitMessage(i.state.proposal),
+	)
 
 	return nil
 }
