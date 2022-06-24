@@ -399,3 +399,41 @@ func TestRunCommit(t *testing.T) {
 		})
 
 }
+
+func TestRunFin(t *testing.T) {
+	t.Run(
+		"validator insert finalized block",
+		func(t *testing.T) {
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					insertBlockFn: func(bytes []byte, i [][]byte) error {
+						return nil
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			assert.NoError(t, i.runFin())
+		},
+	)
+
+	t.Run(
+		"validator insert finalized block",
+		func(t *testing.T) {
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					insertBlockFn: func(bytes []byte, i [][]byte) error {
+						return errors.New("bad")
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			assert.ErrorIs(t, errInsertBlock, i.runFin())
+		},
+	)
+}

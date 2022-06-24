@@ -32,6 +32,7 @@ var (
 	errPrepareHashMismatch     = errors.New("(prepare) block hash not matching accepted block")
 	errQuorumNotReached        = errors.New("quorum on messages not reached")
 	errInvalidCommittedSeal    = errors.New("invalid commit seal in commit message")
+	errInsertBlock             = errors.New("failed to insert block")
 )
 
 type QuorumFn func(num uint64) uint64
@@ -134,7 +135,7 @@ func (i *IBFT) runFin() error {
 		i.state.proposal,
 		i.state.seals,
 	); err != nil {
-		return errors.New("failed to insert block")
+		return errInsertBlock
 	}
 
 	return nil
