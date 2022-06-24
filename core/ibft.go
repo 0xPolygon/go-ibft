@@ -31,6 +31,7 @@ var (
 	errInvalidBlock            = errors.New("invalid block proposal")
 	errPrepareHashMismatch     = errors.New("(prepare) block hash not matching accepted block")
 	errQuorumNotReached        = errors.New("quorum on messages not reached")
+	errInvalidCommittedSeal    = errors.New("invalid commit seal in commit message")
 )
 
 type QuorumFn func(num uint64) uint64
@@ -109,6 +110,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 		case prepare:
 			i.runPrepare()
+		case commit:
+			i.runCommit()
 		}
 
 		//	TODO: check f+1 RC
@@ -119,6 +122,35 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		default:
 		}
 	}
+}
+
+func (i *IBFT) runCommit() error {
+	var (
+		view           = &i.state.view
+		height         = view.Height
+		lockedProposal = i.state.proposal
+		quorum         = i.quorumFn(i.backend.ValidatorCount(height))
+	)
+
+	//	get commit messages
+	commitMessages := i.messages.GetCommitMessages(view)
+
+	//	see if there is a quorum of them
+	if len(commitMessages) < int(quorum) {
+		return errQuorumNotReached
+	}
+
+	//	validate each (on error, go to round change)
+	for _, msg := range commitMessages {
+		if i.backend.IsValidCommittedSeal(lockedProposal, msg.CommittedSeal) {
+			return errInvalidCommittedSeal
+		}
+	}
+
+	//	block proposal finalized -> fin state
+	i.state.name = fin
+
+	return nil
 }
 
 func (i *IBFT) runPrepare() error {
