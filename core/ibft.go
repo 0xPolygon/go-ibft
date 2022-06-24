@@ -142,7 +142,7 @@ func (i *IBFT) runCommit() error {
 
 	//	validate each (on error, go to round change)
 	for _, msg := range commitMessages {
-		if i.backend.IsValidCommittedSeal(lockedProposal, msg.CommittedSeal) {
+		if !i.backend.IsValidCommittedSeal(lockedProposal, msg.CommittedSeal) {
 			return errInvalidCommittedSeal
 		}
 	}
