@@ -383,7 +383,7 @@ func TestRunCommit(t *testing.T) {
 				messages = mockMessages{
 					getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
 						return []*messages.CommitMessage{
-							{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
+							{ProposalHash: []byte("hash"), CommittedSeal: []byte("invalid seal")},
 							{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
 						}
 					},

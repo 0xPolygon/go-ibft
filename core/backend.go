@@ -1,6 +1,8 @@
 package core
 
-import "github.com/Trapesys/go-ibft/messages/proto"
+import (
+	"github.com/Trapesys/go-ibft/messages/proto"
+)
 
 // messageConstructor defines a message constructor interface
 type messageConstructor interface {
@@ -42,4 +44,6 @@ type Backend interface {
 
 	// IsValidCommittedSeal checks if the seal for the proposal is valid
 	IsValidCommittedSeal(proposal, seal []byte) bool
+
+	InsertBlock(proposal []byte, committedSeals [][]byte) error
 }

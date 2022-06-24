@@ -112,6 +112,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			i.runPrepare()
 		case commit:
 			i.runCommit()
+		case fin:
+			i.runFin()
 		}
 
 		//	TODO: check f+1 RC
@@ -122,6 +124,10 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		default:
 		}
 	}
+}
+
+func (i *IBFT) runFin() error {
+
 }
 
 func (i *IBFT) runCommit() error {
