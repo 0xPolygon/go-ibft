@@ -129,12 +129,17 @@ func (i *IBFT) runPrepare() error {
 		quorum        = int(i.quorumFn(numValidators))
 	)
 
+	//	TODO: Q(P+C)
+
 	prepareMessages := i.messages.GetPrepareMessages(view)
 	if len(prepareMessages) < quorum {
 		return errQuorumNotReached
 
 	}
 
+	//	TODO: if there is a quorum of valid prepare messages
+	//		but some there are additional invalid prepare messages
+	//		we can still go to commit state
 	for _, msg := range i.messages.GetPrepareMessages(view) {
 		if err := i.backend.VerifyProposalHash(acceptedBlock, msg.ProposalHash); err != nil {
 			return errPrepareHashMismatch
