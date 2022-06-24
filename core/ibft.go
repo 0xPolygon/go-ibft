@@ -327,9 +327,9 @@ func (i *IBFT) proposeBlock(height uint64) error {
 	i.state.proposal = proposal
 	i.state.name = prepare
 
-	//	TODO (backend): construct a PREPARE message and gossip
-	prepare := &proto.Message{}
-	i.transport.Multicast(prepare)
+	i.transport.Multicast(
+		i.backend.BuildPrepareMessage(proposal),
+	)
 
 	return nil
 }
