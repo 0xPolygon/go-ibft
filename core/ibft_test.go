@@ -22,6 +22,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{func(message *proto.Message) {}}
 				backend   = mockBackend{
+					idFn:            func() []byte { return nil },
 					isProposerFn:    func(bytes []byte, u uint64, u2 uint64) bool { return true },
 					buildProposalFn: func(u uint64) ([]byte, error) { return newProposal, nil },
 				}
@@ -42,6 +43,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
+					idFn: func() []byte { return nil },
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return true
 					},
@@ -66,6 +68,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{func(message *proto.Message) {}}
 				backend   = mockBackend{
+					idFn: func() []byte { return nil },
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return true
 					},
@@ -93,6 +96,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{func(message *proto.Message) {}}
 				backend   = mockBackend{
+					idFn: func() []byte { return nil },
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -123,6 +127,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
+					idFn: func() []byte { return nil },
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -151,6 +156,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
+					idFn: func() []byte { return nil },
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},
@@ -184,6 +190,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
+					idFn: func() []byte { return nil },
 					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
 						return false
 					},

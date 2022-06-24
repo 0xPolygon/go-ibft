@@ -46,4 +46,7 @@ type Backend interface {
 	IsValidCommittedSeal(proposal, seal []byte) bool
 
 	InsertBlock(proposal []byte, committedSeals [][]byte) error
+
+	// ID returns the validator's ID
+	ID() []byte
 }

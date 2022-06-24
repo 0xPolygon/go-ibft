@@ -273,36 +273,31 @@ func (i *IBFT) runPrepare() error {
 
 func (i *IBFT) runNewRound() error {
 	var (
-		height = i.state.view.Height
-		round  = i.state.view.Round
-		id     = []byte("my id") //	TODO (backend): id of this node
+		view   = &i.state.view
+		height = view.Height
+		round  = view.Round
 	)
 
-	if i.backend.IsProposer(id, height, round) {
+	if i.backend.IsProposer(i.backend.ID(), height, round) {
 		return i.proposeBlock(height)
 	}
 
 	//	we are not the proposer, so we're checking on a PRE-PREPARE msg
-	if i.messages.NumMessages(
-		&i.state.view,
-		proto.MessageType_PREPREPARE,
-	) == 0 {
-		//	no PRE-PREPARE message received (yet)
+	preprepareMsg := i.messages.GetPrePrepareMessage(view)
+	if preprepareMsg == nil {
+		//	no PRE-PREPARE message received yet
 		return nil
 	}
 
-	//	TODO (messages): extract proposal from PRE-PREPARE message
-	newProposal := []byte("new block")
-
+	newProposal := preprepareMsg.Proposal
 	if err := i.acceptProposal(newProposal); err != nil {
 		i.state.name = roundChange
 
 		return err
 	}
 
-	//	TODO (backend): construct a PREPARE message and gossip
-	prepare := &proto.Message{}
-	i.transport.Multicast(prepare)
+	prepareMsg := i.backend.BuildPrepareMessage(newProposal)
+	i.transport.Multicast(prepareMsg)
 
 	return nil
 }
