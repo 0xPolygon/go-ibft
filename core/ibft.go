@@ -102,22 +102,18 @@ func (i *IBFT) runSequence(h uint64) {
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
-		switch i.state.name {
-		case newRound:
-			if err := i.runNewRound(); err != nil {
-				//	something wrong -> go to round change
-				i.roundDone <- err
-				//i.state.name = roundChange
+		err := i.runState()
+		if errors.Is(err, errPrePrepareBlockMismatch) ||
+			errors.Is(err, errInvalidCommittedSeal) {
+			//	consensus err -> go to round change
+			i.roundDone <- err
 
-				return
-			}
+			return
+		}
 
-		case prepare:
-			i.runPrepare()
-		case commit:
-			i.runCommit()
-		case fin:
-			i.runFin()
+		if errors.Is(err, errInsertBlock) {
+			//	???
+			return
 		}
 
 		//	TODO: check f+1 RC
@@ -127,6 +123,22 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			return
 		default:
 		}
+	}
+}
+
+func (i *IBFT) runState() error {
+	switch i.state.name {
+	case newRound:
+		return i.runNewRound()
+	case prepare:
+		return i.runPrepare()
+	case commit:
+		return i.runCommit()
+	case fin:
+		return i.runFin()
+	default:
+		//	wat
+		return nil
 	}
 }
 
