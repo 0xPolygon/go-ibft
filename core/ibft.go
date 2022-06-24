@@ -5,6 +5,8 @@ import (
 	"errors"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
+	"math"
+	"time"
 )
 
 type Logger interface {
@@ -33,6 +35,8 @@ var (
 	errQuorumNotReached        = errors.New("quorum on messages not reached")
 	errInvalidCommittedSeal    = errors.New("invalid commit seal in commit message")
 	errInsertBlock             = errors.New("failed to insert block")
+	//
+	roundZeroTimeout = 10 * time.Second
 )
 
 type QuorumFn func(num uint64) uint64
@@ -81,6 +85,8 @@ type IBFT struct {
 	quorumFn QuorumFn
 
 	roundDone chan error
+
+	roundTimer *time.Timer
 }
 
 func NewIBFT(
@@ -97,12 +103,53 @@ func NewIBFT(
 }
 
 func (i *IBFT) runSequence(h uint64) {
-	//	TODO
+	for {
+		currentRound := i.state.view.Round
+		quitCh := make(chan struct{})
+
+		go i.runRound(quitCh)
+
+		select {
+		case <-i.roundTimeout(currentRound):
+			close(quitCh)
+			//	TODO: our round timer expired:
+			//		increment round by 1
+			//		multicast RC message
+
+		case err := <-i.roundDone:
+			i.stopRoundTimeout()
+			if err == nil {
+				//	block is finalized for this height, return
+				return
+			}
+		}
+
+		//	TODO: round change flow
+	}
+}
+
+func (i *IBFT) roundTimeout(round uint64) <-chan time.Time {
+	var (
+		duration    = int(roundZeroTimeout)
+		roundFactor = int(math.Pow(float64(2), float64(round)))
+	)
+
+	i.roundTimer = time.NewTimer(time.Duration(duration * roundFactor))
+
+	return i.roundTimer.C
+}
+
+func (i *IBFT) stopRoundTimeout() {
+	i.roundTimer.Stop()
 }
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
+	i.state.name = newRound
+	i.state.roundStarted = true
+
 	for {
 		err := i.runState()
+
 		if errors.Is(err, errPrePrepareBlockMismatch) ||
 			errors.Is(err, errInvalidCommittedSeal) {
 			//	consensus err -> go to round change
@@ -112,7 +159,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		}
 
 		if errors.Is(err, errInsertBlock) {
-			//	???
+			//	TODO: ??? (not a consensus error)
 			return
 		}
 
