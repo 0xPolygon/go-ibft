@@ -217,6 +217,40 @@ func (ms *Messages) GetPrepareMessages(view *proto.View) []*PrepareMessage {
 	return prepareMessages
 }
 
+func (ms *Messages) GetAndPrunePrepareMessages(view *proto.View) []*proto.Message {
+	ms.Lock()
+	defer ms.Unlock()
+
+	prepareMessages := make([]*proto.Message, 0)
+	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
+		for _, message := range messages {
+			prepareMessages = append(prepareMessages, message)
+		}
+
+		// TODO wipe the messages
+		messages = protoMessages{}
+	}
+
+	return prepareMessages
+}
+
+func (ms *Messages) GetAndPruneCommitMessages(view *proto.View) []*proto.Message {
+	ms.Lock()
+	defer ms.Unlock()
+
+	commitMessages := make([]*proto.Message, 0)
+	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
+		for _, message := range messages {
+			commitMessages = append(commitMessages, message)
+		}
+
+		// TODO wipe the messages
+		messages = protoMessages{}
+	}
+
+	return commitMessages
+}
+
 // GetCommitMessages returns all COMMIT messages, if any
 func (ms *Messages) GetCommitMessages(view *proto.View) []*CommitMessage {
 	ms.Lock()

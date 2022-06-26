@@ -192,6 +192,8 @@ type mockMessages struct {
 	getCommitMessagesFn          func(view *proto.View) []*messages.CommitMessage
 	getRoundChangeMessagesFn     func(view *proto.View) []*messages.RoundChangeMessage
 	getMostRoundChangeMessagesFn func() []*messages.RoundChangeMessage
+	getAndPrunePrepareMessagesFn func(view *proto.View) []*proto.Message
+	getAndPruneCommitMessagesFn  func(view *proto.View) []*proto.Message
 }
 
 func (m mockMessages) AddMessage(msg *proto.Message) {
@@ -231,6 +233,14 @@ func (m mockMessages) GetRoundChangeMessages(view *proto.View) []*messages.Round
 
 func (m mockMessages) GetMostRoundChangeMessages() []*messages.RoundChangeMessage {
 	return m.getMostRoundChangeMessagesFn()
+}
+
+func (m mockMessages) GetAndPrunePrepareMessages(view *proto.View) []*proto.Message {
+	return m.getAndPrunePrepareMessagesFn(view)
+}
+
+func (m mockMessages) GetAndPruneCommitMessages(view *proto.View) []*proto.Message {
+	return m.getAndPruneCommitMessagesFn(view)
 }
 
 func (m mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
