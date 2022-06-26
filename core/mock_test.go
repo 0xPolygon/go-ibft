@@ -20,6 +20,7 @@ type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
 type validatorCountDelegate func(blockNumber uint64) uint64
 type insertBlockDelegate func([]byte, [][]byte) error
 type idDelegate func() []byte
+type allowedFaultyDelegate func() uint64
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -37,6 +38,7 @@ type mockBackend struct {
 	validatorCountFn          validatorCountDelegate
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
+	allowedFaultyFn           allowedFaultyDelegate
 }
 
 func (m mockBackend) ID() []byte {
@@ -121,6 +123,14 @@ func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 
 func (m mockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
 	m.isValidCommittedSealFn = fn
+}
+
+func (m mockBackend) AllowedFaulty() uint64 {
+	if m.allowedFaultyFn != nil {
+		return m.allowedFaultyFn()
+	}
+
+	return 0
 }
 
 // Define delegation methods for hooks

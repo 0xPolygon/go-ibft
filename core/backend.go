@@ -17,9 +17,6 @@ type messageConstructor interface {
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
 	BuildRoundChangeMessage(height, round uint64) *proto.Message
-
-	//	ValidatorCount returns the number of validators for the given block
-	ValidatorCount(blockNumber uint64) uint64
 }
 
 // Backend defines an interface all backend implementations
@@ -49,4 +46,11 @@ type Backend interface {
 
 	// ID returns the validator's ID
 	ID() []byte
+
+	//	ValidatorCount returns the number of validators for the given block
+	ValidatorCount(blockNumber uint64) uint64
+
+	// AllowedFaulty returns the maximum number of faulty nodes based
+	// on the validator set
+	AllowedFaulty() uint64
 }
