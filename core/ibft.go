@@ -83,7 +83,7 @@ type IBFT struct {
 
 	quorumFn QuorumFn
 
-	roundDone chan error
+	roundDone chan struct{}
 
 	roundTimer *time.Timer
 
@@ -102,14 +102,20 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:       log,
-		backend:   backend,
-		transport: transport,
-		roundDone: make(chan error),
+		log:           log,
+		backend:       backend,
+		transport:     transport,
+		roundDone:     make(chan struct{}),
+		newMessageCh:  make(chan *proto.Message, 1),
+		stateChangeCh: make(chan stateName, 1),
+		eventCh:       make(chan event, 1),
+		errorCh:       make(chan error, 1),
 	}
 }
 
 func (i *IBFT) runSequence(h uint64) {
+	// TODO close the event handler
+
 	for {
 		currentRound := i.state.view.Round
 		quitCh := make(chan struct{})
@@ -119,16 +125,11 @@ func (i *IBFT) runSequence(h uint64) {
 		select {
 		case <-i.newRoundTimer(currentRound):
 			close(quitCh)
-			//	TODO: our round timer expired:
-			//		increment round by 1
-			//		multicast RC message
-
-		case err := <-i.roundDone:
+			i.moveToNewRoundWithRC(i.state.view.Round+1, i.state.view.Height)
+		case <-i.roundDone:
 			i.stopRoundTimeout()
-			if err == nil {
-				//	block is finalized for this height, return
-				return
-			}
+
+			return
 		}
 	}
 }
@@ -159,8 +160,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.state.view.Round,
 	) {
 		if err := i.proposeBlock(i.state.view.Height); err != nil {
-			// TODO handle
-			panic("bad")
+			i.moveToNewRoundWithRC(i.state.view.Round+1, i.state.view.Height)
 		}
 	}
 
@@ -169,17 +169,18 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case <-quit:
 			return
 		case err := <-i.errorCh:
-			// TODO handle error
-			if errors.Is(err, errInvalidBlockProposal) {
+			i.log.Error("error during processing", err)
 
+			if errors.Is(err, errInvalidBlockProposal) {
+				i.moveToNewRoundWithRC(i.state.view.Round+1, i.state.view.Height)
 			}
 		case event := <-i.eventCh:
-			// New event received, parse it
+			// New event received from the message handler, parse it
 			switch event {
 			case proposalReceived:
 				preprepareMsg := i.verifiedMessages.GetPrePrepareMessage(i.state.view)
 				if preprepareMsg == nil {
-					panic("bad")
+					i.moveToNewRoundWithRC(i.state.view.Round+1, i.state.view.Height)
 				}
 
 				newProposal := preprepareMsg.Proposal
@@ -200,12 +201,16 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				commitMessages := i.commitMessages(i.state.view)
 				//	add seals
 				for _, msg := range commitMessages {
-					//	TODO: these need to be pruned before each new round
 					i.state.seals = append(i.state.seals, msg.CommittedSeal)
 				}
 
 				//	block proposal finalized -> fin state
 				i.state.name = fin
+
+				if err := i.runFin(); err != nil {
+					// TODO is this right?
+					i.moveToNewRoundWithRC(i.state.view.Round+1, i.state.view.Height)
+				}
 			case quorumRoundChanges:
 				// TODO pass this as an argument to the method
 				msgs := i.verifiedMessages.GetMostRoundChangeMessages()
@@ -217,25 +222,32 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				msgs := i.verifiedMessages.GetMostRoundChangeMessages()
 				suggestedRound := msgs[0].Round
 
-				i.state.view.Round = suggestedRound
-				i.state.proposal = nil
-				i.state.roundStarted = false
-
-				i.transport.Multicast(
-					i.backend.BuildRoundChangeMessage(
-						i.state.view.Height,
-						suggestedRound,
-					))
-
-				i.roundDone <- errors.New("higher round change received")
-
-				// TODO exit??
+				i.moveToNewRoundWithRC(suggestedRound, i.state.view.Height)
 			default:
 			}
 		}
-
-		// TODO FIN state
 	}
+}
+
+func (i *IBFT) moveToNewRound(round, height uint64) {
+	i.state.view = &proto.View{
+		Height: height,
+		Round:  round,
+	}
+
+	i.state.roundStarted = false
+	i.state.proposal = nil
+}
+
+func (i *IBFT) moveToNewRoundWithRC(round, height uint64) {
+	i.moveToNewRound(round, height)
+
+	i.transport.Multicast(
+		i.backend.BuildRoundChangeMessage(
+			i.state.view.Height,
+			i.state.view.Round,
+		),
+	)
 }
 
 func (i *IBFT) runFin() error {
@@ -245,6 +257,10 @@ func (i *IBFT) runFin() error {
 	); err != nil {
 		return errInsertBlock
 	}
+
+	// Remove stale messages
+	i.verifiedMessages.PruneByHeight(i.state.view)
+	i.unverifiedMessages.PruneByHeight(i.state.view)
 
 	return nil
 }
@@ -355,8 +371,9 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 
 	if i.isAcceptableMessage(message) {
 		// Message is valid, alert the message handler
-		// TODO make async
-		i.newMessageCh <- message
+		go func() {
+			i.newMessageCh <- message
+		}()
 	}
 }
 
@@ -383,12 +400,12 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 }
 
 func (i *IBFT) canVerifyMessage(message *proto.Message) bool {
-	// Round change messages can always be validated
+	// Round change messages can always be verified
 	if message.Type == proto.MessageType_ROUND_CHANGE {
 		return true
 	}
 
-	// PREPARE and COMMIT messages can be verified after PREPREPARE, but not before
+	// PREPARE and COMMIT messages can be verified after PREPREPARE, but NOT before
 	// PREPARE and COMMIT messages can be verified independently of one another!
 	return i.state.name == newRound && message.Type != proto.MessageType_PREPREPARE
 }
@@ -481,13 +498,26 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 		return proposalReceived
 	case proto.MessageType_PREPARE:
 		// Check if there are enough messages
-		// TODO Q(P + C)
-		if len(i.prepareMessages(view)) >= quorum {
+		numPrepares := len(i.prepareMessages(view))
+		if numPrepares >= quorum {
+			return quorumPrepares
+		}
+
+		// Check if there are enough prepare and commit messages to form quorum
+		numCommits := len(i.commitMessages(view))
+		if numCommits+numPrepares >= quorum {
 			return quorumPrepares
 		}
 	case proto.MessageType_COMMIT:
-		if len(i.commitMessages(view)) >= quorum {
+		// Check if there are enough messages
+		numCommits := len(i.commitMessages(view))
+		if numCommits >= quorum {
 			return quorumCommits
+		}
+
+		numPrepares := len(i.prepareMessages(view))
+		if numCommits+numPrepares >= quorum {
+			return quorumPrepares
 		}
 	case proto.MessageType_ROUND_CHANGE:
 		msgs := i.verifiedMessages.GetMostRoundChangeMessages()
@@ -502,7 +532,7 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 		if len(msgs) > 0 {
 			suggestedRound := msgs[0].Round
 			if i.state.view.Round < suggestedRound && len(msgs) > int(i.backend.AllowedFaulty())+1 {
-				//		move to new round
+				// move to new round
 				return roundHop
 			}
 		}
