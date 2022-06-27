@@ -227,6 +227,7 @@ func (i *IBFT) moveToNewRound(round, height uint64) {
 
 	i.state.setRoundStarted(false)
 	i.state.setProposal(nil)
+	i.state.setStateName(roundChange)
 }
 
 func (i *IBFT) moveToNewRoundWithRC(round, height uint64) {
@@ -316,8 +317,6 @@ func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 func (i *IBFT) proposeBlock(height uint64) error {
 	proposal, err := i.buildProposal(height)
 	if err != nil {
-		i.state.setStateName(roundChange)
-
 		return err
 	}
 
