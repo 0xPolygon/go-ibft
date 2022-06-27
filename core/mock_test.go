@@ -5,7 +5,7 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-// Define delegation methods for hooks
+// Define delegation methods
 type isValidBlockDelegate func([]byte) bool
 type isValidMessageDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
@@ -13,10 +13,11 @@ type buildProposalDelegate func(uint64) ([]byte, error)
 type verifyProposalHashDelegate func([]byte, []byte) error
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
-type buildPrePrepareMessageDelegate func([]byte) *proto.Message
-type buildPrepareMessageDelegate func([]byte) *proto.Message
-type buildCommitMessageDelegate func([]byte) *proto.Message
+type buildPrePrepareMessageDelegate func([]byte, *proto.View) *proto.Message
+type buildPrepareMessageDelegate func([]byte, *proto.View) *proto.Message
+type buildCommitMessageDelegate func([]byte, *proto.View) *proto.Message
 type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
+
 type validatorCountDelegate func(blockNumber uint64) uint64
 type insertBlockDelegate func([]byte, [][]byte) error
 type idDelegate func() []byte
@@ -61,20 +62,12 @@ func (m mockBackend) IsValidBlock(block []byte) bool {
 	return true
 }
 
-func (m mockBackend) HookIsValidBlock(fn isValidBlockDelegate) {
-	m.isValidBlockFn = fn
-}
-
 func (m mockBackend) IsValidMessage(msg *proto.Message) bool {
 	if m.isValidBlockFn != nil {
 		return m.isValidMessageFn(msg)
 	}
 
 	return true
-}
-
-func (m mockBackend) HookIsValidMessage(fn isValidMessageDelegate) {
-	m.isValidMessageFn = fn
 }
 
 func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
@@ -85,20 +78,12 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) HookIsProposer(fn isProposerDelegate) {
-	m.isProposerFn = fn
-}
-
 func (m mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 	if m.buildProposalFn != nil {
 		return m.buildProposalFn(blockNumber)
 	}
 
 	return nil, nil
-}
-
-func (m mockBackend) HookBuildProposal(fn buildProposalDelegate) {
-	m.buildProposalFn = fn
 }
 
 func (m mockBackend) VerifyProposalHash(proposal, hash []byte) error {
@@ -109,20 +94,12 @@ func (m mockBackend) VerifyProposalHash(proposal, hash []byte) error {
 	return nil
 }
 
-func (m mockBackend) HookVerifyProposalHash(fn verifyProposalHashDelegate) {
-	m.verifyProposalHashFn = fn
-}
-
 func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 	if m.isValidCommittedSealFn != nil {
 		return m.isValidCommittedSealFn(proposal, seal)
 	}
 
 	return true
-}
-
-func (m mockBackend) HookIsValidCommittedSeal(fn isValidCommittedSealDelegate) {
-	m.isValidCommittedSealFn = fn
 }
 
 func (m mockBackend) AllowedFaulty() uint64 {
@@ -133,7 +110,7 @@ func (m mockBackend) AllowedFaulty() uint64 {
 	return 0
 }
 
-// Define delegation methods for hooks
+// Define delegation methods
 type multicastFnDelegate func(*proto.Message)
 
 // mockTransport is the mock transport structure that is configurable
@@ -147,11 +124,7 @@ func (t mockTransport) Multicast(msg *proto.Message) {
 	}
 }
 
-func (t mockTransport) HookMulticast(fn multicastFnDelegate) {
-	t.multicastFn = fn
-}
-
-// Define delegation methods for hooks
+// Define delegation methods
 type opLogDelegate func(string, ...interface{})
 
 // mockLogger is the mock logging structure that is configurable
@@ -167,28 +140,16 @@ func (l mockLogger) Info(msg string, args ...interface{}) {
 	}
 }
 
-func (l mockLogger) HookInfo(fn opLogDelegate) {
-	l.infoFn = fn
-}
-
 func (l mockLogger) Debug(msg string, args ...interface{}) {
 	if l.debugFn != nil {
 		l.debugFn(msg, args)
 	}
 }
 
-func (l mockLogger) HookDebug(fn opLogDelegate) {
-	l.debugFn = fn
-}
-
 func (l mockLogger) Error(msg string, args ...interface{}) {
 	if l.errorFn != nil {
 		l.errorFn(msg, args)
 	}
-}
-
-func (l mockLogger) HookError(fn opLogDelegate) {
-	l.errorFn = fn
 }
 
 type mockMessages struct {
@@ -253,40 +214,28 @@ func (m mockMessages) GetAndPruneCommitMessages(view *proto.View) []*proto.Messa
 	return m.getAndPruneCommitMessagesFn(view)
 }
 
-func (m mockBackend) BuildPrePrepareMessage(proposal []byte) *proto.Message {
+func (m mockBackend) BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message {
 	if m.buildPrePrepareMessageFn != nil {
-		return m.buildPrePrepareMessageFn(proposal)
+		return m.buildPrePrepareMessageFn(proposal, view)
 	}
 
 	return nil
 }
 
-func (m mockBackend) HookBuildPrePrepareMessage(fn buildPrePrepareMessageDelegate) {
-	m.buildPrePrepareMessageFn = fn
-}
-
-func (m mockBackend) BuildPrepareMessage(proposal []byte) *proto.Message {
+func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message {
 	if m.buildPrepareMessageFn != nil {
-		return m.buildPrepareMessageFn(proposal)
+		return m.buildPrepareMessageFn(proposal, view)
 	}
 
 	return nil
 }
 
-func (m mockBackend) HookBuildPrepareMessage(fn buildPrepareMessageDelegate) {
-	m.buildPrepareMessageFn = fn
-}
-
-func (m mockBackend) BuildCommitMessage(proposal []byte) *proto.Message {
+func (m mockBackend) BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message {
 	if m.buildCommitMessageFn != nil {
-		return m.buildCommitMessageFn(proposal)
+		return m.buildCommitMessageFn(proposal, view)
 	}
 
 	return nil
-}
-
-func (m mockBackend) HookBuildCommitMessage(fn buildCommitMessageDelegate) {
-	m.buildCommitMessageFn = fn
 }
 
 func (m mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
@@ -295,8 +244,4 @@ func (m mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto
 	}
 
 	return nil
-}
-
-func (m mockBackend) HookBuildRoundChangeMessage(fn buildRoundChangeMessageDelegate) {
-	m.buildRoundChangeMessageFn = fn
 }

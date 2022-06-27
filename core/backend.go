@@ -7,13 +7,13 @@ import (
 // messageConstructor defines a message constructor interface
 type messageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
-	BuildPrePrepareMessage(proposal []byte) *proto.Message
+	BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message
 
 	// BuildPrepareMessage builds a PREPARE message based on the passed in proposal
-	BuildPrepareMessage(proposal []byte) *proto.Message
+	BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message
 
 	// BuildCommitMessage builds a COMMIT message based on the passed in proposal
-	BuildCommitMessage(proposal []byte) *proto.Message
+	BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
 	BuildRoundChangeMessage(height, round uint64) *proto.Message
@@ -31,7 +31,7 @@ type Backend interface {
 	IsValidMessage(msg *proto.Message) bool
 
 	// IsProposer checks if the passed in ID is the Proposer for current view (sequence, round)
-	IsProposer(id []byte, sequence, round uint64) bool
+	IsProposer(id []byte, height, round uint64) bool
 
 	// BuildProposal builds a new block proposal
 	BuildProposal(blockNumber uint64) ([]byte, error)

@@ -1,8 +1,8 @@
 package core
 
 import (
+	"bytes"
 	"errors"
-	"github.com/Trapesys/go-ibft/messages"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,51 +12,140 @@ import (
 
 //	New Round
 
+func proposalMatches(proposal []byte, message *proto.Message) bool {
+	if message == nil || message.Type != proto.MessageType_PREPREPARE {
+		return false
+	}
+
+	extractedProposal := message.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+
+	return bytes.Equal(proposal, extractedProposal)
+}
+
+func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
+	if message == nil || message.Type != proto.MessageType_PREPARE {
+		return false
+	}
+
+	extractedPrepareHash := message.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
+
+	return bytes.Equal(prepareHash, extractedPrepareHash)
+}
+
+// TestRunNewRound_Proposer checks that the node functions
+// correctly as the proposer for a block
 func TestRunNewRound_Proposer(t *testing.T) {
+	t.Parallel()
+
 	t.Run(
-		"proposer builds proposal",
+		"proposer builds block",
 		func(t *testing.T) {
+			t.Parallel()
+
 			var (
-				newProposal = []byte("new block")
+				newProposal                        = []byte("new block")
+				multicastedProposal *proto.Message = nil
 
 				log       = mockLogger{}
-				transport = mockTransport{func(message *proto.Message) {}}
-				backend   = mockBackend{
-					idFn:            func() []byte { return nil },
-					isProposerFn:    func(bytes []byte, u uint64, u2 uint64) bool { return true },
-					buildProposalFn: func(u uint64) ([]byte, error) { return newProposal, nil },
+				transport = mockTransport{func(message *proto.Message) {
+					if message != nil && message.Type == proto.MessageType_PREPREPARE {
+						multicastedProposal = message
+					}
+				}}
+				backend = mockBackend{
+					idFn: func() []byte { return nil },
+					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+						return true
+					},
+					buildProposalFn: func(_ uint64) ([]byte, error) {
+						return newProposal, nil
+					},
+					buildPrePrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
+						return &proto.Message{
+							View: view,
+							Type: proto.MessageType_PREPREPARE,
+							Payload: &proto.Message_PreprepareData{
+								PreprepareData: &proto.PrePrepareMessage{
+									Proposal: proposal,
+								},
+							},
+						}
+					},
 				}
 			)
 
 			i := NewIBFT(log, backend, transport)
 
-			assert.NoError(t, i.runNewRound())
+			quitCh := make(chan struct{}, 1)
+			quitCh <- struct{}{}
+
+			i.runRound(quitCh)
+
+			// Make sure the node is in preprepare state
 			assert.Equal(t, prepare, i.state.name)
+
+			// Make sure the accepted proposal is the one proposed to other nodes
 			assert.Equal(t, newProposal, i.state.proposal)
+
+			// Make sure the accepted proposal matches what was built
+			assert.True(t, proposalMatches(newProposal, multicastedProposal))
 		},
 	)
 
 	t.Run(
 		"proposer fails to build proposal",
 		func(t *testing.T) {
+			t.Parallel()
+
 			var (
+				multicastedMessage *proto.Message = nil
+
 				log       = mockLogger{}
-				transport = mockTransport{}
-				backend   = mockBackend{
+				transport = mockTransport{
+					multicastFn: func(message *proto.Message) {
+						multicastedMessage = message
+					},
+				}
+				backend = mockBackend{
 					idFn: func() []byte { return nil },
-					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					buildProposalFn: func(u uint64) ([]byte, error) {
-						return nil, errors.New("bad")
+					buildProposalFn: func(_ uint64) ([]byte, error) {
+						return nil, errors.New("unable to build proposal")
+					},
+					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
+						return &proto.Message{
+							View: &proto.View{
+								Height: height,
+								Round:  round,
+							},
+						}
 					},
 				}
 			)
 
 			i := NewIBFT(log, backend, transport)
 
-			assert.ErrorIs(t, errBuildProposal, i.runNewRound())
+			quitCh := make(chan struct{}, 1)
+			quitCh <- struct{}{}
+
+			i.runRound(quitCh)
+
+			// Make sure the state is round change
 			assert.Equal(t, roundChange, i.state.name)
+
+			// Make sure the round is not started
+			assert.Equal(t, false, i.state.roundStarted)
+
+			// Make sure the round is increased
+			assert.Equal(t, uint64(1), i.state.view.Round)
+
+			// Make sure the correct message view was multicasted
+			assert.Equal(t, uint64(0), multicastedMessage.View.Height)
+			assert.Equal(t, uint64(1), multicastedMessage.View.Round)
+
+			// Make sure the proposal is not accepted
 			assert.Equal(t, []byte(nil), i.state.proposal)
 		},
 	)
@@ -64,30 +153,79 @@ func TestRunNewRound_Proposer(t *testing.T) {
 	t.Run(
 		"(locked) proposer builds proposal",
 		func(t *testing.T) {
+			t.Parallel()
+
 			var (
+				multicastedPreprepare *proto.Message = nil
+				multicastedPrepare    *proto.Message = nil
+				proposalHash                         = []byte("proposal hash")
+				previousProposal                     = []byte("previously locked block")
+
 				log       = mockLogger{}
-				transport = mockTransport{func(message *proto.Message) {}}
-				backend   = mockBackend{
+				transport = mockTransport{func(message *proto.Message) {
+					switch message.Type {
+					case proto.MessageType_PREPREPARE:
+						multicastedPreprepare = message
+					case proto.MessageType_PREPARE:
+						multicastedPrepare = message
+					default:
+					}
+				}}
+				backend = mockBackend{
 					idFn: func() []byte { return nil },
-					isProposerFn: func(bytes []byte, u uint64, u2 uint64) bool {
+					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
+					},
+					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
+						return &proto.Message{
+							View: view,
+							Type: proto.MessageType_PREPARE,
+							Payload: &proto.Message_PrepareData{
+								PrepareData: &proto.PrepareMessage{
+									ProposalHash: proposalHash,
+								},
+							},
+						}
+					},
+					buildPrePrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
+						return &proto.Message{
+							View: view,
+							Type: proto.MessageType_PREPREPARE,
+							Payload: &proto.Message_PreprepareData{
+								PreprepareData: &proto.PrePrepareMessage{
+									Proposal: previousProposal,
+								},
+							},
+						}
 					},
 				}
 			)
-
-			previousProposal := []byte("previously locked block")
 
 			i := NewIBFT(log, backend, transport)
 			i.state.locked = true
 			i.state.proposal = previousProposal
 
-			assert.NoError(t, i.runNewRound())
+			quitCh := make(chan struct{}, 1)
+			quitCh <- struct{}{}
+
+			i.runRound(quitCh)
+
+			// Make sure the node changed the state to prepare
 			assert.Equal(t, prepare, i.state.name)
+
+			// Make sure the locked proposal is the accepted proposal
 			assert.Equal(t, previousProposal, i.state.proposal)
+
+			// Make sure the locked proposal was multicasted
+			assert.True(t, proposalMatches(previousProposal, multicastedPreprepare))
+
+			// Make sure the correct proposal hash was multicasted
+			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
 		},
 	)
 }
 
+/*
 func TestRunNewRound_Validator(t *testing.T) {
 	t.Run(
 		"validator receives valid block proposal",
@@ -454,3 +592,4 @@ func TestRunFin(t *testing.T) {
 		},
 	)
 }
+*/

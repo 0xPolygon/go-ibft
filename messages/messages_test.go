@@ -288,7 +288,7 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 		}
 	}
 
-	roundChangeMessages := messages.GetMostRoundChangeMessages()
+	roundChangeMessages := messages.GetMostRoundChangeMessages(0, 0)
 
 	if len(roundChangeMessages) != mostMessageCount {
 		t.Fatalf("Invalid number of round change messages, %d", len(roundChangeMessages))

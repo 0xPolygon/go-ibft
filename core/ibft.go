@@ -47,7 +47,7 @@ type QuorumFn func(num uint64) uint64
 type IBFT struct {
 	log Logger
 
-	state state
+	state *state
 
 	verifiedMessages   Messages
 	unverifiedMessages Messages
@@ -77,9 +77,20 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:           log,
-		backend:       backend,
-		transport:     transport,
+		log:       log,
+		backend:   backend,
+		transport: transport,
+		state: &state{
+			view: &proto.View{
+				Height: 0,
+				Round:  0,
+			},
+			proposal:     nil,
+			seals:        make([][]byte, 0),
+			roundStarted: false,
+			locked:       false,
+			name:         0,
+		},
 		roundDone:     make(chan event),
 		newMessageCh:  make(chan *proto.Message, 1),
 		stateChangeCh: make(chan stateName, 1),
@@ -170,7 +181,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				i.acceptProposal(newProposal)
 
 				i.transport.Multicast(
-					i.backend.BuildPrepareMessage(newProposal),
+					i.backend.BuildPrepareMessage(newProposal, i.state.getView()),
 				)
 			case quorumPrepares:
 				i.state.setStateName(commit)
@@ -180,7 +191,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				i.state.setLocked(true)
 
 				i.transport.Multicast(
-					i.backend.BuildCommitMessage(i.state.getProposal()),
+					i.backend.BuildCommitMessage(i.state.getProposal(), i.state.getView()),
 				)
 			case quorumCommits:
 				i.state.setStateName(fin)
@@ -313,11 +324,11 @@ func (i *IBFT) proposeBlock(height uint64) error {
 	i.acceptProposal(proposal)
 
 	i.transport.Multicast(
-		i.backend.BuildPrePrepareMessage(proposal),
+		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
 	)
 
 	i.transport.Multicast(
-		i.backend.BuildPrepareMessage(proposal),
+		i.backend.BuildPrepareMessage(proposal, i.state.getView()),
 	)
 
 	return nil
