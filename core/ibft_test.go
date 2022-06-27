@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"github.com/Trapesys/go-ibft/messages"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -31,6 +33,16 @@ func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
 	extractedPrepareHash := message.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
 
 	return bytes.Equal(prepareHash, extractedPrepareHash)
+}
+
+func commitHashMatches(commitHash []byte, message *proto.Message) bool {
+	if message == nil || message.Type != proto.MessageType_COMMIT {
+		return false
+	}
+
+	extractedCommitHash := message.Payload.(*proto.Message_CommitData).CommitData.ProposalHash
+
+	return bytes.Equal(commitHash, extractedCommitHash)
 }
 
 // TestRunNewRound_Proposer checks that the node functions
@@ -347,15 +359,9 @@ func TestRunNewRound_Validator(t *testing.T) {
 						}
 					},
 				}
-				messages = mockMessages{
-					getPrePrepareMessageFn: func(view *proto.View) *messages.PrePrepareMessage {
-						return &messages.PrePrepareMessage{}
-					},
-				}
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = messages
 
 			// Simulate an incoming proposal
 			i.errorCh <- errInvalidBlockProposal
@@ -381,87 +387,96 @@ func TestRunNewRound_Validator(t *testing.T) {
 	)
 }
 
+// TestRunPrepare checks that the node behaves correctly
+// in prepare state
+func TestRunPrepare(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"validator receives quorum of PREPARE messages",
+		func(t *testing.T) {
+			t.Parallel()
+
+			quitCh := make(chan struct{}, 1)
+
+			var (
+				quorum   = uint64(4)
+				quorumFn = QuorumFn(
+					func(_ uint64) uint64 {
+						return quorum
+					},
+				)
+				proposal                         = []byte("block proposal")
+				proposalHash                     = []byte("proposal hash")
+				multicastedCommit *proto.Message = nil
+				capturedState                    = newRound
+
+				log       = mockLogger{}
+				transport = mockTransport{func(message *proto.Message) {
+					if message != nil && message.Type == proto.MessageType_COMMIT {
+						multicastedCommit = message
+
+						// Make sure the run loop closes as soon as it's done
+						// parsing the prepares received event
+						quitCh <- struct{}{}
+					}
+				}}
+				backend = mockBackend{
+					buildCommitMessageFn: func(bytes []byte, view *proto.View) *proto.Message {
+						return &proto.Message{
+							View: view,
+							Type: proto.MessageType_COMMIT,
+							Payload: &proto.Message_CommitData{
+								CommitData: &proto.CommitMessage{
+									ProposalHash: proposalHash,
+								},
+							},
+						}
+					},
+				}
+			)
+			i := NewIBFT(log, backend, transport)
+			i.quorumFn = quorumFn
+			i.state.proposal = proposal
+
+			i.eventCh <- quorumPrepares
+
+			// Make sure the proper event is emitted
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func(i *IBFT) {
+				defer wg.Done()
+
+				select {
+				case name := <-i.stateChangeCh:
+					capturedState = name
+				case <-time.After(5 * time.Second):
+					return
+				}
+			}(i)
+
+			i.runRound(quitCh)
+
+			// Make sure the node moves to the commit state
+			assert.Equal(t, commit, i.state.name)
+
+			// Make sure the node stays locked on a block
+			assert.True(t, i.state.locked)
+
+			// Make sure the proposal didn't change
+			assert.Equal(t, proposal, i.state.proposal)
+
+			// Make sure the proper proposal hash was multicasted
+			assert.True(t, commitHashMatches(proposalHash, multicastedCommit))
+
+			// Make sure the proper event was emitted
+			wg.Wait()
+			assert.Equal(t, commit, capturedState)
+		},
+	)
+}
+
 /*
-	func TestRunPrepare(t *testing.T) {
-		t.Run(
-			"validator receives quorum of PREPARE messages",
-			func(t *testing.T) {
-				var (
-					quorum   = uint64(4)
-					quorumFn = QuorumFn(func(num uint64) uint64 { return quorum })
-
-					log       = mockLogger{}
-					transport = mockTransport{func(message *proto.Message) {}}
-					backend   = mockBackend{
-						buildCommitMessageFn: func(bytes []byte) *proto.Message { return &proto.Message{} },
-						verifyProposalHashFn: func(bytes []byte, bytes2 []byte) error { return nil },
-						validatorCountFn: func(blockNumber uint64) uint64 {
-							return 4
-						},
-					}
-					messages = mockMessages{
-						getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-							return []*messages.PrepareMessage{
-								0: {ProposalHash: []byte("hash")},
-								1: {ProposalHash: []byte("hash")},
-								2: {ProposalHash: []byte("hash")},
-								3: {ProposalHash: []byte("hash")},
-							}
-						},
-						numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
-							return 4
-						},
-					}
-				)
-
-				i := NewIBFT(log, backend, transport)
-				i.messages = messages
-				i.quorumFn = quorumFn
-
-				assert.NoError(t, i.runPrepare())
-				assert.Equal(t, commit, i.state.name)
-				assert.True(t, i.state.locked)
-			},
-		)
-
-		t.Run(
-			"validator not (yet) received quorum",
-			func(t *testing.T) {
-				var (
-					quorum   = uint64(4)
-					quorumFn = QuorumFn(func(num uint64) uint64 { return quorum })
-
-					log       = mockLogger{}
-					transport = mockTransport{}
-					backend   = mockBackend{
-						validatorCountFn: func(blockNumber uint64) uint64 {
-							return 4
-						},
-					}
-					messages = mockMessages{
-						getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-							return []*messages.PrepareMessage{
-								0: {ProposalHash: []byte("hash")},
-							}
-						},
-						numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
-							return 4
-						},
-					}
-				)
-
-				i := NewIBFT(log, backend, transport)
-				i.messages = messages
-				i.quorumFn = quorumFn
-				i.state.name = prepare
-
-				//println(i.runPrepare())
-				assert.ErrorIs(t, errQuorumNotReached, i.runPrepare())
-				assert.Equal(t, prepare, i.state.name)
-				assert.False(t, i.state.locked)
-			},
-		)
-	}
 
 	func TestRunCommit(t *testing.T) {
 		t.Run(
@@ -569,8 +584,9 @@ func TestRunNewRound_Validator(t *testing.T) {
 				assert.ErrorIs(t, errQuorumNotReached, i.runCommit())
 				assert.NotEqual(t, fin, i.state.name)
 			})
+*/
 
-	}
+/*
 
 	func TestRunFin(t *testing.T) {
 		t.Run(

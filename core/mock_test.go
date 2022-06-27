@@ -43,15 +43,27 @@ type mockBackend struct {
 }
 
 func (m mockBackend) ID() []byte {
-	return m.idFn()
+	if m.idFn != nil {
+		return m.idFn()
+	}
+
+	return nil
 }
 
 func (m mockBackend) InsertBlock(proposal []byte, seals [][]byte) error {
-	return m.insertBlockFn(proposal, seals)
+	if m.insertBlockFn != nil {
+		return m.insertBlockFn(proposal, seals)
+	}
+
+	return nil
 }
 
 func (m mockBackend) ValidatorCount(blockNumber uint64) uint64 {
-	return m.validatorCountFn(blockNumber)
+	if m.validatorCountFn != nil {
+		return m.validatorCountFn(blockNumber)
+	}
+
+	return 0
 }
 
 func (m mockBackend) IsValidBlock(block []byte) bool {
@@ -168,50 +180,88 @@ type mockMessages struct {
 }
 
 func (m mockMessages) AddMessage(msg *proto.Message) {
-	m.addMessageFn(msg)
+	if m.addMessageFn != nil {
+		m.addMessageFn(msg)
+	}
 }
 
 func (m mockMessages) NumMessages(view *proto.View, messageType proto.MessageType) int {
-	return m.numMessagesFn(view, messageType)
+	if m.numMessagesFn != nil {
+		return m.numMessagesFn(view, messageType)
+	}
+
+	return 0
 }
 
 func (m mockMessages) PruneByHeight(view *proto.View) {
-	m.pruneByHeightFn(view)
+	if m.pruneByHeightFn != nil {
+		m.pruneByHeightFn(view)
+	}
 }
 
 func (m mockMessages) PruneByRound(view *proto.View) {
-	m.pruneByRoundFn(view)
+	if m.pruneByRoundFn != nil {
+		m.pruneByRoundFn(view)
+	}
 }
 
 func (m mockMessages) GetPrePrepareMessage(view *proto.View) *messages.PrePrepareMessage {
-	return m.getPrePrepareMessageFn(view)
+	if m.getPrePrepareMessageFn != nil {
+		return m.getPrePrepareMessageFn(view)
+	}
+
+	return nil
 }
 
 // GetPrepareMessages returns all PREPARE messages, if any
 func (m mockMessages) GetPrepareMessages(view *proto.View) []*messages.PrepareMessage {
-	return m.getPrepareMessagesFn(view)
+	if m.getPrepareMessagesFn != nil {
+		return m.getPrepareMessagesFn(view)
+	}
+
+	return nil
 }
 
 // GetCommitMessages returns all COMMIT messages, if any
 func (m mockMessages) GetCommitMessages(view *proto.View) []*messages.CommitMessage {
-	return m.getCommitMessagesFn(view)
+	if m.getCommitMessagesFn != nil {
+		return m.getCommitMessagesFn(view)
+	}
+
+	return nil
 }
 
 // GetRoundChangeMessages returns all ROUND_CHANGE message, if any
 func (m mockMessages) GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage {
-	return m.getRoundChangeMessagesFn(view)
+	if m.getRoundChangeMessagesFn != nil {
+		return m.getRoundChangeMessagesFn(view)
+	}
+
+	return nil
 }
 
 func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*messages.RoundChangeMessage {
-	return m.getMostRoundChangeMessagesFn(round, height)
+	if m.getMostRoundChangeMessagesFn != nil {
+		return m.getMostRoundChangeMessagesFn(round, height)
+	}
+
+	return nil
 }
 
 func (m mockMessages) GetAndPrunePrepareMessages(view *proto.View) []*proto.Message {
-	return m.getAndPrunePrepareMessagesFn(view)
+	if m.getAndPrunePrepareMessagesFn != nil {
+		return m.getAndPrunePrepareMessagesFn(view)
+	}
+
+	return nil
 }
 
 func (m mockMessages) GetAndPruneCommitMessages(view *proto.View) []*proto.Message {
-	return m.getAndPruneCommitMessagesFn(view)
+	if m.getAndPruneCommitMessagesFn != nil {
+		return m.getAndPruneCommitMessagesFn(view)
+	}
+
+	return nil
 }
 
 func (m mockBackend) BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message {
