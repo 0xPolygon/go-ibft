@@ -400,12 +400,6 @@ func TestRunPrepare(t *testing.T) {
 			quitCh := make(chan struct{}, 1)
 
 			var (
-				quorum   = uint64(4)
-				quorumFn = QuorumFn(
-					func(_ uint64) uint64 {
-						return quorum
-					},
-				)
 				proposal                         = []byte("block proposal")
 				proposalHash                     = []byte("proposal hash")
 				multicastedCommit *proto.Message = nil
@@ -422,7 +416,7 @@ func TestRunPrepare(t *testing.T) {
 					}
 				}}
 				backend = mockBackend{
-					buildCommitMessageFn: func(bytes []byte, view *proto.View) *proto.Message {
+					buildCommitMessageFn: func(_ []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
 							View: view,
 							Type: proto.MessageType_COMMIT,
@@ -436,7 +430,6 @@ func TestRunPrepare(t *testing.T) {
 				}
 			)
 			i := NewIBFT(log, backend, transport)
-			i.quorumFn = quorumFn
 			i.state.proposal = proposal
 
 			i.eventCh <- quorumPrepares
@@ -476,153 +469,141 @@ func TestRunPrepare(t *testing.T) {
 	)
 }
 
-/*
+// TestRunCommit makes sure the node
+// behaves correctly in the commit state
+func TestRunCommit(t *testing.T) {
+	t.Parallel()
 
-	func TestRunCommit(t *testing.T) {
-		t.Run(
-			"validator received quorum of valid commit messages",
-			func(t *testing.T) {
-				var (
-					quorum   = 2
-					quorumFn = QuorumFn(func(num uint64) uint64 { return uint64(quorum) })
+	t.Run(
+		"validator received quorum of valid commit messages",
+		func(t *testing.T) {
+			t.Parallel()
 
-					log       = mockLogger{}
-					transport = mockTransport{}
-					backend   = mockBackend{
-						validatorCountFn: func(blockNumber uint64) uint64 {
-							return 4
-						},
-						isValidCommittedSealFn: func(bytes []byte, bytes2 []byte) bool {
-							return true
-						},
-					}
-					messages = mockMessages{
-						getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-							return []*messages.CommitMessage{
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-							}
-						},
-					}
-				)
+			quitCh := make(chan struct{}, 1)
 
-				i := NewIBFT(log, backend, transport)
-				i.messages = messages
-				i.quorumFn = quorumFn
+			var (
+				proposal                        = []byte("block proposal")
+				insertedProposal       []byte   = nil
+				insertedCommittedSeals [][]byte = nil
+				capturedEvent                   = noEvent
+				committedSeals                  = [][]byte{[]byte("seal"), []byte("seal")}
 
-				assert.NoError(t, i.runCommit())
-				assert.Equal(t, fin, i.state.name)
-			},
-		)
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
+						insertedProposal = proposal
+						insertedCommittedSeals = committedSeals
 
-		t.Run(
-			"validator not reaching quorum of commit messages",
-			func(t *testing.T) {
-				var (
-					quorum   = 4
-					quorumFn = QuorumFn(func(num uint64) uint64 { return uint64(quorum) })
+						return nil
+					},
+				}
+			)
 
-					log       = mockLogger{}
-					transport = mockTransport{}
-					backend   = mockBackend{
-						validatorCountFn: func(blockNumber uint64) uint64 {
-							return 4
-						},
-					}
-					messages = mockMessages{
-						getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-							return []*messages.CommitMessage{
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-							}
-						},
-					}
-				)
+			i := NewIBFT(log, backend, transport)
+			i.verifiedMessages = mockMessages{}
+			i.unverifiedMessages = mockMessages{}
+			i.state.proposal = proposal
+			i.state.seals = committedSeals
 
-				i := NewIBFT(log, backend, transport)
-				i.messages = messages
-				i.quorumFn = quorumFn
+			// Make sure the proper event is emitted
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func(i *IBFT) {
+				defer func() {
+					wg.Done()
 
-				assert.ErrorIs(t, errQuorumNotReached, i.runCommit())
-				assert.NotEqual(t, fin, i.state.name)
-			},
-		)
+					// Close out the main run loop
+					// as soon as the quorum commit event is parsed
+					quitCh <- struct{}{}
+				}()
 
-		t.Run(
-			"validator received commit messages with invalid seals",
-			func(t *testing.T) {
-				var (
-					quorum   = 2
-					quorumFn = QuorumFn(func(num uint64) uint64 { return uint64(quorum) })
+				select {
+				case event := <-i.roundDone:
+					capturedEvent = event
+				case <-time.After(5 * time.Second):
+					return
+				}
+			}(i)
 
-					log       = mockLogger{}
-					transport = mockTransport{}
-					backend   = mockBackend{
-						validatorCountFn: func(blockNumber uint64) uint64 {
-							return 4
-						},
-						isValidCommittedSealFn: func(bytes []byte, bytes2 []byte) bool {
-							return false
-						},
-					}
-					messages = mockMessages{
-						getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-							return []*messages.CommitMessage{
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("invalid seal")},
-								{ProposalHash: []byte("hash"), CommittedSeal: []byte("seal")},
-							}
-						},
-					}
-				)
+			i.eventCh <- quorumCommits
 
-				i := NewIBFT(log, backend, transport)
-				i.messages = messages
-				i.quorumFn = quorumFn
+			i.runRound(quitCh)
 
-				assert.ErrorIs(t, errQuorumNotReached, i.runCommit())
-				assert.NotEqual(t, fin, i.state.name)
-			})
-*/
+			// Make sure the node changed the state to fin
+			assert.Equal(t, fin, i.state.name)
 
-/*
+			// Make sure the inserted proposal was the one present
+			assert.Equal(t, insertedProposal, proposal)
 
-	func TestRunFin(t *testing.T) {
-		t.Run(
-			"validator insert finalized block",
-			func(t *testing.T) {
-				var (
-					log       = mockLogger{}
-					transport = mockTransport{}
-					backend   = mockBackend{
-						insertBlockFn: func(bytes []byte, i [][]byte) error {
-							return nil
-						},
-					}
-				)
+			// Make sure the inserted committed seals were correct
+			assert.Equal(t, insertedCommittedSeals, committedSeals)
 
-				i := NewIBFT(log, backend, transport)
-				assert.NoError(t, i.runFin())
-			},
-		)
+			// Make sure the proper event was emitted
+			wg.Wait()
+			assert.Equal(t, consensusReached, capturedEvent)
+		},
+	)
 
-		t.Run(
-			"validator insert finalized block",
-			func(t *testing.T) {
-				var (
-					log       = mockLogger{}
-					transport = mockTransport{}
-					backend   = mockBackend{
-						insertBlockFn: func(bytes []byte, i [][]byte) error {
-							return errors.New("bad")
-						},
-					}
-				)
+	t.Run(
+		"validator failed to insert the finalized block",
+		func(t *testing.T) {
+			t.Parallel()
 
-				i := NewIBFT(log, backend, transport)
-				assert.ErrorIs(t, errInsertBlock, i.runFin())
-			},
-		)
-	}
-*/
+			quitCh := make(chan struct{}, 1)
+
+			var (
+				multicastedRoundChange *proto.Message = nil
+
+				log       = mockLogger{}
+				transport = mockTransport{
+					func(message *proto.Message) {
+						if message != nil && message.Type == proto.MessageType_ROUND_CHANGE {
+							multicastedRoundChange = message
+
+							// Make sure to close the main run loop
+							// once the round change event has been emitted
+							quitCh <- struct{}{}
+						}
+					},
+				}
+				backend = mockBackend{
+					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
+						return errors.New("unable to insert block")
+					},
+					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
+						return &proto.Message{
+							View: &proto.View{
+								Height: height,
+								Round:  round,
+							},
+							Type: proto.MessageType_ROUND_CHANGE,
+						}
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+
+			i.eventCh <- quorumCommits
+
+			i.runRound(quitCh)
+
+			// Make sure the node changed the state to fin
+			assert.Equal(t, roundChange, i.state.name)
+
+			// Make sure the node is not locked on the proposal
+			assert.Equal(t, false, i.state.locked)
+
+			// Make sure the round is not started
+			assert.Equal(t, false, i.state.roundStarted)
+
+			// Make sure the round is increased
+			assert.Equal(t, uint64(1), i.state.view.Round)
+
+			// Make sure the correct message view was multicasted
+			assert.Equal(t, uint64(0), multicastedRoundChange.View.Height)
+			assert.Equal(t, uint64(1), multicastedRoundChange.View.Round)
+		},
+	)
+}

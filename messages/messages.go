@@ -208,6 +208,7 @@ func (ms *Messages) GetPrepareMessages(view *proto.View) []*PrepareMessage {
 	defer ms.Unlock()
 
 	prepareMessages := make([]*PrepareMessage, 0)
+
 	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
 		for _, message := range messages {
 			prepareMessages = append(prepareMessages, toPrepareFromProto(message))
@@ -222,6 +223,7 @@ func (ms *Messages) GetAndPrunePrepareMessages(view *proto.View) []*proto.Messag
 	defer ms.Unlock()
 
 	prepareMessages := make([]*proto.Message, 0)
+
 	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
 		for _, message := range messages {
 			prepareMessages = append(prepareMessages, message)
@@ -239,6 +241,7 @@ func (ms *Messages) GetAndPruneCommitMessages(view *proto.View) []*proto.Message
 	defer ms.Unlock()
 
 	commitMessages := make([]*proto.Message, 0)
+
 	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
 		for _, message := range messages {
 			commitMessages = append(commitMessages, message)
@@ -257,10 +260,10 @@ func (ms *Messages) GetCommitMessages(view *proto.View) []*CommitMessage {
 	defer ms.Unlock()
 
 	commitMessages := make([]*CommitMessage, 0)
+
 	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
 		for _, message := range messages {
 			commitMessages = append(commitMessages, toCommitFromProto(message))
-
 		}
 	}
 
@@ -273,6 +276,7 @@ func (ms *Messages) GetRoundChangeMessages(view *proto.View) []*RoundChangeMessa
 	defer ms.Unlock()
 
 	roundChangeMessages := make([]*RoundChangeMessage, 0)
+
 	if messages := ms.getProtoMessages(view, proto.MessageType_ROUND_CHANGE); messages != nil {
 		for _, message := range messages {
 			roundChangeMessages = append(roundChangeMessages, toRoundChangeFromProto(message))
@@ -320,6 +324,7 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*Round
 	}
 
 	roundChangeMessages := make([]*RoundChangeMessage, 0)
+
 	if data.found {
 		if messages := ms.getProtoMessages(&proto.View{
 			Height: height,

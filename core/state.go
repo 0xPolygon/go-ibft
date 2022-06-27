@@ -69,13 +69,6 @@ func (s *state) getCommittedSeals() [][]byte {
 	return s.seals
 }
 
-func (s *state) isRoundStarted() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.roundStarted
-}
-
 func (s *state) isLocked() bool {
 	s.RLock()
 	defer s.RUnlock()

@@ -199,9 +199,12 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				if err := i.runFin(); err != nil {
 					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 					i.state.setLocked(false)
+
+					continue
 				}
 
 				// Signalize finish
+				// TODO also return?
 				i.roundDone <- consensusReached
 			case quorumRoundChanges:
 				msgs := i.verifiedMessages.GetRoundChangeMessages(i.state.getView())
@@ -258,7 +261,7 @@ func (i *IBFT) runFin() error {
 }
 
 func (i *IBFT) commitMessages(view *proto.View) []*messages.CommitMessage {
-	var valid []*messages.CommitMessage
+	valid := make([]*messages.CommitMessage, 0)
 
 	for _, msg := range i.verifiedMessages.GetCommitMessages(view) {
 		//	check hash
@@ -284,7 +287,7 @@ func (i *IBFT) commitMessages(view *proto.View) []*messages.CommitMessage {
 }
 
 func (i *IBFT) prepareMessages(view *proto.View) []*messages.PrepareMessage {
-	var valid []*messages.PrepareMessage
+	valid := make([]*messages.PrepareMessage, 0)
 
 	for _, msg := range i.verifiedMessages.GetPrepareMessages(view) {
 		if err := i.backend.VerifyProposalHash(
@@ -311,7 +314,6 @@ func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 	}
 
 	return proposal, nil
-
 }
 
 func (i *IBFT) proposeBlock(height uint64) error {
@@ -344,7 +346,6 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 
 	if !i.backend.IsValidBlock(newProposal) {
 		return errInvalidBlockProposal
-
 	}
 
 	return nil
@@ -539,7 +540,6 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 		if len(msgs) >= int(
 			i.quorumFn(i.backend.ValidatorCount(i.state.getHeight())),
 		) {
-
 			return quorumRoundChanges
 		}
 
@@ -593,7 +593,6 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 			case prepare:
 				// FOR EVERY PREPARE MESSAGE IN UNVERIFIED
 				// The message can be verified now
-
 				// TODO this should effectively wipe out the messages as it takes them
 				preparedMessages := i.unverifiedMessages.GetAndPrunePrepareMessages(i.state.getView())
 
@@ -619,7 +618,6 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 			case commit:
 				// FOR EVERY COMMIT MESSAGE IN UNVERIFIED
 				// The message can be verified now
-
 				// TODO this should effectively wipe out the messages as it takes them
 				commitMessages := i.unverifiedMessages.GetAndPruneCommitMessages(i.state.getView())
 
