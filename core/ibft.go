@@ -27,7 +27,7 @@ type Messages interface {
 	GetAndPruneCommitMessages(view *proto.View) []*proto.Message
 	GetCommitMessages(view *proto.View) []*messages.CommitMessage
 	GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage
-	GetMostRoundChangeMessages() []*messages.RoundChangeMessage
+	GetMostRoundChangeMessages(minRound, height uint64) []*messages.RoundChangeMessage
 }
 
 var (
@@ -130,6 +130,7 @@ func (i *IBFT) stopRoundTimeout() {
 }
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
+	// TODO run moveToNewRound here, and remove from other places?
 	i.state.setStateName(newRound)
 	i.state.setRoundStarted(true)
 
@@ -163,6 +164,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 				}
 
+				// TODO make this a helper?
+				// We do the same thing in proposeBlock
 				newProposal := preprepareMsg.Proposal
 				i.acceptProposal(newProposal)
 
@@ -171,40 +174,31 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				)
 			case quorumPrepares:
 				i.state.setStateName(commit)
+				// TODO Make sure this doesn't deadlock
+				i.stateChangeCh <- commit
+
 				i.state.setLocked(true)
 
 				i.transport.Multicast(
 					i.backend.BuildCommitMessage(i.state.getProposal()),
 				)
 			case quorumCommits:
-				//	get commit messages
-				commitMessages := i.commitMessages(i.state.getView())
-				//	add seals
-				// TODO add this to a different place
-				for _, msg := range commitMessages {
-					i.state.seals = append(i.state.seals, msg.CommittedSeal)
-				}
-
-				//	block proposal finalized -> fin state
 				i.state.setStateName(fin)
 
-				// TODO pass in the committed seals here?
 				if err := i.runFin(); err != nil {
 					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
-					i.state.setLocked(true)
+					i.state.setLocked(false)
 				}
 
 				// Signalize finish
 				i.roundDone <- consensusReached
 			case quorumRoundChanges:
-				// TODO pass this as an argument to the method
-				msgs := i.verifiedMessages.GetMostRoundChangeMessages()
+				msgs := i.verifiedMessages.GetRoundChangeMessages(i.state.getView())
 				i.state.setRound(msgs[0].Round)
 
 				i.roundDone <- repeatSequence
 			case roundHop:
-				// TODO pass this as an argument to the method
-				msgs := i.verifiedMessages.GetMostRoundChangeMessages()
+				msgs := i.verifiedMessages.GetMostRoundChangeMessages(i.state.getRound()+1, i.state.getHeight())
 				suggestedRound := msgs[0].Round
 
 				i.moveToNewRoundWithRC(suggestedRound, i.state.getHeight())
@@ -316,8 +310,11 @@ func (i *IBFT) proposeBlock(height uint64) error {
 		return err
 	}
 
-	i.state.setProposal(proposal)
-	i.state.setStateName(prepare)
+	i.acceptProposal(proposal)
+
+	i.transport.Multicast(
+		i.backend.BuildPrePrepareMessage(proposal),
+	)
 
 	i.transport.Multicast(
 		i.backend.BuildPrepareMessage(proposal),
@@ -347,6 +344,9 @@ func (i *IBFT) acceptProposal(proposal []byte) {
 	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposal(proposal)
 	i.state.setStateName(prepare)
+
+	// TODO make sure this doesn't deadlock
+	i.stateChangeCh <- prepare
 }
 
 func (i *IBFT) AddMessage(message *proto.Message) {
@@ -499,7 +499,20 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 		}
 	case proto.MessageType_COMMIT:
 		// Check if there are enough messages
-		numCommits := len(i.commitMessages(i.state.getView()))
+		commitMessages := i.commitMessages(i.state.getView())
+		numCommits := len(commitMessages)
+
+		// Extract the committed seals since we know they're valid
+		// at this point
+		if numCommits > 0 {
+			committedSeals := make([][]byte, len(commitMessages))
+			for index, commitMessage := range commitMessages {
+				committedSeals[index] = commitMessage.CommittedSeal
+			}
+
+			i.state.addCommittedSeals(committedSeals)
+		}
+
 		if numCommits >= quorum {
 			return quorumCommits
 		}
@@ -509,23 +522,22 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 			return quorumPrepares
 		}
 	case proto.MessageType_ROUND_CHANGE:
-		msgs := i.verifiedMessages.GetMostRoundChangeMessages()
+		view := i.state.getView()
+		msgs := i.verifiedMessages.GetRoundChangeMessages(view)
 
 		// Check for Q(RC)
-		if len(msgs) >= int(i.quorumFn(i.backend.ValidatorCount(
-			i.state.getHeight()))) {
+		if len(msgs) >= int(
+			i.quorumFn(i.backend.ValidatorCount(i.state.getHeight())),
+		) {
+
 			return quorumRoundChanges
 		}
 
+		msgs = i.verifiedMessages.GetMostRoundChangeMessages(view.Round+1, view.Height)
 		// Check for F+1
-		if len(msgs) > 0 {
-			suggestedRound := msgs[0].Round
-			if i.state.getRound() < suggestedRound && len(msgs) > int(i.backend.AllowedFaulty())+1 {
-				// move to new round
-				return roundHop
-			}
+		if len(msgs) >= int(i.backend.AllowedFaulty())+1 {
+			return roundHop
 		}
-
 	}
 
 	return noEvent

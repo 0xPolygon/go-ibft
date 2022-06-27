@@ -15,6 +15,7 @@ const (
 	fin
 )
 
+// TODO make sure all fields are cleared when they should be
 type state struct {
 	sync.RWMutex
 
@@ -129,4 +130,11 @@ func (s *state) setView(view *proto.View) {
 	defer s.Unlock()
 
 	s.view = view
+}
+
+func (s *state) addCommittedSeals(committedSeals [][]byte) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.seals = append(s.seals, committedSeals...)
 }
