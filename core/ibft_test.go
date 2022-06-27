@@ -607,3 +607,68 @@ func TestRunCommit(t *testing.T) {
 		},
 	)
 }
+
+// TestIBFT_IsAcceptableMessage makes sure invalid messages
+// are properly handled
+func TestIBFT_IsAcceptableMessage(t *testing.T) {
+	t.Parallel()
+
+	testTable := []struct {
+		name          string
+		view          *proto.View
+		invalidSender bool
+		acceptable    bool
+	}{
+		{
+			"invalid sender",
+			nil,
+			true,
+			false,
+		},
+		{
+			"malformed message",
+			nil,
+			false,
+			false,
+		},
+		{
+			"height mismatch",
+			&proto.View{
+				Height: 100,
+			},
+			false,
+			false,
+		},
+		{
+			"higher round number",
+			&proto.View{
+				Height: 0,
+				Round:  1,
+			},
+			false,
+			true,
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					isValidMessageFn: func(message *proto.Message) bool {
+						return !testCase.invalidSender
+					},
+				}
+			)
+			i := NewIBFT(log, backend, transport)
+
+			message := &proto.Message{
+				View: testCase.view,
+			}
+
+			assert.Equal(t, testCase.acceptable, i.isAcceptableMessage(message))
+		})
+	}
+}
