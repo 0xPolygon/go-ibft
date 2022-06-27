@@ -653,6 +653,8 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 	for _, testCase := range testTable {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			var (
 				log       = mockLogger{}
 				transport = mockTransport{}
@@ -669,6 +671,77 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 			}
 
 			assert.Equal(t, testCase.acceptable, i.isAcceptableMessage(message))
+		})
+	}
+}
+
+// TestIBFT_CanVerifyMessage checks if certain message
+// types can be verified based on the current state
+func TestIBFT_CanVerifyMessage(t *testing.T) {
+	t.Parallel()
+
+	testTable := []struct {
+		name         string
+		messageType  proto.MessageType
+		currentState stateName
+		verifiable   bool
+	}{
+		{
+			"verifiable round change message",
+			proto.MessageType_ROUND_CHANGE,
+			newRound,
+			true,
+		},
+		{
+			"unverifiable commit message",
+			proto.MessageType_COMMIT,
+			newRound,
+			false,
+		},
+		{
+			"unverifiable prepare message",
+			proto.MessageType_PREPARE,
+			newRound,
+			false,
+		},
+		{
+			"verifiable preprepare message",
+			proto.MessageType_PREPREPARE,
+			newRound,
+			true,
+		},
+		{
+			"verifiable commit message",
+			proto.MessageType_COMMIT,
+			prepare,
+			true,
+		},
+		{
+			"verifiable prepare message",
+			proto.MessageType_PREPARE,
+			prepare,
+			true,
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{}
+			)
+			i := NewIBFT(log, backend, transport)
+			i.state.name = testCase.currentState
+
+			message := &proto.Message{
+				Type: testCase.messageType,
+			}
+
+			assert.Equal(t, testCase.verifiable, i.canVerifyMessage(message))
 		})
 	}
 }

@@ -170,6 +170,11 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			// New event received from the message handler, parse it
 			switch event {
 			case proposalReceived:
+				if i.state.getProposal() != nil {
+					// Ignore any kind of additional proposal once one has been accepted
+					continue
+				}
+
 				preprepareMsg := i.verifiedMessages.GetPrePrepareMessage(i.state.getView())
 				if preprepareMsg == nil {
 					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
@@ -404,7 +409,11 @@ func (i *IBFT) canVerifyMessage(message *proto.Message) bool {
 
 	// PREPARE and COMMIT messages can be verified after PREPREPARE, but NOT before
 	// PREPARE and COMMIT messages can be verified independently of one another!
-	return i.state.getStateName() == newRound && message.Type != proto.MessageType_PREPREPARE
+	if i.state.getStateName() == newRound {
+		return message.Type == proto.MessageType_PREPREPARE
+	}
+
+	return true
 }
 
 func viewsMatch(a, b *proto.View) bool {
