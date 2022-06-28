@@ -403,7 +403,6 @@ func TestRunPrepare(t *testing.T) {
 				proposal                         = []byte("block proposal")
 				proposalHash                     = []byte("proposal hash")
 				multicastedCommit *proto.Message = nil
-				capturedState                    = newRound
 
 				log       = mockLogger{}
 				transport = mockTransport{func(message *proto.Message) {
@@ -434,20 +433,6 @@ func TestRunPrepare(t *testing.T) {
 
 			i.eventCh <- quorumPrepares
 
-			// Make sure the proper event is emitted
-			var wg sync.WaitGroup
-			wg.Add(1)
-			go func(i *IBFT) {
-				defer wg.Done()
-
-				select {
-				case name := <-i.stateChangeCh:
-					capturedState = name
-				case <-time.After(5 * time.Second):
-					return
-				}
-			}(i)
-
 			i.runRound(quitCh)
 
 			// Make sure the node moves to the commit state
@@ -461,10 +446,6 @@ func TestRunPrepare(t *testing.T) {
 
 			// Make sure the proper proposal hash was multicasted
 			assert.True(t, commitHashMatches(proposalHash, multicastedCommit))
-
-			// Make sure the proper event was emitted
-			wg.Wait()
-			assert.Equal(t, commit, capturedState)
 		},
 	)
 }
@@ -1773,4 +1754,119 @@ func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
 		wg.Wait()
 		assert.Equal(t, errHashMismatch, capturedError)
 	})
+}
+
+func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
+	t.Parallel()
+
+	generatePrepareMessages := func(count uint64) []*proto.Message {
+		prepares := make([]*proto.Message, count)
+
+		for index := uint64(0); index < count; index++ {
+			prepares[index] = &proto.Message{
+				View: &proto.View{},
+				Type: proto.MessageType_PREPARE,
+				Payload: &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: []byte("proposal hash"),
+					},
+				},
+			}
+		}
+
+		return prepares
+	}
+
+	quitCh := make(chan struct{}, 1)
+
+	var (
+		receivedEvent        = noEvent
+		quorum        uint64 = 4
+
+		log       = mockLogger{}
+		transport = mockTransport{}
+		backend   = mockBackend{
+			verifyProposalHashFn: func(_ []byte, _ []byte) error {
+				return nil
+			},
+		}
+	)
+
+	verified := make([]*proto.Message, 0)
+	unverified := make([]*proto.Message, 0)
+
+	// Add quorum prepare messages to the unverified queue
+	unverified = append(unverified, generatePrepareMessages(quorum)...)
+
+	verifiableMessages := mockMessages{
+		addMessageFn: func(message *proto.Message) {
+			verified = append(verified, message)
+		},
+		getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+			// TODO drop this insane conversion
+			msgs := make([]*messages.PrepareMessage, len(verified))
+
+			for index, _ := range verified {
+				msgs[index] = &messages.PrepareMessage{ProposalHash: []byte("proposal hash")}
+			}
+
+			return msgs
+		},
+	}
+
+	unverifiableMessages := mockMessages{
+		addMessageFn: func(message *proto.Message) {
+			unverified = append(unverified, message)
+		},
+		getAndPrunePrepareMessagesFn: func(view *proto.View) []*proto.Message {
+			newMessages := make([]*proto.Message, len(unverified))
+
+			for index, message := range unverified {
+				newMessages[index] = message
+			}
+
+			unverified = unverified[:0]
+
+			return newMessages
+		},
+	}
+
+	i := NewIBFT(log, backend, transport)
+	i.verifiedMessages = verifiableMessages
+	i.unverifiedMessages = unverifiableMessages
+	i.state.name = prepare
+	i.quorumFn = func(num uint64) uint64 {
+		return quorum
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer func() {
+			wg.Done()
+
+			// Make sure the message handler is closed once the message is handled
+			quitCh <- struct{}{}
+		}()
+
+		select {
+		case capturedEvent := <-i.eventCh:
+			receivedEvent = capturedEvent
+
+		case <-time.After(5 * time.Second):
+			return
+		}
+	}()
+
+	i.proposalAcceptedCh <- struct{}{}
+
+	i.runMessageHandler(quitCh)
+
+	// Make sure the message was added to the verified messages
+	assert.Len(t, unverified, 0)
+	assert.Len(t, verified, int(quorum))
+
+	// Make sure the correct event was emitted
+	wg.Wait()
+	assert.Equal(t, quorumPrepares, receivedEvent)
 }

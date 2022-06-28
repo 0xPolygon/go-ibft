@@ -64,8 +64,8 @@ type IBFT struct {
 	roundTimer *time.Timer
 
 	// IBFT -> message handler
-	newMessageCh  chan *proto.Message
-	stateChangeCh chan stateName
+	newMessageCh       chan *proto.Message
+	proposalAcceptedCh chan struct{} // TODO rename this to something more appropriate
 
 	// message handler -> IBFT
 	eventCh chan event
@@ -92,11 +92,11 @@ func NewIBFT(
 			locked:       false,
 			name:         0,
 		},
-		roundDone:     make(chan event),
-		newMessageCh:  make(chan *proto.Message, 1),
-		stateChangeCh: make(chan stateName, 1),
-		eventCh:       make(chan event, 1),
-		errorCh:       make(chan error, 1),
+		roundDone:          make(chan event),
+		newMessageCh:       make(chan *proto.Message, 1),
+		proposalAcceptedCh: make(chan struct{}, 1),
+		eventCh:            make(chan event, 1),
+		errorCh:            make(chan error, 1),
 	}
 }
 
@@ -152,6 +152,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.state.getHeight(),
 		i.state.getRound(),
 	) {
+		// TODO should this emit a proposal accepted event to the event handler?
 		if err := i.proposeBlock(i.state.getHeight()); err != nil {
 			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 		}
@@ -190,11 +191,12 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				i.transport.Multicast(
 					i.backend.BuildPrepareMessage(newProposal, i.state.getView()),
 				)
+
+				// Alert the message handler that
+				// unverified messages can now be verified
+				i.proposalAcceptedCh <- struct{}{}
 			case quorumPrepares:
 				i.state.setStateName(commit)
-				// TODO Make sure this doesn't deadlock
-				i.stateChangeCh <- commit
-
 				i.state.setLocked(true)
 
 				i.transport.Multicast(
@@ -362,9 +364,6 @@ func (i *IBFT) acceptProposal(proposal []byte) {
 	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposal(proposal)
 	i.state.setStateName(prepare)
-
-	// TODO make sure this doesn't deadlock
-	i.stateChangeCh <- prepare
 }
 
 func (i *IBFT) AddMessage(message *proto.Message) {
@@ -598,62 +597,28 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 			if event := i.eventPossible(message.Type); event != noEvent {
 				i.eventCh <- event
 			}
-		case newState := <-i.stateChangeCh:
-			// A state change occurred, check if any messages can be verified now
-			switch newState {
-			case prepare:
-				// FOR EVERY PREPARE MESSAGE IN UNVERIFIED
-				// The message can be verified now
-				// TODO this should effectively wipe out the messages as it takes them
-				preparedMessages := i.unverifiedMessages.GetAndPrunePrepareMessages(i.state.getView())
+		case <-i.proposalAcceptedCh:
+			// A state change occurred, check if any messages
+			// that were previously unverifiable can be verified now
+			view := i.state.getView()
 
-				for _, prepareMessage := range preparedMessages {
-					if err := i.validateMessage(prepareMessage); err != nil {
-						// Message is invalid, log it
-						i.log.Debug("received invalid message")
+			unverifiedMessages := i.unverifiedMessages.GetAndPrunePrepareMessages(view)
+			unverifiedMessages = append(unverifiedMessages, i.unverifiedMessages.GetAndPruneCommitMessages(view)...)
 
-						i.errorCh <- err
+			for _, unverifiedMessage := range unverifiedMessages {
+				if err := i.validateMessage(unverifiedMessage); err != nil {
+					// Message is invalid, but not consensus-breaking
+					i.errorCh <- err
 
-						continue
-					}
-
-					// Since the message is valid, add it to the verified stack
-					i.verifiedMessages.AddMessage(prepareMessage)
-
-					// Check if any conditions can be met based on the message type
-					if event := i.eventPossible(prepareMessage.Type); event != noEvent {
-						i.eventCh <- event
-
-						// TODO check if this is valid
-						continue
-					}
+					continue
 				}
-			case commit:
-				// FOR EVERY COMMIT MESSAGE IN UNVERIFIED
-				// The message can be verified now
-				// TODO this should effectively wipe out the messages as it takes them
-				commitMessages := i.unverifiedMessages.GetAndPruneCommitMessages(i.state.getView())
 
-				for _, commitMessage := range commitMessages {
-					if err := i.validateMessage(commitMessage); err != nil {
-						// Message is invalid, log it
-						i.log.Debug("received invalid message")
+				// Since the message is valid, add it to the verified messages
+				i.verifiedMessages.AddMessage(unverifiedMessage)
 
-						i.errorCh <- err
-
-						continue
-					}
-
-					// Since the message is valid, add it to the verified stack
-					i.verifiedMessages.AddMessage(commitMessage)
-
-					// Check if any conditions can be met based on the message type
-					if event := i.eventPossible(commitMessage.Type); event != noEvent {
-						i.eventCh <- event
-
-						// TODO check if this is valid
-						continue
-					}
+				// Check if any conditions can be met based on the message type
+				if event := i.eventPossible(unverifiedMessage.Type); event != noEvent {
+					i.eventCh <- event
 				}
 			}
 		}
