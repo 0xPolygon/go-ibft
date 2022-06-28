@@ -1062,7 +1062,7 @@ func TestIBFT_ValidateMessage_Preprepare(t *testing.T) {
 		message      *proto.Message
 	}{
 		{
-			"prepare view mismatch",
+			"preprepare view mismatch",
 			errViewMismatch,
 			mockBackend{},
 			&state{
@@ -1188,7 +1188,78 @@ func TestIBFT_ValidateMessage_Preprepare(t *testing.T) {
 }
 
 func TestIBFT_ValidateMessage_Prepare(t *testing.T) {
-	// TODO
+	t.Parallel()
+
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	testTable := []struct {
+		name         string
+		expectedErr  error
+		backend      Backend
+		currentState *state
+		message      *proto.Message
+	}{
+		{
+			"prepare view mismatch",
+			errViewMismatch,
+			mockBackend{},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_PREPARE,
+				// Make sure the view is different
+				View: &proto.View{
+					Height: 0,
+					Round:  1,
+				},
+			},
+		},
+		{
+			"proposal hash mismatch",
+			errHashMismatch,
+			mockBackend{
+				verifyProposalHashFn: func(_ []byte, _ []byte) error {
+					// Make sure the proposal hash is rejected
+					return errors.New("invalid hash")
+				},
+			},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_PREPARE,
+				View: baseView,
+				Payload: &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: []byte("proposal hash"),
+					},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+			)
+
+			i := NewIBFT(log, testCase.backend, transport)
+			i.state = testCase.currentState
+
+			// Make sure the message is processed correctly
+			assert.ErrorIs(t, i.validateMessage(testCase.message), testCase.expectedErr)
+		})
+	}
 }
 
 func TestIBFT_ValidateMessage_Commit(t *testing.T) {
