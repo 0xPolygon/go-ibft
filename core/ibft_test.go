@@ -1464,3 +1464,98 @@ func TestIBFT_ValidateMessage_RoundChange(t *testing.T) {
 		})
 	}
 }
+
+func TestIBFT_AddMessage(t *testing.T) {
+	t.Parallel()
+
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	testTable := []struct {
+		name          string
+		message       *proto.Message
+		backend       Backend
+		currentView   *proto.View
+		shouldBeAdded bool
+	}{
+		{
+			"malformed message",
+			nil,
+			mockBackend{},
+			baseView,
+			false,
+		},
+		{
+			"invalid message",
+			&proto.Message{},
+			mockBackend{
+				isValidMessageFn: func(message *proto.Message) bool {
+					return false
+				},
+			},
+			baseView,
+			false,
+		},
+		{
+			"valid message",
+			&proto.Message{
+				View: baseView,
+			},
+			mockBackend{
+				isValidMessageFn: func(message *proto.Message) bool {
+					return true
+				},
+			},
+			baseView,
+			true,
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				wg              sync.WaitGroup
+				receivedMessage *proto.Message = nil
+				log                            = mockLogger{}
+				transport                      = mockTransport{}
+			)
+
+			i := NewIBFT(log, testCase.backend, transport)
+
+			// If the message should be added,
+			// make sure the event handler is alerted
+			if testCase.shouldBeAdded {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					select {
+					case message := <-i.newMessageCh:
+						receivedMessage = message
+					case <-time.After(5 * time.Second):
+						return
+					}
+				}()
+			}
+
+			// Add the message
+			i.AddMessage(testCase.message)
+
+			wg.Wait()
+
+			if testCase.shouldBeAdded {
+				// Make sure the correct message was received
+				assert.Equal(t, testCase.message, receivedMessage)
+			} else {
+				// Make sure no message was sent out
+				assert.Nil(t, receivedMessage)
+			}
+		})
+	}
+}
