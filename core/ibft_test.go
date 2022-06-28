@@ -1559,3 +1559,218 @@ func TestIBFT_AddMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
+	t.Parallel()
+
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	t.Run("receive unverifiable message", func(t *testing.T) {
+		t.Parallel()
+
+		quitCh := make(chan struct{}, 1)
+
+		var (
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{}
+		)
+
+		verified := make([]*proto.Message, 0)
+		unverified := make([]*proto.Message, 0)
+
+		verifiableMessages := mockMessages{
+			addMessageFn: func(message *proto.Message) {
+				verified = append(verified, message)
+			},
+		}
+
+		unverifiableMessages := mockMessages{
+			addMessageFn: func(message *proto.Message) {
+				unverified = append(unverified, message)
+
+				// Make sure the message handler is closed once the message is handled
+				quitCh <- struct{}{}
+			},
+		}
+
+		i := NewIBFT(log, backend, transport)
+		i.verifiedMessages = verifiableMessages
+		i.unverifiedMessages = unverifiableMessages
+
+		message := &proto.Message{
+			Type: proto.MessageType_PREPARE,
+			View: baseView,
+		}
+
+		i.newMessageCh <- message
+
+		i.runMessageHandler(quitCh)
+
+		// Make sure the message was added to the unverified messages
+		assert.Len(t, unverified, 1)
+		assert.Len(t, verified, 0)
+	})
+
+	t.Run("receive verifiable message", func(t *testing.T) {
+		t.Parallel()
+
+		quitCh := make(chan struct{}, 1)
+
+		var (
+			receivedEvent = noEvent
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				verifyProposalHashFn: func(_ []byte, _ []byte) error {
+					return nil
+				},
+			}
+		)
+
+		verified := make([]*proto.Message, 0)
+		unverified := make([]*proto.Message, 0)
+
+		verifiableMessages := mockMessages{
+			addMessageFn: func(message *proto.Message) {
+				verified = append(verified, message)
+
+				// Make sure the message handler is closed once the message is handled
+				quitCh <- struct{}{}
+			},
+		}
+
+		unverifiableMessages := mockMessages{
+			addMessageFn: func(message *proto.Message) {
+				unverified = append(unverified, message)
+			},
+		}
+
+		i := NewIBFT(log, backend, transport)
+		i.verifiedMessages = verifiableMessages
+		i.unverifiedMessages = unverifiableMessages
+		i.state.name = prepare
+		i.quorumFn = func(num uint64) uint64 {
+			return 0
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			select {
+			case capturedEvent := <-i.eventCh:
+				receivedEvent = capturedEvent
+			case <-time.After(5 * time.Second):
+				return
+			}
+		}()
+
+		message := &proto.Message{
+			Type: proto.MessageType_PREPARE,
+			View: baseView,
+			Payload: &proto.Message_PrepareData{
+				PrepareData: &proto.PrepareMessage{
+					ProposalHash: []byte("proposal hash"),
+				},
+			},
+		}
+
+		i.newMessageCh <- message
+
+		i.runMessageHandler(quitCh)
+
+		// Make sure the message was added to the verified messages
+		assert.Len(t, unverified, 0)
+		assert.Len(t, verified, 1)
+
+		// Make sure the correct event was emitted
+		wg.Wait()
+		assert.Equal(t, quorumPrepares, receivedEvent)
+	})
+
+	t.Run("receive invalid verifiable message", func(t *testing.T) {
+		t.Parallel()
+
+		quitCh := make(chan struct{}, 1)
+
+		var (
+			wg            sync.WaitGroup
+			capturedError error = nil
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				verifyProposalHashFn: func(_ []byte, _ []byte) error {
+					return errors.New("invalid proposal hash")
+				},
+			}
+		)
+
+		verified := make([]*proto.Message, 0)
+		unverified := make([]*proto.Message, 0)
+
+		verifiableMessages := mockMessages{
+			addMessageFn: func(message *proto.Message) {
+				verified = append(verified, message)
+			},
+		}
+
+		unverifiableMessages := mockMessages{
+			addMessageFn: func(message *proto.Message) {
+				unverified = append(unverified, message)
+			},
+		}
+
+		i := NewIBFT(log, backend, transport)
+		i.verifiedMessages = verifiableMessages
+		i.unverifiedMessages = unverifiableMessages
+		i.state.name = prepare
+		i.quorumFn = func(num uint64) uint64 {
+			return 0
+		}
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+
+				quitCh <- struct{}{}
+			}()
+
+			select {
+			case err := <-i.errorCh:
+				capturedError = err
+			case <-time.After(5 * time.Second):
+				return
+			}
+		}()
+
+		message := &proto.Message{
+			Type: proto.MessageType_PREPARE,
+			View: baseView,
+			Payload: &proto.Message_PrepareData{
+				PrepareData: &proto.PrepareMessage{
+					ProposalHash: []byte("proposal hash"),
+				},
+			},
+		}
+
+		i.newMessageCh <- message
+
+		i.runMessageHandler(quitCh)
+
+		// Make sure the message was not added to any queue
+		assert.Len(t, unverified, 0)
+		assert.Len(t, verified, 0)
+
+		// Make sure the correct error was emitted
+		wg.Wait()
+		assert.Equal(t, errHashMismatch, capturedError)
+	})
+}

@@ -584,6 +584,8 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 				// Message is invalid, log it
 				i.log.Debug("received invalid message")
 
+				// Alert the main loop of this error,
+				// as the error can be consensus-breaking
 				i.errorCh <- err
 
 				continue
