@@ -745,3 +745,166 @@ func TestIBFT_CanVerifyMessage(t *testing.T) {
 		})
 	}
 }
+
+// TestIBFT_EventPossible makes sure certain
+// event emittance is possible once conditions are met
+func TestIBFT_EventPossible(t *testing.T) {
+	t.Parallel()
+
+	generatePrepareMessages := func(count uint64) []*messages.PrepareMessage {
+		prepares := make([]*messages.PrepareMessage, count)
+
+		for index := uint64(0); index < count; index++ {
+			prepares[index] = &messages.PrepareMessage{ProposalHash: nil}
+		}
+
+		return prepares
+	}
+
+	generateCommitMessages := func(count uint64) []*messages.CommitMessage {
+		commits := make([]*messages.CommitMessage, count)
+
+		for index := uint64(0); index < count; index++ {
+			commits[index] = &messages.CommitMessage{ProposalHash: nil}
+		}
+
+		return commits
+	}
+
+	generateRoundChangeMessages := func(count uint64) []*messages.RoundChangeMessage {
+		roundChanges := make([]*messages.RoundChangeMessage, count)
+
+		for index := uint64(0); index < count; index++ {
+			roundChanges[index] = &messages.RoundChangeMessage{}
+		}
+
+		return roundChanges
+	}
+
+	testTable := []struct {
+		name          string
+		messageType   proto.MessageType
+		expectedEvent event
+		quorum        uint64
+		messages      mockMessages
+	}{
+		{
+			"quorum prepares received",
+			proto.MessageType_PREPARE,
+			quorumPrepares,
+			1,
+			mockMessages{
+				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+					return generatePrepareMessages(1)
+				},
+			},
+		},
+		{
+			"quorum (prepares + commits) received",
+			proto.MessageType_PREPARE,
+			quorumPrepares,
+			4,
+			mockMessages{
+				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+					return generatePrepareMessages(4 / 2)
+				},
+				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
+					return generateCommitMessages(4 / 2)
+				},
+			},
+		},
+		{
+			"quorum commits received",
+			proto.MessageType_COMMIT,
+			quorumCommits,
+			1,
+			mockMessages{
+				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
+					return generateCommitMessages(1)
+				},
+			},
+		},
+		{
+			"quorum (commits + prepares) received",
+			proto.MessageType_COMMIT,
+			quorumPrepares,
+			4,
+			mockMessages{
+				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+					return generatePrepareMessages(4 / 2)
+				},
+				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
+					return generateCommitMessages(4 / 2)
+				},
+			},
+		},
+		{
+			"quorum round changes received",
+			proto.MessageType_ROUND_CHANGE,
+			quorumRoundChanges,
+			1,
+			mockMessages{
+				getRoundChangeMessagesFn: func(view *proto.View) []*messages.RoundChangeMessage {
+					return generateRoundChangeMessages(1)
+				},
+			},
+		},
+		{
+			"F+1 round changes received",
+			proto.MessageType_ROUND_CHANGE,
+			roundHop,
+			4,
+			mockMessages{
+				getRoundChangeMessagesFn: func(view *proto.View) []*messages.RoundChangeMessage {
+					return generateRoundChangeMessages(4 - 1)
+				},
+				getMostRoundChangeMessagesFn: func(u uint64, u2 uint64) []*messages.RoundChangeMessage {
+					return generateRoundChangeMessages(uint64(1)) // Faulty is 0 for the mock
+				},
+			},
+		},
+		{
+			"no event possible",
+			proto.MessageType_PREPARE,
+			noEvent,
+			4,
+			mockMessages{
+				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
+					return generatePrepareMessages(4/2 - 1)
+				},
+				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
+					return generateCommitMessages(4/2 - 1)
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{}
+			)
+
+			i := NewIBFT(log, backend, transport)
+
+			i.quorumFn = func(num uint64) uint64 {
+				return testCase.quorum
+			}
+
+			i.state.view = &proto.View{
+				Height: 0,
+				Round:  0,
+			}
+
+			i.verifiedMessages = testCase.messages
+
+			assert.Equal(t, testCase.expectedEvent, i.eventPossible(testCase.messageType))
+		})
+	}
+}

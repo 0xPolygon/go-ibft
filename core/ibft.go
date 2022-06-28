@@ -524,6 +524,8 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 
 		// Extract the committed seals since we know they're valid
 		// at this point
+
+		// TODO handle duplicates!!!
 		if numCommits > 0 {
 			committedSeals := make([][]byte, len(commitMessages))
 			for index, commitMessage := range commitMessages {
@@ -546,9 +548,7 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 		msgs := i.verifiedMessages.GetRoundChangeMessages(view)
 
 		// Check for Q(RC)
-		if len(msgs) >= int(
-			i.quorumFn(i.backend.ValidatorCount(i.state.getHeight())),
-		) {
+		if len(msgs) >= quorum {
 			return quorumRoundChanges
 		}
 
