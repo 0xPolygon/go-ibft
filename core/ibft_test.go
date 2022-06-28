@@ -1240,6 +1240,27 @@ func TestIBFT_ValidateMessage_Prepare(t *testing.T) {
 				},
 			},
 		},
+		{
+			"valid prepare",
+			nil,
+			mockBackend{
+				verifyProposalHashFn: func(_ []byte, _ []byte) error {
+					return nil
+				},
+			},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_PREPARE,
+				View: baseView,
+				Payload: &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: []byte("proposal hash"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testTable {
@@ -1263,9 +1284,183 @@ func TestIBFT_ValidateMessage_Prepare(t *testing.T) {
 }
 
 func TestIBFT_ValidateMessage_Commit(t *testing.T) {
-	// TODO
+	t.Parallel()
+
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	testTable := []struct {
+		name         string
+		expectedErr  error
+		backend      Backend
+		currentState *state
+		message      *proto.Message
+	}{
+		{
+			"commit view mismatch",
+			errViewMismatch,
+			mockBackend{},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_COMMIT,
+				// Make sure the view is different
+				View: &proto.View{
+					Height: 0,
+					Round:  1,
+				},
+			},
+		},
+		{
+			"proposal hash mismatch",
+			errHashMismatch,
+			mockBackend{
+				verifyProposalHashFn: func(_ []byte, _ []byte) error {
+					// Make sure the proposal hash is rejected
+					return errors.New("invalid hash")
+				},
+			},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_COMMIT,
+				View: baseView,
+				Payload: &proto.Message_CommitData{
+					CommitData: &proto.CommitMessage{
+						ProposalHash: []byte("proposal hash"),
+					},
+				},
+			},
+		},
+		{
+			"invalid committed seal",
+			errInvalidCommittedSeal,
+			mockBackend{
+				isValidCommittedSealFn: func(_ []byte, _ []byte) bool {
+					// Make sure the committed seal is rejected
+					return false
+				},
+			},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_COMMIT,
+				View: baseView,
+				Payload: &proto.Message_CommitData{
+					CommitData: &proto.CommitMessage{
+						CommittedSeal: []byte("committed seal"),
+					},
+				},
+			},
+		},
+		{
+			"valid commit",
+			nil,
+			mockBackend{
+				isValidCommittedSealFn: func(_ []byte, _ []byte) bool {
+					return true
+				},
+			},
+			&state{
+				view: baseView,
+			},
+			&proto.Message{
+				Type: proto.MessageType_COMMIT,
+				View: baseView,
+				Payload: &proto.Message_CommitData{
+					CommitData: &proto.CommitMessage{
+						CommittedSeal: []byte("committed seal"),
+					},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+			)
+
+			i := NewIBFT(log, testCase.backend, transport)
+			i.state = testCase.currentState
+
+			// Make sure the message is processed correctly
+			assert.ErrorIs(t, i.validateMessage(testCase.message), testCase.expectedErr)
+		})
+	}
 }
 
 func TestIBFT_ValidateMessage_RoundChange(t *testing.T) {
-	// TODO
+	t.Parallel()
+
+	testTable := []struct {
+		name        string
+		expectedErr error
+		currentView *proto.View
+		message     *proto.Message
+	}{
+		{
+			"height mismatch",
+			errViewMismatch,
+			&proto.View{
+				Height: 0,
+				Round:  0,
+			},
+			&proto.Message{
+				View: &proto.View{
+					// Make sure the height is different
+					Height: 1,
+					Round:  0,
+				},
+				Type: proto.MessageType_ROUND_CHANGE,
+			},
+		},
+		{
+			"valid round change message",
+			nil,
+			&proto.View{
+				Height: 0,
+				Round:  0,
+			},
+			&proto.Message{
+				View: &proto.View{
+					// Make sure the height is the same
+					Height: 0,
+					Round:  0,
+				},
+				Type: proto.MessageType_ROUND_CHANGE,
+			},
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.state.view = testCase.currentView
+
+			// Make sure the message is processed correctly
+			assert.ErrorIs(t, i.validateMessage(testCase.message), testCase.expectedErr)
+		})
+	}
 }

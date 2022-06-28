@@ -75,7 +75,7 @@ func (m mockBackend) IsValidBlock(block []byte) bool {
 }
 
 func (m mockBackend) IsValidMessage(msg *proto.Message) bool {
-	if m.isValidBlockFn != nil {
+	if m.isValidMessageFn != nil {
 		return m.isValidMessageFn(msg)
 	}
 
