@@ -33,6 +33,7 @@ type Messages interface {
 var (
 	errBuildProposal        = errors.New("failed to build proposal")
 	errInvalidBlockProposal = errors.New("invalid block proposal")
+	errInvalidBlockProposed = errors.New("invalid block proposed")
 	errInvalidProposer      = errors.New("invalid block proposer")
 	errInvalidCommittedSeal = errors.New("invalid commit seal in commit message")
 	errInsertBlock          = errors.New("failed to insert block")
@@ -163,7 +164,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case err := <-i.errorCh:
 			i.log.Error("error during processing", err)
 
-			if errors.Is(err, errInvalidBlockProposal) {
+			if errors.Is(err, errInvalidBlockProposal) || errors.Is(err, errInvalidBlockProposed) {
 				i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 			}
 		case event := <-i.eventCh:
@@ -177,6 +178,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 				preprepareMsg := i.verifiedMessages.GetPrePrepareMessage(i.state.getView())
 				if preprepareMsg == nil {
+					// TODO this is not possible?
 					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 				}
 
@@ -346,7 +348,7 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 	if i.state.isLocked() &&
 		!bytes.Equal(i.state.getProposal(), newProposal) {
 		//	proposed block does not match my locked block
-		return errInvalidBlockProposal
+		return errInvalidBlockProposed
 	}
 
 	if !i.backend.IsValidBlock(newProposal) {
@@ -421,9 +423,11 @@ func viewsMatch(a, b *proto.View) bool {
 }
 
 func (i *IBFT) validateMessage(message *proto.Message) error {
+	// The validity of message senders should be
+	// confirmed outside this method call, as this method
+	// only validates the message contents
 	switch message.Type {
 	case proto.MessageType_PREPREPARE:
-		/*	PRE-PREPARE	*/
 		//	#1: matches current view
 		if !viewsMatch(i.state.getView(), message.View) {
 			return errViewMismatch
@@ -437,11 +441,9 @@ func (i *IBFT) validateMessage(message *proto.Message) error {
 		//	#3:	accepted proposal == false
 		messageProposal := message.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
 
-		if err := i.validateProposal(messageProposal); err != nil {
-			return errInvalidBlockProposal
-		}
+		// Validate that the proposal is correct
+		return i.validateProposal(messageProposal)
 	case proto.MessageType_PREPARE:
-		/*	PREPARE	*/
 		//	#1: matches current view
 		if !viewsMatch(i.state.getView(), message.View) {
 			return errViewMismatch
@@ -453,7 +455,6 @@ func (i *IBFT) validateMessage(message *proto.Message) error {
 			return errHashMismatch
 		}
 	case proto.MessageType_COMMIT:
-		/*	COMMIT	*/
 		//	#1: matches current view
 		if !viewsMatch(i.state.getView(), message.View) {
 			return errViewMismatch
@@ -471,7 +472,6 @@ func (i *IBFT) validateMessage(message *proto.Message) error {
 			return errInvalidCommittedSeal
 		}
 	case proto.MessageType_ROUND_CHANGE:
-		/*	ROUND-CHANGE	*/
 		//	#1: matches current **height** (round can be greater)
 		if i.state.getHeight() != message.View.Height {
 			return errViewMismatch
@@ -610,6 +610,8 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 						// Message is invalid, log it
 						i.log.Debug("received invalid message")
 
+						i.errorCh <- err
+
 						continue
 					}
 
@@ -621,7 +623,7 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 						i.eventCh <- event
 
 						// TODO check if this is valid
-						return
+						continue
 					}
 				}
 			case commit:
@@ -635,6 +637,8 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 						// Message is invalid, log it
 						i.log.Debug("received invalid message")
 
+						i.errorCh <- err
+
 						continue
 					}
 
@@ -646,7 +650,7 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 						i.eventCh <- event
 
 						// TODO check if this is valid
-						return
+						continue
 					}
 				}
 			}
