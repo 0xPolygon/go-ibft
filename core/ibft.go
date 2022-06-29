@@ -173,6 +173,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			// New event received from the message handler, parse it
 			switch event {
 			case proposalReceived:
+				// TODO add conditionals for sanity checks
 				if i.state.getProposal() != nil {
 					// Ignore any kind of additional proposal once one has been accepted
 					continue
@@ -194,6 +195,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				// unverified messages can now be verified
 				i.proposalAcceptedCh <- struct{}{}
 			case quorumPrepares:
+				// TODO add conditionals for sanity checks
 				i.state.setStateName(commit)
 				i.state.setLocked(true)
 
@@ -201,6 +203,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					i.backend.BuildCommitMessage(i.state.getProposal(), i.state.getView()),
 				)
 			case quorumCommits:
+				// TODO add conditionals for sanity checks
 				// Extract the committed seals
 				commitMessages := i.verifiedMessages.GetAndPruneCommitMessages(i.state.getView())
 
@@ -225,11 +228,17 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				// TODO also return?
 				i.roundDone <- consensusReached
 			case quorumRoundChanges:
+				// TODO add conditionals for sanity checks
+
+				// TODO get this data as part of the event?
 				msgs := i.verifiedMessages.GetMessages(i.state.getView(), proto.MessageType_ROUND_CHANGE)
 				i.state.setRound(msgs[0].View.Round)
 
 				i.roundDone <- repeatSequence
 			case roundHop:
+				// TODO add conditionals for sanity checks
+
+				// TODO get this data as part of the event?
 				msgs := i.verifiedMessages.GetMostRoundChangeMessages(i.state.getRound()+1, i.state.getHeight())
 				suggestedRound := msgs[0].View.Round
 
