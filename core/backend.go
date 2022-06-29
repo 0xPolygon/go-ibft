@@ -27,8 +27,8 @@ type Backend interface {
 	// IsValidBlock checks if the proposed block is child of parent
 	IsValidBlock(block []byte) bool
 
-	// IsValidMessage checks if signature is from sender
-	IsValidMessage(msg *proto.Message) bool
+	// IsValidSender checks if signature is from sender
+	IsValidSender(msg *proto.Message) bool
 
 	// IsProposer checks if the passed in ID is the Proposer for current view (sequence, round)
 	IsProposer(id []byte, height, round uint64) bool

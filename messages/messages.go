@@ -188,42 +188,7 @@ func (ms *Messages) getProtoMessages(
 	return roundMsgMap[view.Round]
 }
 
-func (ms *Messages) GetAndPrunePrepareMessages(view *proto.View) []*proto.Message {
-	ms.Lock()
-	defer ms.Unlock()
-
-	prepareMessages := make([]*proto.Message, 0)
-
-	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
-		for _, message := range messages {
-			prepareMessages = append(prepareMessages, message)
-		}
-
-		// TODO wipe the messages
-		messages = protoMessages{}
-	}
-
-	return prepareMessages
-}
-
-func (ms *Messages) GetAndPruneCommitMessages(view *proto.View) []*proto.Message {
-	ms.Lock()
-	defer ms.Unlock()
-
-	commitMessages := make([]*proto.Message, 0)
-
-	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
-		for _, message := range messages {
-			commitMessages = append(commitMessages, message)
-		}
-
-		// TODO wipe the messages
-		messages = protoMessages{}
-	}
-
-	return commitMessages
-}
-
+// GetMessages fetches all messages of a specific type for the specified view
 func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
 	ms.Lock()
 	defer ms.Unlock()
@@ -239,6 +204,8 @@ func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType)
 	return result
 }
 
+// GetMostRoundChangeMessages fetches most round change messages
+// for the minimum round and above
 func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
 	ms.Lock()
 	defer ms.Unlock()
@@ -292,6 +259,7 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto
 	return roundChangeMessages
 }
 
+// GetProposal extracts the valid proposal for the specified view
 func (ms *Messages) GetProposal(view *proto.View) []byte {
 	preprepares := ms.GetMessages(view, proto.MessageType_PREPREPARE)
 	if len(preprepares) < 1 {
@@ -300,4 +268,20 @@ func (ms *Messages) GetProposal(view *proto.View) []byte {
 
 	msg := preprepares[0]
 	return msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+}
+
+// GetCommittedSeals extracts the valid committed for the specified view
+func (ms *Messages) GetCommittedSeals(view *proto.View) [][]byte {
+	commitMessages := ms.GetMessages(view, proto.MessageType_COMMIT)
+	if len(commitMessages) < 1 {
+		return nil
+	}
+
+	committedSeals := make([][]byte, len(commitMessages))
+	for index, commitMessage := range commitMessages {
+		committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+		committedSeals[index] = committedSeal
+	}
+
+	return committedSeals
 }

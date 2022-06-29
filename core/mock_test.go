@@ -6,7 +6,7 @@ import (
 
 // Define delegation methods
 type isValidBlockDelegate func([]byte) bool
-type isValidMessageDelegate func(*proto.Message) bool
+type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
 type buildProposalDelegate func(uint64) ([]byte, error)
 type verifyProposalHashDelegate func([]byte, []byte) error
@@ -25,7 +25,7 @@ type allowedFaultyDelegate func() uint64
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
-	isValidMessageFn       isValidMessageDelegate
+	isValidSenderFn        isValidSenderDelegate
 	isProposerFn           isProposerDelegate
 	buildProposalFn        buildProposalDelegate
 	verifyProposalHashFn   verifyProposalHashDelegate
@@ -73,9 +73,9 @@ func (m mockBackend) IsValidBlock(block []byte) bool {
 	return true
 }
 
-func (m mockBackend) IsValidMessage(msg *proto.Message) bool {
-	if m.isValidMessageFn != nil {
-		return m.isValidMessageFn(msg)
+func (m mockBackend) IsValidSender(msg *proto.Message) bool {
+	if m.isValidSenderFn != nil {
+		return m.isValidSenderFn(msg)
 	}
 
 	return true
@@ -172,8 +172,7 @@ type mockMessages struct {
 	getMessages                  func(view *proto.View, messageType proto.MessageType) []*proto.Message
 	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.Message
 	getProposal                  func(view *proto.View) []byte
-	getAndPrunePrepareMessagesFn func(view *proto.View) []*proto.Message
-	getAndPruneCommitMessagesFn  func(view *proto.View) []*proto.Message
+	getCommittedSeals            func(view *proto.View) [][]byte
 }
 
 func (m mockMessages) AddMessage(msg *proto.Message) {
@@ -226,17 +225,9 @@ func (m mockMessages) GetProposal(view *proto.View) []byte {
 	return nil
 }
 
-func (m mockMessages) GetAndPrunePrepareMessages(view *proto.View) []*proto.Message {
-	if m.getAndPrunePrepareMessagesFn != nil {
-		return m.getAndPrunePrepareMessagesFn(view)
-	}
-
-	return nil
-}
-
-func (m mockMessages) GetAndPruneCommitMessages(view *proto.View) []*proto.Message {
-	if m.getAndPruneCommitMessagesFn != nil {
-		return m.getAndPruneCommitMessagesFn(view)
+func (m mockMessages) GetCommittedSeals(view *proto.View) [][]byte {
+	if m.getCommittedSeals != nil {
+		return m.getCommittedSeals(view)
 	}
 
 	return nil

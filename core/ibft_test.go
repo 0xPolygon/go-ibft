@@ -477,17 +477,8 @@ func TestRunCommit(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					getAndPruneCommitMessagesFn: func(view *proto.View) []*proto.Message {
-						return []*proto.Message{
-							{
-								Type: proto.MessageType_COMMIT,
-								Payload: &proto.Message_CommitData{
-									CommitData: &proto.CommitMessage{
-										CommittedSeal: []byte("seal"),
-									},
-								},
-							},
-						}
+					getCommittedSeals: func(view *proto.View) [][]byte {
+						return committedSeals
 					},
 				}
 			)
@@ -794,7 +785,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					isValidMessageFn: func(message *proto.Message) bool {
+					isValidSenderFn: func(message *proto.Message) bool {
 						return !testCase.invalidSender
 					},
 				}
@@ -1555,7 +1546,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			"invalid message",
 			&proto.Message{},
 			mockBackend{
-				isValidMessageFn: func(message *proto.Message) bool {
+				isValidSenderFn: func(message *proto.Message) bool {
 					return false
 				},
 			},
@@ -1568,7 +1559,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 				View: baseView,
 			},
 			mockBackend{
-				isValidMessageFn: func(message *proto.Message) bool {
+				isValidSenderFn: func(message *proto.Message) bool {
 					return true
 				},
 			},
@@ -1901,16 +1892,12 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 		addMessageFn: func(message *proto.Message) {
 			unverified = append(unverified, message)
 		},
-		getAndPrunePrepareMessagesFn: func(view *proto.View) []*proto.Message {
-			newMessages := make([]*proto.Message, len(unverified))
-
-			for index, message := range unverified {
-				newMessages[index] = message
+		getMessages: func(view *proto.View, messageType proto.MessageType) []*proto.Message {
+			if messageType == proto.MessageType_PREPARE {
+				return unverified
 			}
 
-			unverified = unverified[:0]
-
-			return newMessages
+			return nil
 		},
 	}
 
@@ -1946,7 +1933,6 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 	i.runMessageHandler(quitCh)
 
 	// Make sure the message was added to the verified messages
-	assert.Len(t, unverified, 0)
 	assert.Len(t, verified, int(quorum))
 
 	// Make sure the correct event was emitted

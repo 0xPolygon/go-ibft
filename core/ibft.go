@@ -22,8 +22,7 @@ type Messages interface {
 
 	GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message
 	GetProposal(view *proto.View) []byte
-	GetAndPrunePrepareMessages(view *proto.View) []*proto.Message
-	GetAndPruneCommitMessages(view *proto.View) []*proto.Message
+	GetCommittedSeals(view *proto.View) [][]byte
 	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
 }
 
@@ -114,6 +113,7 @@ func (i *IBFT) runSequence(h uint64) {
 		select {
 		case <-i.newRoundTimer(currentRound):
 			close(quitCh)
+
 			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 			i.state.setLocked(false)
 		case event := <-i.roundDone:
@@ -124,10 +124,13 @@ func (i *IBFT) runSequence(h uint64) {
 				// Sequence is finished, exit
 				return
 			}
+
+			// Sequence is not finished, start the new round
 		}
 	}
 }
 
+// newRoundTimer instantiates a new exponential round timer
 func (i *IBFT) newRoundTimer(round uint64) <-chan time.Time {
 	var (
 		duration    = int(roundZeroTimeout)
@@ -143,7 +146,9 @@ func (i *IBFT) stopRoundTimeout() {
 	i.roundTimer.Stop()
 }
 
+// runRound is the main run loop for the IBFT round
 func (i *IBFT) runRound(quit <-chan struct{}) {
+	// Set the initial state
 	i.state.setStateName(newRound)
 	i.state.setRoundStarted(true)
 
@@ -205,13 +210,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			case quorumCommits:
 				// TODO add conditionals for sanity checks
 				// Extract the committed seals
-				commitMessages := i.verifiedMessages.GetAndPruneCommitMessages(i.state.getView())
-
-				committedSeals := make([][]byte, len(commitMessages))
-				for index, commitMessage := range commitMessages {
-					committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
-					committedSeals[index] = committedSeal
-				}
+				committedSeals := i.verifiedMessages.GetCommittedSeals(i.state.getView())
 
 				i.state.addCommittedSeals(committedSeals)
 
@@ -249,6 +248,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	}
 }
 
+// moveToNewRound moves the state to the new round change
 func (i *IBFT) moveToNewRound(round, height uint64) {
 	i.state.setView(&proto.View{
 		Height: height,
@@ -260,6 +260,8 @@ func (i *IBFT) moveToNewRound(round, height uint64) {
 	i.state.setStateName(roundChange)
 }
 
+// moveToNewRoundWithRC moves the state to the new round change
+// and multicasts an appropriate Round Change message
 func (i *IBFT) moveToNewRoundWithRC(round, height uint64) {
 	i.moveToNewRound(round, height)
 
@@ -271,6 +273,7 @@ func (i *IBFT) moveToNewRoundWithRC(round, height uint64) {
 	)
 }
 
+// runFin runs the fin state (block insertion)
 func (i *IBFT) runFin() error {
 	if err := i.backend.InsertBlock(
 		i.state.getProposal(),
@@ -287,6 +290,7 @@ func (i *IBFT) runFin() error {
 	return nil
 }
 
+// buildProposal builds a new proposal
 func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 	if i.state.isLocked() {
 		return i.state.getProposal(), nil
@@ -300,6 +304,7 @@ func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 	return proposal, nil
 }
 
+// proposeBlock proposes a block to other peers through multicast
 func (i *IBFT) proposeBlock(height uint64) error {
 	proposal, err := i.buildProposal(height)
 	if err != nil {
@@ -319,6 +324,7 @@ func (i *IBFT) proposeBlock(height uint64) error {
 	return nil
 }
 
+// validateProposal validates that the proposal is valid
 func (i *IBFT) validateProposal(newProposal []byte) error {
 	//	In case I was previously locked on a block proposal,
 	//	the new one must match the old
@@ -335,12 +341,15 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 	return nil
 }
 
+// acceptProposal accepts the proposal and moves the state
 func (i *IBFT) acceptProposal(proposal []byte) {
 	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposal(proposal)
 	i.state.setStateName(prepare)
 }
 
+// AddMessage adds a new message to the IBFT message system
+// TODO should this return an error?
 func (i *IBFT) AddMessage(message *proto.Message) {
 	// Make sure the message is present
 	if message == nil {
@@ -355,9 +364,10 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 	}
 }
 
+// isAcceptableMessage checks if the message can even be accepted
 func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 	//	Make sure the message sender is ok
-	if !i.backend.IsValidMessage(message) {
+	if !i.backend.IsValidSender(message) {
 		return false
 	}
 
@@ -377,6 +387,7 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 	return message.View.Round >= i.state.getRound()
 }
 
+// canVerifyMessage checks if the message is currently verifiable
 func (i *IBFT) canVerifyMessage(message *proto.Message) bool {
 	// Round change messages can always be verified
 	if message.Type == proto.MessageType_ROUND_CHANGE {
@@ -392,14 +403,16 @@ func (i *IBFT) canVerifyMessage(message *proto.Message) bool {
 	return true
 }
 
-func viewsMatch(a, b *proto.View) bool {
-	return a.Height == b.Height && a.Round == b.Round
-}
-
+// validateMessage does deep message validation based on its type
 func (i *IBFT) validateMessage(message *proto.Message) error {
 	// The validity of message senders should be
 	// confirmed outside this method call, as this method
 	// only validates the message contents
+
+	viewsMatch := func(a, b *proto.View) bool {
+		return a.Height == b.Height && a.Round == b.Round
+	}
+
 	switch message.Type {
 	case proto.MessageType_PREPREPARE:
 		//	#1: matches current view
@@ -464,12 +477,15 @@ const (
 	quorumRoundChanges
 	roundHop
 
+	// TODO these should probably be separated out
+	// as separate events
 	consensusReached
 	repeatSequence
 
 	noEvent
 )
 
+// eventPossible checks if any kind of event is possible
 func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 	var (
 		numValidators = i.backend.ValidatorCount(i.state.getHeight())
@@ -565,8 +581,11 @@ func (i *IBFT) runMessageHandler(quit <-chan struct{}) {
 			// that were previously unverifiable can be verified now
 			view := i.state.getView()
 
-			unverifiedMessages := i.unverifiedMessages.GetAndPrunePrepareMessages(view)
-			unverifiedMessages = append(unverifiedMessages, i.unverifiedMessages.GetAndPruneCommitMessages(view)...)
+			unverifiedMessages := i.unverifiedMessages.GetMessages(view, proto.MessageType_PREPARE)
+			unverifiedMessages = append(
+				unverifiedMessages,
+				i.unverifiedMessages.GetMessages(view, proto.MessageType_COMMIT)...,
+			)
 
 			for _, unverifiedMessage := range unverifiedMessages {
 				if err := i.validateMessage(unverifiedMessage); err != nil {
