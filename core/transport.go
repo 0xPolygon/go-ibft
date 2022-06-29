@@ -1,4 +1,4 @@
-package messages
+package core
 
 import "github.com/Trapesys/go-ibft/messages/proto"
 
@@ -6,5 +6,5 @@ import "github.com/Trapesys/go-ibft/messages/proto"
 // the node uses to communicate with other peers
 type Transport interface {
 	// Multicast multicasts the message to other peers
-	Multicast(message proto.Message)
+	Multicast(message *proto.Message)
 }

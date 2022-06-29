@@ -170,3 +170,120 @@ func (ms *Messages) PruneByRound(view *proto.View) {
 		}
 	}
 }
+
+// getProtoMessages fetches the underlying proto messages for the specified view
+// and message type
+func (ms *Messages) getProtoMessages(
+	view *proto.View,
+	messageType proto.MessageType,
+) protoMessages {
+	heightMsgMap := ms.getMessageMap(messageType)
+
+	// Check if the round map is present
+	roundMsgMap, found := heightMsgMap[view.Height]
+	if !found {
+		return nil
+	}
+
+	return roundMsgMap[view.Round]
+}
+
+// GetMessages fetches all messages of a specific type for the specified view
+func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
+	ms.Lock()
+	defer ms.Unlock()
+
+	result := make([]*proto.Message, 0)
+
+	if messages := ms.getProtoMessages(view, messageType); messages != nil {
+		for _, message := range messages {
+			result = append(result, message)
+		}
+	}
+
+	return result
+}
+
+// GetMostRoundChangeMessages fetches most round change messages
+// for the minimum round and above
+func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
+	ms.Lock()
+	defer ms.Unlock()
+
+	type maxData struct {
+		maxRound        uint64
+		maxMessagesSize int
+
+		found bool
+	}
+
+	var (
+		data = maxData{
+			maxRound:        0,
+			maxMessagesSize: 0,
+			found:           false,
+		}
+
+		heightMsgMap = ms.getMessageMap(proto.MessageType_ROUND_CHANGE)
+	)
+
+	// Find the view with the max round change messages
+	roundMessageMap := heightMsgMap[height]
+
+	for roundIndex, roundMessages := range roundMessageMap {
+		if roundIndex < minRound {
+			continue
+		}
+
+		if len(roundMessages) > data.maxMessagesSize || !data.found {
+			data.maxRound = roundIndex
+
+			data.maxMessagesSize = len(roundMessages)
+			data.found = true
+		}
+	}
+
+	roundChangeMessages := make([]*proto.Message, 0)
+
+	if data.found {
+		if messages := ms.getProtoMessages(&proto.View{
+			Height: height,
+			Round:  data.maxRound,
+		}, proto.MessageType_ROUND_CHANGE); messages != nil {
+			for _, message := range messages {
+				roundChangeMessages = append(roundChangeMessages, message)
+			}
+		}
+	}
+
+	return roundChangeMessages
+}
+
+// GetProposal extracts the valid proposal for the specified view
+func (ms *Messages) GetProposal(view *proto.View) []byte {
+	preprepares := ms.GetMessages(view, proto.MessageType_PREPREPARE)
+	if len(preprepares) < 1 {
+		return nil
+	}
+
+	msg := preprepares[0]
+
+	return msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+}
+
+// GetCommittedSeals extracts the valid committed for the specified view
+func (ms *Messages) GetCommittedSeals(view *proto.View) [][]byte {
+	commitMessages := ms.GetMessages(view, proto.MessageType_COMMIT)
+	if len(commitMessages) < 1 {
+		return nil
+	}
+
+	committedSeals := make([][]byte, len(commitMessages))
+
+	for index, commitMessage := range commitMessages {
+		committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+		committedSeals[index] = committedSeal
+	}
+
+	return committedSeals
+}

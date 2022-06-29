@@ -17,11 +17,35 @@ func generateRandomMessages(
 
 	for index := 0; index < count; index++ {
 		for _, messageType := range messageTypes {
-			messages = append(messages, &proto.Message{
+			message := &proto.Message{
 				From: []byte(strconv.Itoa(index)),
 				View: view,
 				Type: messageType,
-			})
+			}
+
+			switch messageType {
+			case proto.MessageType_PREPREPARE:
+				message.Payload = &proto.Message_PreprepareData{
+					PreprepareData: &proto.PrePrepareMessage{
+						Proposal: nil,
+					},
+				}
+			case proto.MessageType_PREPARE:
+				message.Payload = &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: nil,
+					},
+				}
+			case proto.MessageType_COMMIT:
+				message.Payload = &proto.Message_CommitData{
+					CommitData: &proto.CommitMessage{
+						ProposalHash:  nil,
+						CommittedSeal: nil,
+					},
+				}
+			}
+
+			messages = append(messages, message)
 		}
 	}
 
@@ -146,4 +170,129 @@ func TestMessages_Prune(t *testing.T) {
 
 	// Make sure the round 3 messages are pruned out
 	assert.Equal(t, 0, messages.NumMessages(views[2], messageType))
+}
+
+// TestMessages_GetMessage makes sure
+// that messages are fetched correctly for the
+// corresponding message type
+func TestMessages_GetMessage(t *testing.T) {
+	t.Parallel()
+
+	var (
+		defaultView = &proto.View{
+			Height: 1,
+			Round:  0,
+		}
+		numMessages = 5
+	)
+
+	testTable := []struct {
+		name        string
+		messageType proto.MessageType
+	}{
+		{
+			"Fetch PREPREPAREs",
+			proto.MessageType_PREPREPARE,
+		},
+		{
+			"Fetch PREPAREs",
+			proto.MessageType_PREPARE,
+		},
+		{
+			"Fetch COMMITs",
+			proto.MessageType_COMMIT,
+		},
+		{
+			"Fetch ROUND_CHANGEs",
+			proto.MessageType_ROUND_CHANGE,
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			// Add the initial message set
+			messages := NewMessages()
+
+			// Generate random messages
+			randomMessages := generateRandomMessages(
+				numMessages,
+				defaultView,
+				testCase.messageType,
+			)
+
+			// Add the messages to the corresponding queue
+			for _, message := range randomMessages {
+				messages.AddMessage(message)
+			}
+
+			// Make sure the messages are there
+			assert.Equal(
+				t,
+				numMessages,
+				messages.NumMessages(defaultView, testCase.messageType),
+			)
+
+			// Start fetching messages and making sure they're not cleared
+			switch testCase.messageType {
+			case proto.MessageType_PREPREPARE:
+				messages.GetMessages(defaultView, proto.MessageType_PREPREPARE)
+			case proto.MessageType_PREPARE:
+				messages.GetMessages(defaultView, proto.MessageType_PREPARE)
+			case proto.MessageType_COMMIT:
+				messages.GetMessages(defaultView, proto.MessageType_COMMIT)
+			case proto.MessageType_ROUND_CHANGE:
+				messages.GetMessages(defaultView, proto.MessageType_ROUND_CHANGE)
+			}
+
+			assert.Equal(
+				t,
+				numMessages,
+				messages.NumMessages(defaultView, testCase.messageType),
+			)
+		})
+	}
+}
+
+// TestMessages_GetMostRoundChangeMessages makes sure
+// the round messages for the round with the most round change
+// messages are fetched
+func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	mostMessageCount := 3
+	mostMessagesRound := uint64(2)
+
+	// Generate round messages
+	randomMessages := map[uint64][]*proto.Message{
+		0: generateRandomMessages(mostMessageCount-2, &proto.View{
+			Height: 0,
+			Round:  0,
+		}, proto.MessageType_ROUND_CHANGE),
+		1: generateRandomMessages(mostMessageCount-1, &proto.View{
+			Height: 0,
+			Round:  1,
+		}, proto.MessageType_ROUND_CHANGE),
+		mostMessagesRound: generateRandomMessages(mostMessageCount, &proto.View{
+			Height: 0,
+			Round:  mostMessagesRound,
+		}, proto.MessageType_ROUND_CHANGE),
+	}
+
+	// Add the messages
+	for _, roundMessages := range randomMessages {
+		for _, message := range roundMessages {
+			messages.AddMessage(message)
+		}
+	}
+
+	roundChangeMessages := messages.GetMostRoundChangeMessages(0, 0)
+
+	if len(roundChangeMessages) != mostMessageCount {
+		t.Fatalf("Invalid number of round change messages, %d", len(roundChangeMessages))
+	}
+
+	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].View.Round)
 }
