@@ -188,75 +188,30 @@ func (ms *Messages) getProtoMessages(
 	return roundMsgMap[view.Round]
 }
 
-// GetPrePrepareMessage returns a PREPREPARE message, if any
-func (ms *Messages) GetPrePrepareMessage(view *proto.View) *PrePrepareMessage {
+// GetMessages fetches all messages of a specific type for the specified view
+func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
 	ms.Lock()
 	defer ms.Unlock()
 
-	if messages := ms.getProtoMessages(view, proto.MessageType_PREPREPARE); messages != nil {
+	result := make([]*proto.Message, 0)
+
+	if messages := ms.getProtoMessages(view, messageType); messages != nil {
 		for _, message := range messages {
-			return toPrePrepareFromProto(message)
+			result = append(result, message)
 		}
 	}
 
-	return nil
+	return result
 }
 
-// GetPrepareMessages returns all PREPARE messages, if any
-func (ms *Messages) GetPrepareMessages(view *proto.View) []*PrepareMessage {
-	ms.Lock()
-	defer ms.Unlock()
-
-	prepareMessages := make([]*PrepareMessage, 0)
-	if messages := ms.getProtoMessages(view, proto.MessageType_PREPARE); messages != nil {
-		for _, message := range messages {
-			prepareMessages = append(prepareMessages, toPrepareFromProto(message))
-		}
-	}
-
-	return prepareMessages
-}
-
-// GetCommitMessages returns all COMMIT messages, if any
-func (ms *Messages) GetCommitMessages(view *proto.View) []*CommitMessage {
-	ms.Lock()
-	defer ms.Unlock()
-
-	commitMessages := make([]*CommitMessage, 0)
-	if messages := ms.getProtoMessages(view, proto.MessageType_COMMIT); messages != nil {
-		for _, message := range messages {
-			commitMessages = append(commitMessages, toCommitFromProto(message))
-
-		}
-	}
-
-	return commitMessages
-}
-
-// GetRoundChangeMessages returns all ROUND_CHANGE message, if any
-func (ms *Messages) GetRoundChangeMessages(view *proto.View) []*RoundChangeMessage {
-	ms.Lock()
-	defer ms.Unlock()
-
-	roundChangeMessages := make([]*RoundChangeMessage, 0)
-	if messages := ms.getProtoMessages(view, proto.MessageType_ROUND_CHANGE); messages != nil {
-		for _, message := range messages {
-			roundChangeMessages = append(roundChangeMessages, toRoundChangeFromProto(message))
-		}
-	}
-
-	return roundChangeMessages
-}
-
-// GetMostRoundChangeMessages returns an array of most round change messages
-// gathered out of any round
-func (ms *Messages) GetMostRoundChangeMessages() []*RoundChangeMessage {
+// GetMostRoundChangeMessages fetches most round change messages
+// for the minimum round and above
+func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
 	ms.Lock()
 	defer ms.Unlock()
 
 	type maxData struct {
 		maxRound        uint64
-		maxHeight       uint64
 		maxMessagesSize int
 
 		found bool
@@ -265,7 +220,6 @@ func (ms *Messages) GetMostRoundChangeMessages() []*RoundChangeMessage {
 	var (
 		data = maxData{
 			maxRound:        0,
-			maxHeight:       0,
 			maxMessagesSize: 0,
 			found:           false,
 		}
@@ -274,29 +228,62 @@ func (ms *Messages) GetMostRoundChangeMessages() []*RoundChangeMessage {
 	)
 
 	// Find the view with the max round change messages
-	for heightIndex, roundMessageMap := range heightMsgMap {
-		for roundIndex, roundMessages := range roundMessageMap {
-			if len(roundMessages) > data.maxMessagesSize || !data.found {
-				data.maxRound = roundIndex
-				data.maxHeight = heightIndex
+	roundMessageMap := heightMsgMap[height]
 
-				data.maxMessagesSize = len(roundMessages)
-				data.found = true
-			}
+	for roundIndex, roundMessages := range roundMessageMap {
+		if roundIndex < minRound {
+			continue
+		}
+
+		if len(roundMessages) > data.maxMessagesSize || !data.found {
+			data.maxRound = roundIndex
+
+			data.maxMessagesSize = len(roundMessages)
+			data.found = true
 		}
 	}
 
-	roundChangeMessages := make([]*RoundChangeMessage, 0)
+	roundChangeMessages := make([]*proto.Message, 0)
+
 	if data.found {
 		if messages := ms.getProtoMessages(&proto.View{
-			Height: data.maxHeight,
+			Height: height,
 			Round:  data.maxRound,
 		}, proto.MessageType_ROUND_CHANGE); messages != nil {
 			for _, message := range messages {
-				roundChangeMessages = append(roundChangeMessages, toRoundChangeFromProto(message))
+				roundChangeMessages = append(roundChangeMessages, message)
 			}
 		}
 	}
 
 	return roundChangeMessages
+}
+
+// GetProposal extracts the valid proposal for the specified view
+func (ms *Messages) GetProposal(view *proto.View) []byte {
+	preprepares := ms.GetMessages(view, proto.MessageType_PREPREPARE)
+	if len(preprepares) < 1 {
+		return nil
+	}
+
+	msg := preprepares[0]
+
+	return msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+}
+
+// GetCommittedSeals extracts the valid committed for the specified view
+func (ms *Messages) GetCommittedSeals(view *proto.View) [][]byte {
+	commitMessages := ms.GetMessages(view, proto.MessageType_COMMIT)
+	if len(commitMessages) < 1 {
+		return nil
+	}
+
+	committedSeals := make([][]byte, len(commitMessages))
+
+	for index, commitMessage := range commitMessages {
+		committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+		committedSeals[index] = committedSeal
+	}
+
+	return committedSeals
 }
