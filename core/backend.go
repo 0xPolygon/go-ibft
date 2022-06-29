@@ -47,10 +47,13 @@ type Backend interface {
 	// ID returns the validator's ID
 	ID() []byte
 
-	//	ValidatorCount returns the number of validators for the given block
-	ValidatorCount(blockNumber uint64) uint64
-
 	// AllowedFaulty returns the maximum number of faulty nodes based
 	// on the validator set
 	AllowedFaulty() uint64
+
+	// Quorum returns what is the quorum size for the
+	// specified block height.
+	// This should be optimally be ceil(2*n/3), where n is the
+	// number of validators in the network
+	Quorum(blockHeight uint64) uint64
 }

@@ -17,7 +17,7 @@ type buildPrepareMessageDelegate func([]byte, *proto.View) *proto.Message
 type buildCommitMessageDelegate func([]byte, *proto.View) *proto.Message
 type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
 
-type validatorCountDelegate func(blockNumber uint64) uint64
+type quorumDelegate func(blockHeight uint64) uint64
 type insertBlockDelegate func([]byte, [][]byte) error
 type idDelegate func() []byte
 type allowedFaultyDelegate func() uint64
@@ -35,7 +35,7 @@ type mockBackend struct {
 	buildPrepareMessageFn     buildPrepareMessageDelegate
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
-	validatorCountFn          validatorCountDelegate
+	quorumFn                  quorumDelegate
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
 	allowedFaultyFn           allowedFaultyDelegate
@@ -57,9 +57,9 @@ func (m mockBackend) InsertBlock(proposal []byte, seals [][]byte) error {
 	return nil
 }
 
-func (m mockBackend) ValidatorCount(blockNumber uint64) uint64 {
-	if m.validatorCountFn != nil {
-		return m.validatorCountFn(blockNumber)
+func (m mockBackend) Quorum(blockNumber uint64) uint64 {
+	if m.quorumFn != nil {
+		return m.quorumFn(blockNumber)
 	}
 
 	return 0

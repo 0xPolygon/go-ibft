@@ -39,8 +39,6 @@ var (
 	roundZeroTimeout = 10 * time.Second
 )
 
-type QuorumFn func(num uint64) uint64
-
 type IBFT struct {
 	log Logger
 
@@ -52,8 +50,6 @@ type IBFT struct {
 	backend Backend
 
 	transport Transport
-
-	quorumFn QuorumFn
 
 	roundDone chan event
 
@@ -484,10 +480,7 @@ const (
 
 // eventPossible checks if any kind of event is possible
 func (i *IBFT) eventPossible(messageType proto.MessageType) event {
-	var (
-		numValidators = i.backend.ValidatorCount(i.state.getHeight())
-		quorum        = int(i.quorumFn(numValidators))
-	)
+	quorum := int(i.backend.Quorum(i.state.getHeight()))
 
 	switch messageType {
 	case proto.MessageType_PREPREPARE:

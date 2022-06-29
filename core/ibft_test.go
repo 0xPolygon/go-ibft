@@ -1083,17 +1083,16 @@ func TestIBFT_EventPossible(t *testing.T) {
 			var (
 				log       = mockLogger{}
 				transport = mockTransport{}
-				backend   = mockBackend{}
+				backend   = mockBackend{
+					quorumFn: func(blockHeight uint64) uint64 {
+						return testCase.quorum
+					},
+				}
 			)
 
 			i := NewIBFT(log, backend, transport)
 
-			i.quorumFn = func(num uint64) uint64 {
-				return testCase.quorum
-			}
-
 			i.state = testCase.currentState
-
 			i.verifiedMessages = testCase.messages
 
 			assert.Equal(t, testCase.expectedEvent, i.eventPossible(testCase.messageType))
@@ -1709,9 +1708,6 @@ func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
 		i.verifiedMessages = verifiableMessages
 		i.unverifiedMessages = unverifiableMessages
 		i.state.name = prepare
-		i.quorumFn = func(num uint64) uint64 {
-			return 0
-		}
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -1786,9 +1782,6 @@ func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
 		i.verifiedMessages = verifiableMessages
 		i.unverifiedMessages = unverifiableMessages
 		i.state.name = prepare
-		i.quorumFn = func(num uint64) uint64 {
-			return 0
-		}
 
 		wg.Add(1)
 		go func() {
@@ -1863,6 +1856,9 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 			verifyProposalHashFn: func(_ []byte, _ []byte) error {
 				return nil
 			},
+			quorumFn: func(blockHeight uint64) uint64 {
+				return quorum
+			},
 		}
 	)
 
@@ -1905,9 +1901,6 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 	i.verifiedMessages = verifiableMessages
 	i.unverifiedMessages = unverifiableMessages
 	i.state.name = prepare
-	i.quorumFn = func(num uint64) uint64 {
-		return quorum
-	}
 
 	var wg sync.WaitGroup
 
