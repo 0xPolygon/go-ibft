@@ -100,6 +100,7 @@ func (i *IBFT) runSequence(h uint64) {
 	// Start the message handler thread
 	messageHandlerQuit := make(chan struct{})
 	go i.runMessageHandler(messageHandlerQuit)
+
 	defer func() {
 		messageHandlerQuit <- struct{}{}
 	}()
@@ -124,8 +125,6 @@ func (i *IBFT) runSequence(h uint64) {
 				// Sequence is finished, exit
 				return
 			}
-
-			// Sequence is not finished, start the new round
 		}
 	}
 }
@@ -407,7 +406,6 @@ func (i *IBFT) validateMessage(message *proto.Message) error {
 	// The validity of message senders should be
 	// confirmed outside this method call, as this method
 	// only validates the message contents
-
 	viewsMatch := func(a, b *proto.View) bool {
 		return a.Height == b.Height && a.Round == b.Round
 	}

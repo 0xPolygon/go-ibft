@@ -1910,7 +1910,9 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+
 	wg.Add(1)
+
 	go func() {
 		defer func() {
 			wg.Done()

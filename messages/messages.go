@@ -267,6 +267,7 @@ func (ms *Messages) GetProposal(view *proto.View) []byte {
 	}
 
 	msg := preprepares[0]
+
 	return msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
 }
 
@@ -278,6 +279,7 @@ func (ms *Messages) GetCommittedSeals(view *proto.View) [][]byte {
 	}
 
 	committedSeals := make([][]byte, len(commitMessages))
+
 	for index, commitMessage := range commitMessages {
 		committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
 		committedSeals[index] = committedSeal
