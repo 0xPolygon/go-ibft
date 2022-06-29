@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"errors"
-	"github.com/Trapesys/go-ibft/messages"
 	"sync"
 	"testing"
 	"time"
@@ -290,10 +289,8 @@ func TestRunNewRound_Validator(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					getPrePrepareMessageFn: func(view *proto.View) *messages.PrePrepareMessage {
-						return &messages.PrePrepareMessage{
-							Proposal: proposal,
-						}
+					getProposal: func(view *proto.View) []byte {
+						return proposal
 					},
 				}
 			)
@@ -467,7 +464,7 @@ func TestRunCommit(t *testing.T) {
 				insertedProposal       []byte   = nil
 				insertedCommittedSeals [][]byte = nil
 				capturedEvent                   = noEvent
-				committedSeals                  = [][]byte{[]byte("seal"), []byte("seal")}
+				committedSeals                  = [][]byte{[]byte("seal")}
 
 				log       = mockLogger{}
 				transport = mockTransport{}
@@ -479,13 +476,26 @@ func TestRunCommit(t *testing.T) {
 						return nil
 					},
 				}
+				messages = mockMessages{
+					getAndPruneCommitMessagesFn: func(view *proto.View) []*proto.Message {
+						return []*proto.Message{
+							{
+								Type: proto.MessageType_COMMIT,
+								Payload: &proto.Message_CommitData{
+									CommitData: &proto.CommitMessage{
+										CommittedSeal: []byte("seal"),
+									},
+								},
+							},
+						}
+					},
+				}
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = mockMessages{}
-			i.unverifiedMessages = mockMessages{}
+			i.verifiedMessages = messages
+			i.unverifiedMessages = messages
 			i.state.proposal = proposal
-			i.state.seals = committedSeals
 
 			// Make sure the proper event is emitted
 			var wg sync.WaitGroup
@@ -565,6 +575,8 @@ func TestRunCommit(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
+			i.verifiedMessages = mockMessages{}
+			i.unverifiedMessages = mockMessages{}
 
 			i.eventCh <- quorumCommits
 
@@ -608,10 +620,18 @@ func TestRunRoundChange(t *testing.T) {
 				transport = mockTransport{}
 				backend   = mockBackend{}
 				messages  = mockMessages{
-					getRoundChangeMessagesFn: func(view *proto.View) []*messages.RoundChangeMessage {
-						return []*messages.RoundChangeMessage{{
-							Round: 1,
-						}}
+					getMessages: func(view *proto.View, messageType proto.MessageType) []*proto.Message {
+						if messageType == proto.MessageType_ROUND_CHANGE {
+							return []*proto.Message{
+								{
+									View: &proto.View{
+										Round: 1,
+									},
+								},
+							}
+						}
+
+						return nil
 					},
 				}
 			)
@@ -687,11 +707,15 @@ func TestRunRoundChange(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					getMostRoundChangeMessagesFn: func(round uint64, height uint64) []*messages.RoundChangeMessage {
-						return []*messages.RoundChangeMessage{{
-							Round:  higherRound, // Higher round hop
-							Height: height,
-						}}
+					getMostRoundChangeMessagesFn: func(round uint64, height uint64) []*proto.Message {
+						return []*proto.Message{
+							{
+								View: &proto.View{
+									Height: height,
+									Round:  higherRound, // Higher round hop
+								},
+							},
+						}
 					},
 				}
 			)
@@ -862,34 +886,63 @@ func TestIBFT_CanVerifyMessage(t *testing.T) {
 func TestIBFT_EventPossible(t *testing.T) {
 	t.Parallel()
 
-	generatePrepareMessages := func(count uint64) []*messages.PrepareMessage {
-		prepares := make([]*messages.PrepareMessage, count)
+	generatePrepareMessages := func(count uint64) []*proto.Message {
+		prepares := make([]*proto.Message, count)
 
 		for index := uint64(0); index < count; index++ {
-			prepares[index] = &messages.PrepareMessage{ProposalHash: nil}
+			prepares[index] = &proto.Message{
+				Payload: &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: nil,
+					},
+				},
+			}
 		}
 
 		return prepares
 	}
 
-	generateCommitMessages := func(count uint64) []*messages.CommitMessage {
-		commits := make([]*messages.CommitMessage, count)
+	generateCommitMessages := func(count uint64) []*proto.Message {
+		commits := make([]*proto.Message, count)
 
 		for index := uint64(0); index < count; index++ {
-			commits[index] = &messages.CommitMessage{ProposalHash: nil}
+			commits[index] = &proto.Message{
+				Payload: &proto.Message_CommitData{
+					CommitData: &proto.CommitMessage{
+						ProposalHash: nil,
+					},
+				},
+			}
 		}
 
 		return commits
 	}
 
-	generateRoundChangeMessages := func(count uint64) []*messages.RoundChangeMessage {
-		roundChanges := make([]*messages.RoundChangeMessage, count)
+	generateRoundChangeMessages := func(count uint64) []*proto.Message {
+		roundChanges := make([]*proto.Message, count)
 
 		for index := uint64(0); index < count; index++ {
-			roundChanges[index] = &messages.RoundChangeMessage{}
+			roundChanges[index] = &proto.Message{}
 		}
 
 		return roundChanges
+	}
+
+	generateSeals := func(count int) [][]byte {
+		seals := make([][]byte, count)
+
+		for i := 0; i < count; i++ {
+			seals[i] = []byte("committed seal")
+		}
+
+		return seals
+	}
+
+	baseState := &state{
+		view: &proto.View{
+			Height: 0,
+			Round:  0,
+		},
 	}
 
 	testTable := []struct {
@@ -898,6 +951,7 @@ func TestIBFT_EventPossible(t *testing.T) {
 		expectedEvent event
 		quorum        uint64
 		messages      mockMessages
+		currentState  *state
 	}{
 		{
 			"preprepare received",
@@ -905,6 +959,7 @@ func TestIBFT_EventPossible(t *testing.T) {
 			proposalReceived,
 			1,
 			mockMessages{},
+			baseState,
 		},
 		{
 			"quorum prepares received",
@@ -912,10 +967,11 @@ func TestIBFT_EventPossible(t *testing.T) {
 			quorumPrepares,
 			1,
 			mockMessages{
-				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-					return generatePrepareMessages(1)
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					return 1
 				},
 			},
+			baseState,
 		},
 		{
 			"quorum (prepares + commits) received",
@@ -923,12 +979,17 @@ func TestIBFT_EventPossible(t *testing.T) {
 			quorumPrepares,
 			4,
 			mockMessages{
-				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-					return generatePrepareMessages(4 / 2)
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					if messageType == proto.MessageType_PREPARE {
+						return 4 / 2
+					}
+
+					return 0
 				},
-				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-					return generateCommitMessages(4 / 2)
-				},
+			},
+			&state{
+				view:  &proto.View{},
+				seals: generateSeals(4 / 2),
 			},
 		},
 		{
@@ -937,10 +998,15 @@ func TestIBFT_EventPossible(t *testing.T) {
 			quorumCommits,
 			1,
 			mockMessages{
-				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-					return generateCommitMessages(1)
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					if messageType == proto.MessageType_COMMIT {
+						return 1
+					}
+
+					return 0
 				},
 			},
+			baseState,
 		},
 		{
 			"quorum (commits + prepares) received",
@@ -948,13 +1014,18 @@ func TestIBFT_EventPossible(t *testing.T) {
 			quorumPrepares,
 			4,
 			mockMessages{
-				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-					return generatePrepareMessages(4 / 2)
-				},
-				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-					return generateCommitMessages(4 / 2)
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					switch messageType {
+					case proto.MessageType_PREPARE:
+						return 4 / 2
+					case proto.MessageType_COMMIT:
+						return 4 / 2
+					}
+
+					return 0
 				},
 			},
+			baseState,
 		},
 		{
 			"quorum round changes received",
@@ -962,10 +1033,15 @@ func TestIBFT_EventPossible(t *testing.T) {
 			quorumRoundChanges,
 			1,
 			mockMessages{
-				getRoundChangeMessagesFn: func(view *proto.View) []*messages.RoundChangeMessage {
-					return generateRoundChangeMessages(1)
+				numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+					if messageType == proto.MessageType_ROUND_CHANGE {
+						return 1
+					}
+
+					return 0
 				},
 			},
+			baseState,
 		},
 		{
 			"F+1 round changes received",
@@ -973,13 +1049,18 @@ func TestIBFT_EventPossible(t *testing.T) {
 			roundHop,
 			4,
 			mockMessages{
-				getRoundChangeMessagesFn: func(view *proto.View) []*messages.RoundChangeMessage {
-					return generateRoundChangeMessages(4 - 1)
+				getMessages: func(view *proto.View, messageType proto.MessageType) []*proto.Message {
+					if messageType == proto.MessageType_ROUND_CHANGE {
+						return generateRoundChangeMessages(4 - 1)
+					}
+
+					return nil
 				},
-				getMostRoundChangeMessagesFn: func(u uint64, u2 uint64) []*messages.RoundChangeMessage {
+				getMostRoundChangeMessagesFn: func(u uint64, u2 uint64) []*proto.Message {
 					return generateRoundChangeMessages(uint64(1)) // Faulty is 0 for the mock
 				},
 			},
+			baseState,
 		},
 		{
 			"no event possible",
@@ -987,13 +1068,18 @@ func TestIBFT_EventPossible(t *testing.T) {
 			noEvent,
 			4,
 			mockMessages{
-				getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-					return generatePrepareMessages(4/2 - 1)
-				},
-				getCommitMessagesFn: func(view *proto.View) []*messages.CommitMessage {
-					return generateCommitMessages(4/2 - 1)
+				getMessages: func(view *proto.View, messageType proto.MessageType) []*proto.Message {
+					switch messageType {
+					case proto.MessageType_COMMIT:
+						return generateCommitMessages(4/2 - 1)
+					case proto.MessageType_PREPARE:
+						return generatePrepareMessages(4/2 - 1)
+					default:
+						return nil
+					}
 				},
 			},
+			baseState,
 		},
 	}
 
@@ -1015,10 +1101,7 @@ func TestIBFT_EventPossible(t *testing.T) {
 				return testCase.quorum
 			}
 
-			i.state.view = &proto.View{
-				Height: 0,
-				Round:  0,
-			}
+			i.state = testCase.currentState
 
 			i.verifiedMessages = testCase.messages
 
@@ -1802,15 +1885,15 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 		addMessageFn: func(message *proto.Message) {
 			verified = append(verified, message)
 		},
-		getPrepareMessagesFn: func(view *proto.View) []*messages.PrepareMessage {
-			// TODO drop this insane conversion
-			msgs := make([]*messages.PrepareMessage, len(verified))
-
-			for index, _ := range verified {
-				msgs[index] = &messages.PrepareMessage{ProposalHash: []byte("proposal hash")}
+		getMessages: func(view *proto.View, messageType proto.MessageType) []*proto.Message {
+			if messageType == proto.MessageType_PREPARE {
+				return verified
 			}
 
-			return msgs
+			return nil
+		},
+		numMessagesFn: func(view *proto.View, messageType proto.MessageType) int {
+			return len(verified)
 		},
 	}
 

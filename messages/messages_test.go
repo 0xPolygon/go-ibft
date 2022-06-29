@@ -234,16 +234,16 @@ func TestMessages_GetMessage(t *testing.T) {
 				messages.NumMessages(defaultView, testCase.messageType),
 			)
 
-			// Start fetching messages and making sure they're cleared
+			// Start fetching messages and making sure they're not cleared
 			switch testCase.messageType {
 			case proto.MessageType_PREPREPARE:
-				messages.GetPrePrepareMessage(defaultView)
+				messages.GetMessages(defaultView, proto.MessageType_PREPREPARE)
 			case proto.MessageType_PREPARE:
-				messages.GetPrepareMessages(defaultView)
+				messages.GetMessages(defaultView, proto.MessageType_PREPARE)
 			case proto.MessageType_COMMIT:
-				messages.GetCommitMessages(defaultView)
+				messages.GetMessages(defaultView, proto.MessageType_COMMIT)
 			case proto.MessageType_ROUND_CHANGE:
-				messages.GetRoundChangeMessages(defaultView)
+				messages.GetMessages(defaultView, proto.MessageType_ROUND_CHANGE)
 			}
 
 			assert.Equal(
@@ -294,5 +294,5 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 		t.Fatalf("Invalid number of round change messages, %d", len(roundChangeMessages))
 	}
 
-	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].Round)
+	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].View.Round)
 }

@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"errors"
-	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"math"
 	"time"
@@ -21,13 +20,11 @@ type Messages interface {
 	PruneByHeight(view *proto.View)
 	PruneByRound(view *proto.View)
 
-	GetPrePrepareMessage(view *proto.View) *messages.PrePrepareMessage
-	GetPrepareMessages(view *proto.View) []*messages.PrepareMessage
+	GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message
+	GetProposal(view *proto.View) []byte
 	GetAndPrunePrepareMessages(view *proto.View) []*proto.Message
 	GetAndPruneCommitMessages(view *proto.View) []*proto.Message
-	GetCommitMessages(view *proto.View) []*messages.CommitMessage
-	GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage
-	GetMostRoundChangeMessages(minRound, height uint64) []*messages.RoundChangeMessage
+	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
 }
 
 var (
@@ -101,7 +98,12 @@ func NewIBFT(
 }
 
 func (i *IBFT) runSequence(h uint64) {
-	// TODO close the event handler
+	// Start the message handler thread
+	messageHandlerQuit := make(chan struct{})
+	go i.runMessageHandler(messageHandlerQuit)
+	defer func() {
+		messageHandlerQuit <- struct{}{}
+	}()
 
 	for {
 		currentRound := i.state.getRound()
@@ -142,7 +144,6 @@ func (i *IBFT) stopRoundTimeout() {
 }
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
-	// TODO run moveToNewRound here, and remove from other places?
 	i.state.setStateName(newRound)
 	i.state.setRoundStarted(true)
 
@@ -177,19 +178,16 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					continue
 				}
 
-				preprepareMsg := i.verifiedMessages.GetPrePrepareMessage(i.state.getView())
-				if preprepareMsg == nil {
+				proposal := i.verifiedMessages.GetProposal(i.state.getView())
+				if proposal == nil {
 					// TODO this is not possible?
 					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 				}
 
-				// TODO make this a helper?
-				// We do the same thing in proposeBlock
-				newProposal := preprepareMsg.Proposal
-				i.acceptProposal(newProposal)
+				i.acceptProposal(proposal)
 
 				i.transport.Multicast(
-					i.backend.BuildPrepareMessage(newProposal, i.state.getView()),
+					i.backend.BuildPrepareMessage(proposal, i.state.getView()),
 				)
 
 				// Alert the message handler that
@@ -203,6 +201,17 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					i.backend.BuildCommitMessage(i.state.getProposal(), i.state.getView()),
 				)
 			case quorumCommits:
+				// Extract the committed seals
+				commitMessages := i.verifiedMessages.GetAndPruneCommitMessages(i.state.getView())
+
+				committedSeals := make([][]byte, len(commitMessages))
+				for index, commitMessage := range commitMessages {
+					committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+					committedSeals[index] = committedSeal
+				}
+
+				i.state.addCommittedSeals(committedSeals)
+
 				i.state.setStateName(fin)
 
 				if err := i.runFin(); err != nil {
@@ -216,13 +225,13 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				// TODO also return?
 				i.roundDone <- consensusReached
 			case quorumRoundChanges:
-				msgs := i.verifiedMessages.GetRoundChangeMessages(i.state.getView())
-				i.state.setRound(msgs[0].Round)
+				msgs := i.verifiedMessages.GetMessages(i.state.getView(), proto.MessageType_ROUND_CHANGE)
+				i.state.setRound(msgs[0].View.Round)
 
 				i.roundDone <- repeatSequence
 			case roundHop:
 				msgs := i.verifiedMessages.GetMostRoundChangeMessages(i.state.getRound()+1, i.state.getHeight())
-				suggestedRound := msgs[0].Round
+				suggestedRound := msgs[0].View.Round
 
 				i.moveToNewRoundWithRC(suggestedRound, i.state.getHeight())
 			default:
@@ -267,49 +276,6 @@ func (i *IBFT) runFin() error {
 	i.unverifiedMessages.PruneByHeight(view)
 
 	return nil
-}
-
-func (i *IBFT) commitMessages(view *proto.View) []*messages.CommitMessage {
-	valid := make([]*messages.CommitMessage, 0)
-
-	for _, msg := range i.verifiedMessages.GetCommitMessages(view) {
-		//	check hash
-		if err := i.backend.VerifyProposalHash(
-			i.state.getProposal(),
-			msg.ProposalHash,
-		); err != nil {
-			continue
-		}
-
-		//	check commit seal
-		if !i.backend.IsValidCommittedSeal(
-			i.state.getProposal(),
-			msg.CommittedSeal,
-		) {
-			continue
-		}
-
-		valid = append(valid, msg)
-	}
-
-	return valid
-}
-
-func (i *IBFT) prepareMessages(view *proto.View) []*messages.PrepareMessage {
-	valid := make([]*messages.PrepareMessage, 0)
-
-	for _, msg := range i.verifiedMessages.GetPrepareMessages(view) {
-		if err := i.backend.VerifyProposalHash(
-			i.state.getProposal(),
-			msg.ProposalHash,
-		); err != nil {
-			continue
-		}
-
-		valid = append(valid, msg)
-	}
-
-	return valid
 }
 
 func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
@@ -506,52 +472,40 @@ func (i *IBFT) eventPossible(messageType proto.MessageType) event {
 		return proposalReceived
 	case proto.MessageType_PREPARE:
 		// Check if there are enough messages
-		numPrepares := len(i.prepareMessages(i.state.getView()))
+		numPrepares := i.verifiedMessages.NumMessages(i.state.getView(), proto.MessageType_PREPARE)
 		if numPrepares >= quorum {
 			return quorumPrepares
 		}
 
 		// Check if there are enough prepare and commit messages to form quorum
-		numCommits := len(i.commitMessages(i.state.getView()))
+		numCommits := len(i.state.getCommittedSeals())
 		if numCommits+numPrepares >= quorum {
 			return quorumPrepares
 		}
 	case proto.MessageType_COMMIT:
 		// Check if there are enough messages
-		commitMessages := i.commitMessages(i.state.getView())
-		numCommits := len(commitMessages)
+		numCommits := i.verifiedMessages.NumMessages(i.state.getView(), proto.MessageType_COMMIT)
 
 		// Extract the committed seals since we know they're valid
 		// at this point
-
-		// TODO handle duplicates!!!
-		if numCommits > 0 {
-			committedSeals := make([][]byte, len(commitMessages))
-			for index, commitMessage := range commitMessages {
-				committedSeals[index] = commitMessage.CommittedSeal
-			}
-
-			i.state.addCommittedSeals(committedSeals)
-		}
-
 		if numCommits >= quorum {
 			return quorumCommits
 		}
 
-		numPrepares := len(i.prepareMessages(i.state.getView()))
+		numPrepares := i.verifiedMessages.NumMessages(i.state.getView(), proto.MessageType_PREPARE)
 		if numCommits+numPrepares >= quorum {
 			return quorumPrepares
 		}
 	case proto.MessageType_ROUND_CHANGE:
 		view := i.state.getView()
-		msgs := i.verifiedMessages.GetRoundChangeMessages(view)
+		numRoundChange := i.verifiedMessages.NumMessages(view, proto.MessageType_ROUND_CHANGE)
 
 		// Check for Q(RC)
-		if len(msgs) >= quorum {
+		if numRoundChange >= quorum {
 			return quorumRoundChanges
 		}
 
-		msgs = i.verifiedMessages.GetMostRoundChangeMessages(view.Round+1, view.Height)
+		msgs := i.verifiedMessages.GetMostRoundChangeMessages(view.Round+1, view.Height)
 		// Check for F+1
 		if len(msgs) >= int(i.backend.AllowedFaulty())+1 {
 			return roundHop

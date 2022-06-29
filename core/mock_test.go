@@ -1,7 +1,6 @@
 package core
 
 import (
-	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
@@ -170,11 +169,9 @@ type mockMessages struct {
 	pruneByHeightFn func(view *proto.View)
 	pruneByRoundFn  func(view *proto.View)
 
-	getPrePrepareMessageFn       func(view *proto.View) *messages.PrePrepareMessage
-	getPrepareMessagesFn         func(view *proto.View) []*messages.PrepareMessage
-	getCommitMessagesFn          func(view *proto.View) []*messages.CommitMessage
-	getRoundChangeMessagesFn     func(view *proto.View) []*messages.RoundChangeMessage
-	getMostRoundChangeMessagesFn func(uint64, uint64) []*messages.RoundChangeMessage
+	getMessages                  func(view *proto.View, messageType proto.MessageType) []*proto.Message
+	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.Message
+	getProposal                  func(view *proto.View) []byte
 	getAndPrunePrepareMessagesFn func(view *proto.View) []*proto.Message
 	getAndPruneCommitMessagesFn  func(view *proto.View) []*proto.Message
 }
@@ -205,44 +202,25 @@ func (m mockMessages) PruneByRound(view *proto.View) {
 	}
 }
 
-func (m mockMessages) GetPrePrepareMessage(view *proto.View) *messages.PrePrepareMessage {
-	if m.getPrePrepareMessageFn != nil {
-		return m.getPrePrepareMessageFn(view)
-	}
-
-	return nil
-}
-
-// GetPrepareMessages returns all PREPARE messages, if any
-func (m mockMessages) GetPrepareMessages(view *proto.View) []*messages.PrepareMessage {
-	if m.getPrepareMessagesFn != nil {
-		return m.getPrepareMessagesFn(view)
-	}
-
-	return nil
-}
-
-// GetCommitMessages returns all COMMIT messages, if any
-func (m mockMessages) GetCommitMessages(view *proto.View) []*messages.CommitMessage {
-	if m.getCommitMessagesFn != nil {
-		return m.getCommitMessagesFn(view)
-	}
-
-	return nil
-}
-
-// GetRoundChangeMessages returns all ROUND_CHANGE message, if any
-func (m mockMessages) GetRoundChangeMessages(view *proto.View) []*messages.RoundChangeMessage {
-	if m.getRoundChangeMessagesFn != nil {
-		return m.getRoundChangeMessagesFn(view)
-	}
-
-	return nil
-}
-
-func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*messages.RoundChangeMessage {
+func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.Message {
 	if m.getMostRoundChangeMessagesFn != nil {
 		return m.getMostRoundChangeMessagesFn(round, height)
+	}
+
+	return nil
+}
+
+func (m mockMessages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
+	if m.getMessages != nil {
+		return m.getMessages(view, messageType)
+	}
+
+	return nil
+}
+
+func (m mockMessages) GetProposal(view *proto.View) []byte {
+	if m.getProposal != nil {
+		return m.getProposal(view)
 	}
 
 	return nil
