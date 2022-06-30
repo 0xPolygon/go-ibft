@@ -121,6 +121,9 @@ func (i *IBFT) runSequence(h uint64) {
 				// Sequence is finished, exit
 				return
 			}
+
+			// Make sure the round is not started yet
+			i.state.setRoundStarted(false)
 		}
 	}
 }
@@ -144,19 +147,8 @@ func (i *IBFT) stopRoundTimeout() {
 // runRound is the main run loop for the IBFT round
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	// Set the initial state
-	i.state.setStateName(newRound)
-	i.state.setRoundStarted(true)
-
-	// Propose the block if proposer
-	if i.backend.IsProposer(
-		i.backend.ID(),
-		i.state.getHeight(),
-		i.state.getRound(),
-	) {
-		// TODO should this emit a proposal accepted event to the event handler?
-		if err := i.proposeBlock(i.state.getHeight()); err != nil {
-			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
-		}
+	if !i.state.isRoundStarted() {
+		i.startNewRound()
 	}
 
 	for {
@@ -238,6 +230,23 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				i.moveToNewRoundWithRC(suggestedRound, i.state.getHeight())
 			default:
 			}
+		}
+	}
+}
+
+func (i *IBFT) startNewRound() {
+	i.state.setStateName(newRound)
+	i.state.setRoundStarted(true)
+
+	// Propose the block if proposer
+	if i.backend.IsProposer(
+		i.backend.ID(),
+		i.state.getHeight(),
+		i.state.getRound(),
+	) {
+		// TODO should this emit a proposal accepted event to the event handler?
+		if err := i.proposeBlock(i.state.getHeight()); err != nil {
+			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 		}
 	}
 }
