@@ -93,6 +93,7 @@ func NewIBFT(
 }
 
 func (i *IBFT) runSequence(h uint64) {
+	// TODO do state clear here
 	// Set the starting state data
 	i.state.setView(&proto.View{
 		Height: h,
@@ -179,6 +180,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					continue
 				}
 
+				i.log.Info("proposal received")
+
 				proposal := i.verifiedMessages.GetProposal(i.state.getView())
 				if proposal == nil {
 					// TODO this is not possible?
@@ -200,6 +203,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					continue
 				}
 
+				i.log.Info("quorum prepares received")
+
 				i.state.setStateName(commit)
 				i.state.setLocked(true)
 
@@ -207,6 +212,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 					i.backend.BuildCommitMessage(i.state.getProposal(), i.state.getView()),
 				)
 			case quorumCommits:
+				i.log.Info("quorum commits received")
+
 				// Extract the committed seals
 				committedSeals := i.verifiedMessages.GetCommittedSeals(i.state.getView())
 
@@ -225,12 +232,16 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				// TODO also return?
 				i.roundDone <- consensusReached
 			case quorumRoundChanges:
+				i.log.Info("quorum round changes received")
+
 				// TODO get this data as part of the event?
 				msgs := i.verifiedMessages.GetMessages(i.state.getView(), proto.MessageType_ROUND_CHANGE)
 				i.state.setRound(msgs[0].View.Round)
 
 				i.roundDone <- repeatSequence
 			case roundHop:
+				i.log.Info("round hop received")
+
 				// TODO get this data as part of the event?
 				msgs := i.verifiedMessages.GetMostRoundChangeMessages(i.state.getRound()+1, i.state.getHeight())
 				suggestedRound := msgs[0].View.Round
@@ -269,6 +280,8 @@ func (i *IBFT) moveToNewRound(round, height uint64) {
 	i.state.setRoundStarted(false)
 	i.state.setProposal(nil)
 	i.state.setStateName(roundChange)
+
+	i.log.Info("moved to new round", round, height)
 }
 
 // moveToNewRoundWithRC moves the state to the new round change
@@ -323,14 +336,19 @@ func (i *IBFT) proposeBlock(height uint64) error {
 	}
 
 	i.acceptProposal(proposal)
+	i.log.Info("proposal accepted")
 
 	i.transport.Multicast(
 		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
 	)
 
+	i.log.Info("proposal multicasted")
+
 	i.transport.Multicast(
 		i.backend.BuildPrepareMessage(proposal, i.state.getView()),
 	)
+
+	i.log.Info("prepare multicasted")
 
 	return nil
 }
