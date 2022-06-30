@@ -93,6 +93,12 @@ func NewIBFT(
 }
 
 func (i *IBFT) runSequence(h uint64) {
+	// Set the starting state data
+	i.state.setView(&proto.View{
+		Height: h,
+		Round:  0,
+	})
+
 	// Start the message handler thread
 	messageHandlerQuit := make(chan struct{})
 	go i.runMessageHandler(messageHandlerQuit)
@@ -100,12 +106,6 @@ func (i *IBFT) runSequence(h uint64) {
 	defer func() {
 		messageHandlerQuit <- struct{}{}
 	}()
-
-	// Set the starting state data
-	i.state.setView(&proto.View{
-		Height: h,
-		Round:  0,
-	})
 
 	for {
 		currentRound := i.state.getRound()
@@ -123,14 +123,14 @@ func (i *IBFT) runSequence(h uint64) {
 			i.stopRoundTimeout()
 			close(quitCh)
 
-			if event == consensusReached {
+			switch event {
+			case consensusReached:
 				// Sequence is finished, exit
 				return
-			}
-
-			if event == repeatSequence {
+			case repeatSequence:
 				// Reset the round started
 				i.state.setRoundStarted(false)
+			default:
 			}
 		}
 	}
