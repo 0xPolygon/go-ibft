@@ -101,6 +101,12 @@ func (i *IBFT) runSequence(h uint64) {
 		messageHandlerQuit <- struct{}{}
 	}()
 
+	// Set the starting state data
+	i.state.setView(&proto.View{
+		Height: h,
+		Round:  0,
+	})
+
 	for {
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
@@ -122,8 +128,10 @@ func (i *IBFT) runSequence(h uint64) {
 				return
 			}
 
-			// Make sure the round is not started yet
-			i.state.setRoundStarted(false)
+			if event == repeatSequence {
+				// Reset the round started
+				i.state.setRoundStarted(false)
+			}
 		}
 	}
 }
