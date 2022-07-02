@@ -6,7 +6,6 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"time"
 )
 
 // TestConsensus_ValidFlow tests the following scenario:
@@ -299,11 +298,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	}
 
 	cluster.runNewRound()
-
-	// TODO figure out a better way to catch the end event
-	select {
-	case <-time.After(time.Second * 2):
-	}
 	cluster.stop()
 
 	for _, block := range insertedBlocks {

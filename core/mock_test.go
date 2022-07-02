@@ -292,6 +292,7 @@ func newMockCluster(
 	nodes := make([]*IBFT, numNodes)
 	quitChannels := make([]chan struct{}, numNodes)
 	messageHandlersQuit := make([]chan struct{}, numNodes)
+	roundDoneChannels := make([]chan event, numNodes)
 
 	for index := 0; index < numNodes; index++ {
 		var (
@@ -301,7 +302,6 @@ func newMockCluster(
 		)
 
 		// Execute set callbacks, if any
-		// TODO Eat the spaghetti
 		if backendCallbackMap != nil {
 			if backendCallback, isSet := backendCallbackMap[index]; isSet {
 				backendCallback(backend)
@@ -320,27 +320,37 @@ func newMockCluster(
 			}
 		}
 
-		nodes[index] = NewIBFT(logger, backend, transport)
-		nodes[index].verifiedMessages = messages.NewMessages()
-		nodes[index].unverifiedMessages = messages.NewMessages()
+		// Create a new instance of the IBFT node
+		i := NewIBFT(logger, backend, transport)
 
-		quitChannels[index] = make(chan struct{}, 1)
-		messageHandlersQuit[index] = make(chan struct{}, 1)
+		// Make sure the node uses real message queue
+		// implementations
+		i.verifiedMessages = messages.NewMessages()
+		i.unverifiedMessages = messages.NewMessages()
+
+		// Instantiate quit channels for node routines
+		quitChannels[index] = make(chan struct{})
+		messageHandlersQuit[index] = make(chan struct{})
+		roundDoneChannels[index] = i.roundDone
+
+		nodes[index] = i
 	}
 
 	return &mockCluster{
 		nodes:               nodes,
 		quitChannels:        quitChannels,
 		messageHandlersQuit: messageHandlersQuit,
+		roundDoneChannels:   roundDoneChannels,
 	}
 }
 
 // mockCluster represents a mock IBFT cluster
 type mockCluster struct {
-	nodes               []*IBFT
-	nodeMessages        [][]*proto.Message
-	quitChannels        []chan struct{}
-	messageHandlersQuit []chan struct{}
+	nodes []*IBFT // references to the nodes in the cluster
+
+	quitChannels        []chan struct{} // quit channels for all nodes
+	roundDoneChannels   []chan event    // round done channels for all nodes
+	messageHandlersQuit []chan struct{} // message handler quit channels for all nodes
 
 	wg sync.WaitGroup
 }
@@ -350,8 +360,13 @@ func (m *mockCluster) runNewRound() {
 	for index, node := range m.nodes {
 		m.wg.Add(1)
 
+		// Start the round done monitor service for the node
+		go m.runDoneMonitor(m.roundDoneChannels[index])
+
+		// Start the message handler service for the node
 		go node.runMessageHandler(m.messageHandlersQuit[index])
-		// TODO move to using runSequence
+
+		// Start the main run loop for the node
 		go node.runRound(m.quitChannels[index])
 	}
 }
@@ -359,14 +374,31 @@ func (m *mockCluster) runNewRound() {
 // stop sends a quit signal to all nodes
 // in the cluster
 func (m *mockCluster) stop() {
+	// Wait for all main run loops to signalize
+	// that they're finished
+	m.wg.Wait()
+
+	// Close off any running routines
 	for index := range m.nodes {
 		m.quitChannels[index] <- struct{}{}
 		m.messageHandlersQuit[index] <- struct{}{}
 	}
 }
 
+// pushMessage imitates a message passing service,
+// it relays a message to all nodes in the network
 func (m *mockCluster) pushMessage(message *proto.Message) {
 	for _, node := range m.nodes {
 		node.AddMessage(message)
 	}
+}
+
+// runDoneMonitor monitors the passed in done channel
+// so the cluster is aware of node run loop completion
+func (m *mockCluster) runDoneMonitor(doneCh chan event) {
+	// Wait for the done event to happen
+	<-doneCh
+
+	// Alert the wait group
+	m.wg.Done()
 }

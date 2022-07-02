@@ -229,7 +229,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				}
 
 				// Signalize finish
-				// TODO also return?
 				i.roundDone <- consensusReached
 			case quorumRoundChanges:
 				i.log.Info("quorum round changes received")
