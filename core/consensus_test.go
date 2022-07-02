@@ -8,6 +8,69 @@ import (
 	"testing"
 )
 
+// generateNodeAddresses generates dummy node addresses
+func generateNodeAddresses(count int) [][]byte {
+	addresses := make([][]byte, count)
+
+	for index := 0; index < count; index++ {
+		addresses[index] = []byte(fmt.Sprintf("node %d", index))
+	}
+
+	return addresses
+}
+
+func buildBasicPreprepareMessage(proposal, from []byte, view *proto.View) *proto.Message {
+	return &proto.Message{
+		View: view,
+		From: from,
+		Type: proto.MessageType_PREPREPARE,
+		Payload: &proto.Message_PreprepareData{
+			PreprepareData: &proto.PrePrepareMessage{
+				Proposal: proposal,
+			},
+		},
+	}
+}
+
+func buildBasicPrepareMessage(proposalHash, from []byte, view *proto.View) *proto.Message {
+	return &proto.Message{
+		View: view,
+		From: from,
+		Type: proto.MessageType_PREPARE,
+		Payload: &proto.Message_PrepareData{
+			PrepareData: &proto.PrepareMessage{
+				ProposalHash: proposalHash,
+			},
+		},
+	}
+}
+
+func buildBasicCommitMessage(proposalHash, committedSeal, from []byte, view *proto.View) *proto.Message {
+	return &proto.Message{
+		View: view,
+		From: from,
+		Type: proto.MessageType_COMMIT,
+		Payload: &proto.Message_CommitData{
+			CommitData: &proto.CommitMessage{
+				ProposalHash:  proposalHash,
+				CommittedSeal: committedSeal,
+			},
+		},
+	}
+}
+
+func buildBasicRoundChangeMessage(height, round uint64, from []byte) *proto.Message {
+	return &proto.Message{
+		View: &proto.View{
+			Height: height,
+			Round:  round,
+		},
+		From:    from,
+		Type:    proto.MessageType_ROUND_CHANGE,
+		Payload: nil,
+	}
+}
+
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
@@ -20,291 +83,123 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	proposal := []byte("proposal")
 	proposalHash := []byte("proposal hash")
 	committedSeal := []byte("seal")
-	nodes := [][]byte{
-		[]byte("node 0"),
-		[]byte("node 1"),
-		[]byte("node 2"),
-		[]byte("node 3"),
-	}
-	insertedBlocks := make([][]byte, 4)
+	numNodes := 4
+	nodes := generateNodeAddresses(numNodes)
+	insertedBlocks := make([][]byte, numNodes)
 
-	defaultTransportCallback := func(transport *mockTransport) {
+	// commonTransportCallback is the common method modification
+	// required for Transport, for all nodes
+	commonTransportCallback := func(transport *mockTransport) {
 		transport.multicastFn = func(message *proto.Message) {
 			multicastFn(message)
 		}
 	}
 
-	quorumFn := func(blockHeight uint64) uint64 {
-		return 4
-	}
-
-	buildPrepareMessage := func(proposal []byte, view *proto.View) *proto.Message {
-		return &proto.Message{
-			View: view,
-			Type: proto.MessageType_PREPARE,
-			Payload: &proto.Message_PrepareData{
-				PrepareData: &proto.PrepareMessage{
-					ProposalHash: proposalHash,
-				},
-			},
+	// commonBackendCallback is the common method modification required
+	// for the Backend, for all nodes
+	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
+		// Make sure the quorum function requires all nodes
+		backend.quorumFn = func(_ uint64) uint64 {
+			return uint64(numNodes)
 		}
-	}
 
-	buildCommitMessage := func(proposal []byte, view *proto.View) *proto.Message {
-		return &proto.Message{
-			View: view,
-			Type: proto.MessageType_COMMIT,
-			Payload: &proto.Message_CommitData{
-				CommitData: &proto.CommitMessage{
-					ProposalHash:  proposalHash,
-					CommittedSeal: committedSeal,
-				},
-			},
+		// Make sure the only proposer is node 0
+		backend.isProposerFn = func(from []byte, _ uint64, _ uint64) bool {
+			return bytes.Equal(from, nodes[0])
 		}
-	}
 
-	buildPreprepareMessage := func(proposal []byte, view *proto.View) *proto.Message {
-		return &proto.Message{
-			View: view,
-			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
-				PreprepareData: &proto.PrePrepareMessage{
-					Proposal: proposal,
-				},
-			},
+		// Make sure the proposal is valid if it matches what node 0 proposed
+		backend.isValidBlockFn = func(newProposal []byte) bool {
+			return bytes.Equal(newProposal, proposal)
 		}
-	}
 
-	buildRoundChangeMessage := func(height, round uint64) *proto.Message {
-		return &proto.Message{
-			View: &proto.View{
-				Height: height,
-				Round:  round,
-			},
-			Type:    proto.MessageType_ROUND_CHANGE,
-			Payload: nil,
+		// Make sure the preprepare message is built correctly
+		backend.buildPrePrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+			return buildBasicPreprepareMessage(proposal, nodes[nodeIndex], view)
+		}
+
+		// Make sure the prepare message is built correctly
+		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+			return buildBasicPrepareMessage(proposalHash, nodes[nodeIndex], view)
+		}
+
+		// Make sure the commit message is built correctly
+		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+			return buildBasicCommitMessage(proposalHash, committedSeal, nodes[nodeIndex], view)
+		}
+
+		// Make sure the round change message is built correctly
+		backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
+			return buildBasicRoundChangeMessage(height, round, nodes[nodeIndex])
+		}
+
+		// Make sure the inserted proposal is noted
+		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
+			insertedBlocks[nodeIndex] = proposal
+
+			return nil
 		}
 	}
 
 	var (
-		logCallbackMap = map[int]loggerConfigCallback{
-			0: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 0]: %s\n", s)
-				}
-			},
-			1: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 1]: %s\n", s)
-				}
-			},
-			2: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 2]: %s\n", s)
-				}
-			},
-			3: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 3]: %s\n", s)
-				}
-			},
-		}
 		backendCallbackMap = map[int]backendConfigCallback{
 			0: func(backend *mockBackend) {
+				// Execute the common backend setup
+				commonBackendCallback(backend, 0)
+
+				// Set the proposal creation method for node 0, since
+				// they are the proposer
 				backend.buildProposalFn = func(u uint64) ([]byte, error) {
 					return proposal, nil
 				}
 
+				// Make sure node 0 knows they are the proposer for this round
 				backend.isProposerFn = func(_ []byte, _ uint64, _ uint64) bool {
 					return true
 				}
-
-				backend.isValidBlockFn = func(newProposal []byte) bool {
-					return bytes.Equal(newProposal, proposal)
-				}
-
-				backend.quorumFn = quorumFn
-
-				backend.buildPrePrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildPreprepareMessage(proposal, view)
-
-					message.From = nodes[0]
-
-					return message
-				}
-				backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildPrepareMessage(proposal, view)
-
-					message.From = nodes[0]
-
-					return message
-				}
-				backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildCommitMessage(proposal, view)
-
-					message.From = nodes[0]
-
-					return message
-				}
-				backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-					message := buildRoundChangeMessage(height, round)
-
-					message.From = nodes[0]
-
-					return message
-				}
-
-				backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
-					insertedBlocks[0] = proposal
-
-					return nil
-				}
 			},
 			1: func(backend *mockBackend) {
-				backend.quorumFn = quorumFn
-
-				backend.isProposerFn = func(from []byte, _ uint64, _ uint64) bool {
-					return bytes.Equal(from, nodes[0])
-				}
-
-				backend.isValidBlockFn = func(newProposal []byte) bool {
-					return bytes.Equal(newProposal, proposal)
-				}
-
-				backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildPrepareMessage(proposal, view)
-
-					message.From = nodes[1]
-
-					return message
-				}
-				backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildCommitMessage(proposal, view)
-
-					message.From = nodes[1]
-
-					return message
-				}
-				backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-					message := buildRoundChangeMessage(height, round)
-
-					message.From = nodes[1]
-
-					return message
-				}
-
-				backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
-					insertedBlocks[1] = proposal
-
-					return nil
-				}
+				commonBackendCallback(backend, 1)
 			},
 			2: func(backend *mockBackend) {
-				backend.quorumFn = quorumFn
-
-				backend.isProposerFn = func(from []byte, _ uint64, _ uint64) bool {
-					return bytes.Equal(from, nodes[0])
-				}
-
-				backend.isValidBlockFn = func(newProposal []byte) bool {
-					return bytes.Equal(newProposal, proposal)
-				}
-
-				backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildPrepareMessage(proposal, view)
-
-					message.From = nodes[2]
-
-					return message
-				}
-				backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildCommitMessage(proposal, view)
-
-					message.From = nodes[2]
-
-					return message
-				}
-				backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-					message := buildRoundChangeMessage(height, round)
-
-					message.From = nodes[2]
-
-					return message
-				}
-
-				backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
-					insertedBlocks[2] = proposal
-
-					return nil
-				}
+				commonBackendCallback(backend, 2)
 			},
 			3: func(backend *mockBackend) {
-				backend.quorumFn = quorumFn
-
-				backend.isProposerFn = func(from []byte, _ uint64, _ uint64) bool {
-					return bytes.Equal(from, nodes[0])
-				}
-
-				backend.isValidBlockFn = func(newProposal []byte) bool {
-					return bytes.Equal(newProposal, proposal)
-				}
-
-				backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildPrepareMessage(proposal, view)
-
-					message.From = nodes[3]
-
-					return message
-				}
-				backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-					message := buildCommitMessage(proposal, view)
-
-					message.From = nodes[3]
-
-					return message
-				}
-				backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-					message := buildRoundChangeMessage(height, round)
-
-					message.From = nodes[3]
-
-					return message
-				}
-
-				backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
-					insertedBlocks[3] = proposal
-
-					return nil
-				}
+				commonBackendCallback(backend, 3)
 			},
 		}
 		transportCallbackMap = map[int]transportConfigCallback{
-			0: defaultTransportCallback,
-			1: defaultTransportCallback,
-			2: defaultTransportCallback,
-			3: defaultTransportCallback,
+			0: commonTransportCallback,
+			1: commonTransportCallback,
+			2: commonTransportCallback,
+			3: commonTransportCallback,
 		}
 	)
 
+	// Create the mock cluster
 	cluster := newMockCluster(
-		4,
+		numNodes,
 		backendCallbackMap,
-		logCallbackMap,
+		nil,
 		transportCallbackMap,
 	)
 
+	// Set the multicast callback to relay the message
+	// to the entire cluster
 	multicastFn = func(message *proto.Message) {
 		cluster.pushMessage(message)
 	}
 
+	// Start the main run loops
 	cluster.runNewRound()
+
+	// Wait until the main run loops finish
 	cluster.stop()
 
+	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
 		assert.True(t, bytes.Equal(block, proposal))
 	}
-
-	fmt.Println("🎉 Consensus reached 🎉")
 }
 
 // TestConsensus_InvalidBlock tests the following scenario:
