@@ -19,7 +19,12 @@ func generateNodeAddresses(count int) [][]byte {
 	return addresses
 }
 
-func buildBasicPreprepareMessage(proposal, from []byte, view *proto.View) *proto.Message {
+// buildBasicPreprepareMessage builds a simple preprepare message
+func buildBasicPreprepareMessage(
+	proposal,
+	from []byte,
+	view *proto.View,
+) *proto.Message {
 	return &proto.Message{
 		View: view,
 		From: from,
@@ -32,7 +37,12 @@ func buildBasicPreprepareMessage(proposal, from []byte, view *proto.View) *proto
 	}
 }
 
-func buildBasicPrepareMessage(proposalHash, from []byte, view *proto.View) *proto.Message {
+// buildBasicPrepareMessage builds a simple prepare message
+func buildBasicPrepareMessage(
+	proposalHash,
+	from []byte,
+	view *proto.View,
+) *proto.Message {
 	return &proto.Message{
 		View: view,
 		From: from,
@@ -45,7 +55,13 @@ func buildBasicPrepareMessage(proposalHash, from []byte, view *proto.View) *prot
 	}
 }
 
-func buildBasicCommitMessage(proposalHash, committedSeal, from []byte, view *proto.View) *proto.Message {
+// buildBasicCommitMessage builds a simple commit message
+func buildBasicCommitMessage(
+	proposalHash,
+	committedSeal,
+	from []byte,
+	view *proto.View,
+) *proto.Message {
 	return &proto.Message{
 		View: view,
 		From: from,
@@ -59,7 +75,12 @@ func buildBasicCommitMessage(proposalHash, committedSeal, from []byte, view *pro
 	}
 }
 
-func buildBasicRoundChangeMessage(height, round uint64, from []byte) *proto.Message {
+// buildBasicRoundChangeMessage builds a simple round change message
+func buildBasicRoundChangeMessage(
+	height,
+	round uint64,
+	from []byte,
+) *proto.Message {
 	return &proto.Message{
 		View: &proto.View{
 			Height: height,
