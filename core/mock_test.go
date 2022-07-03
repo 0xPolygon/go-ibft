@@ -361,7 +361,7 @@ func (m *mockCluster) runNewRound() {
 		m.wg.Add(1)
 
 		// Start the round done monitor service for the node
-		go m.runDoneMonitor(m.roundDoneChannels[index])
+		go m.runDoneMonitor(index)
 
 		// Start the message handler service for the node
 		go node.runMessageHandler(m.messageHandlersQuit[index])
@@ -393,12 +393,33 @@ func (m *mockCluster) pushMessage(message *proto.Message) {
 	}
 }
 
-// runDoneMonitor monitors the passed in done channel
+// runDoneMonitor monitors the passed done channel for the node
 // so the cluster is aware of node run loop completion
-func (m *mockCluster) runDoneMonitor(doneCh chan event) {
+func (m *mockCluster) runDoneMonitor(nodeIndex int) {
 	// Wait for the done event to happen
-	<-doneCh
+	doneEvent := <-m.roundDoneChannels[nodeIndex]
+	if doneEvent == repeatSequence {
+		m.resetRoundStarted(nodeIndex)
+	}
 
 	// Alert the wait group
 	m.wg.Done()
+}
+
+// areAllNodesOnRound checks to make sure all nodes
+// are on the same specified round
+func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
+	for _, node := range m.nodes {
+		if node.state.getRound() != round {
+			return false
+		}
+	}
+
+	return true
+}
+
+// resetRoundStarted resets the round started flag
+// for the specified node
+func (m *mockCluster) resetRoundStarted(nodeIndex int) {
+	m.nodes[nodeIndex].state.setRoundStarted(false)
 }

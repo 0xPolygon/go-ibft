@@ -654,9 +654,6 @@ func TestRunRoundChange(t *testing.T) {
 
 			i.runRound(quitCh)
 
-			// Make sure the round is increased
-			assert.Equal(t, uint64(1), i.state.view.Round)
-
 			// Make sure the proper event was emitted
 			wg.Wait()
 			assert.Equal(t, repeatSequence, capturedEvent)
