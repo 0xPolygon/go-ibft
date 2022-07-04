@@ -34,6 +34,8 @@ type state struct {
 	name stateName
 }
 
+//	TODO: atomically returning a pointer does not
+//		guarantee the same data (use a POD instead)
 func (s *state) getView() *proto.View {
 	s.RLock()
 	defer s.RUnlock()
