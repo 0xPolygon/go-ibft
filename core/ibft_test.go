@@ -110,15 +110,13 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			t.Parallel()
 
 			var (
-				multicastedMessage *proto.Message = nil
+				capturedErr error = nil
+				wg          sync.WaitGroup
+				quitCh      = make(chan struct{}, 1)
 
 				log       = mockLogger{}
-				transport = mockTransport{
-					multicastFn: func(message *proto.Message) {
-						multicastedMessage = message
-					},
-				}
-				backend = mockBackend{
+				transport = mockTransport{}
+				backend   = mockBackend{
 					idFn: func() []byte { return nil },
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
@@ -139,26 +137,33 @@ func TestRunNewRound_Proposer(t *testing.T) {
 
 			i := NewIBFT(log, backend, transport)
 
-			quitCh := make(chan struct{}, 1)
-			quitCh <- struct{}{}
+			wg.Add(1)
+			go func(i *IBFT) {
+				defer func() {
+					wg.Done()
+
+					// Close out the main run loop
+					// as soon as the error is parsed
+					quitCh <- struct{}{}
+				}()
+
+				select {
+				case err := <-i.roundDone:
+					capturedErr = err
+				case <-time.After(5 * time.Second):
+					return
+				}
+			}(i)
 
 			i.runRound(quitCh)
 
-			// Make sure the state is round change
-			assert.Equal(t, roundChange, i.state.name)
-
-			// Make sure the round is not started
-			assert.Equal(t, false, i.state.roundStarted)
-
-			// Make sure the round is increased
-			assert.Equal(t, uint64(1), i.state.view.Round)
-
-			// Make sure the correct message view was multicasted
-			assert.Equal(t, uint64(0), multicastedMessage.View.Height)
-			assert.Equal(t, uint64(1), multicastedMessage.View.Round)
+			wg.Wait()
 
 			// Make sure the proposal is not accepted
 			assert.Equal(t, []byte(nil), i.state.proposal)
+
+			// Make sure the correct error was emitted
+			assert.ErrorIs(t, capturedErr, errBuildProposal)
 		},
 	)
 
@@ -491,22 +496,22 @@ func TestRunCommit(t *testing.T) {
 			// Make sure the proper event is emitted
 			var wg sync.WaitGroup
 			wg.Add(1)
-			go func(i *IBFT) {
-				defer func() {
-					wg.Done()
-
-					// Close out the main run loop
-					// as soon as the quorum commit event is parsed
-					quitCh <- struct{}{}
-				}()
-
-				select {
-				case event := <-i.roundDone:
-					capturedEvent = event
-				case <-time.After(5 * time.Second):
-					return
-				}
-			}(i)
+			//go func(i *IBFT) {
+			//	defer func() {
+			//		wg.Done()
+			//
+			//		// Close out the main run loop
+			//		// as soon as the quorum commit event is parsed
+			//		quitCh <- struct{}{}
+			//	}()
+			//
+			//	select {
+			//	case event := <-i.roundDone:
+			//		capturedEvent = event
+			//	case <-time.After(5 * time.Second):
+			//		return
+			//	}
+			//}(i)
 
 			i.eventCh <- quorumCommits
 
@@ -634,23 +639,23 @@ func TestRunRoundChange(t *testing.T) {
 
 			// Make sure the proper event is emitted
 			var wg sync.WaitGroup
-			wg.Add(1)
-			go func(i *IBFT) {
-				defer func() {
-					wg.Done()
-
-					// Close out the main run loop
-					// as soon as the quorum round change event is parsed
-					quitCh <- struct{}{}
-				}()
-
-				select {
-				case event := <-i.roundDone:
-					capturedEvent = event
-				case <-time.After(5 * time.Second):
-					return
-				}
-			}(i)
+			//wg.Add(1)
+			//go func(i *IBFT) {
+			//	defer func() {
+			//		wg.Done()
+			//
+			//		// Close out the main run loop
+			//		// as soon as the quorum round change event is parsed
+			//		quitCh <- struct{}{}
+			//	}()
+			//
+			//	select {
+			//	case event := <-i.roundDone:
+			//		capturedEvent = event
+			//	case <-time.After(5 * time.Second):
+			//		return
+			//	}
+			//}(i)
 
 			i.eventCh <- quorumRoundChanges
 

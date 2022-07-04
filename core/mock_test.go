@@ -292,7 +292,7 @@ func newMockCluster(
 	nodes := make([]*IBFT, numNodes)
 	quitChannels := make([]chan struct{}, numNodes)
 	messageHandlersQuit := make([]chan struct{}, numNodes)
-	roundDoneChannels := make([]chan event, numNodes)
+	roundDoneChannels := make([]chan error, numNodes)
 
 	for index := 0; index < numNodes; index++ {
 		var (
@@ -349,7 +349,7 @@ type mockCluster struct {
 	nodes []*IBFT // references to the nodes in the cluster
 
 	quitChannels        []chan struct{} // quit channels for all nodes
-	roundDoneChannels   []chan event    // round done channels for all nodes
+	roundDoneChannels   []chan error    // round done channels for all nodes
 	messageHandlersQuit []chan struct{} // message handler quit channels for all nodes
 
 	wg sync.WaitGroup
@@ -397,13 +397,13 @@ func (m *mockCluster) pushMessage(message *proto.Message) {
 // so the cluster is aware of node run loop completion
 func (m *mockCluster) runDoneMonitor(nodeIndex int) {
 	// Wait for the done event to happen
-	doneEvent := <-m.roundDoneChannels[nodeIndex]
-	if doneEvent == repeatSequence {
-		m.resetRoundStarted(nodeIndex)
-	}
-
-	// Alert the wait group
-	m.wg.Done()
+	//doneEvent := <-m.roundDoneChannels[nodeIndex]
+	//if doneEvent == repeatSequence {
+	//	m.resetRoundStarted(nodeIndex)
+	//}
+	//
+	//// Alert the wait group
+	//m.wg.Done()
 }
 
 // areAllNodesOnRound checks to make sure all nodes

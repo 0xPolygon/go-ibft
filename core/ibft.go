@@ -163,7 +163,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		err := i.runState()
 
 		if errors.Is(err, errInvalidBlockProposal) ||
-			errors.Is(err, errInsertBlock) {
+			errors.Is(err, errInsertBlock) ||
+			errors.Is(err, errBuildProposal) {
 			// consensus err -> go to round change
 			i.roundDone <- err
 
