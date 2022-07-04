@@ -85,7 +85,7 @@ func NewIBFT(
 			locked:       false,
 			name:         0,
 		},
-		roundDone:          make(chan event),
+		roundDone:          make(chan error),
 		newMessageCh:       make(chan *proto.Message, 1),
 		proposalAcceptedCh: make(chan struct{}, 1),
 		eventCh:            make(chan event, 1),
@@ -115,7 +115,7 @@ func (i *IBFT) runSequence(h uint64) {
 
 			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 			i.state.setLocked(false)
-		case <-roundHop: // f+1 RC messages received
+		//case <-roundHop: // f+1 RC messages received
 
 		//	move to new round
 		//	multicast RC message
@@ -155,135 +155,266 @@ func (i *IBFT) stopRoundTimeout() {
 	i.roundTimer.Stop()
 }
 
-// runRound is the main run loop for the IBFT round
 func (i *IBFT) runRound(quit <-chan struct{}) {
-	// Set the initial state
-	if !i.state.isRoundStarted() {
-		i.startNewRound()
-	}
+	i.state.name = newRound
+	i.state.roundStarted = true
 
 	for {
+		err := i.runState()
+
+		if errors.Is(err, errInvalidBlockProposal) {
+			// consensus err -> go to round change
+			i.roundDone <- err
+
+			return
+		}
+
+		if errors.Is(err, errInsertBlock) {
+			// TODO: ??? (not a consensus error)
+			return
+		}
+
 		select {
 		case <-quit:
 			return
-		case err := <-i.errorCh:
-			i.log.Error("error during processing", err)
-
-			if errors.Is(err, errInvalidBlockProposal) || errors.Is(err, errInvalidBlockProposed) {
-				i.log.Info("invalid proposal received")
-				i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
-			}
-		case event := <-i.eventCh:
-			// New event received from the message handler, parse it
-
-			// TODO FIX THE PROBLEM WHERE THESE STATE HANDLERS CAN BE TRIGGERED MULTIPLE TIMES
-
-			switch event {
-			case proposalReceived:
-				// Make sure no block is accepted yet
-				if i.state.getProposal() != nil {
-					// Ignore any kind of additional proposal once one has been accepted
-					continue
-				}
-
-				i.log.Info("proposal received")
-
-				proposal := i.verifiedMessages.GetProposal(i.state.getView())
-				if proposal == nil {
-					// TODO this is not possible?
-					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
-				}
-
-				i.acceptProposal(proposal)
-
-				i.transport.Multicast(
-					i.backend.BuildPrepareMessage(proposal, i.state.getView()),
-				)
-
-				// Alert the message handler that
-				// unverified messages can now be verified
-				i.proposalAcceptedCh <- struct{}{}
-			case quorumPrepares:
-				// Make sure there is currently no locked block
-				if i.state.isLocked() {
-					continue
-				}
-
-				i.log.Info("quorum prepares received")
-
-				i.state.setStateName(commit)
-				i.state.setLocked(true)
-
-				i.transport.Multicast(
-					i.backend.BuildCommitMessage(i.state.getProposal(), i.state.getView()),
-				)
-			case quorumCommits:
-				// TODO wait for @dbrajovic to untangle this insanity
-				if i.state.getStateName() == fin {
-					continue
-				}
-
-				i.log.Info("quorum commits received")
-
-				// Extract the committed seals
-				committedSeals := i.verifiedMessages.GetCommittedSeals(i.state.getView())
-
-				i.state.addCommittedSeals(committedSeals)
-
-				i.state.setStateName(fin)
-
-				if err := i.runFin(); err != nil {
-					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
-					i.state.setLocked(false)
-
-					continue
-				}
-
-				// Signalize finish
-				i.roundDone <- consensusReached
-			case quorumRoundChanges:
-				if i.state.getStateName() != roundChange {
-					continue
-				}
-
-				i.log.Info("quorum round changes received")
-
-				// TODO get this data as part of the event?
-				msgs := i.verifiedMessages.GetMessages(i.state.getView(), proto.MessageType_ROUND_CHANGE)
-
-				if len(msgs) < 1 {
-					continue
-				}
-
-				i.log.Info("quorum round changes received")
-
-				// TODO check if this can cause a race :(
-				i.verifiedMessages.PruneByRound(i.state.getView())
-
-				i.roundDone <- repeatSequence
-			case roundHop:
-				i.log.Info("round hop received")
-
-				// TODO get this data as part of the event?
-				msgs := i.verifiedMessages.GetMostRoundChangeMessages(i.state.getRound()+1, i.state.getHeight())
-
-				if len(msgs) < 1 {
-					continue
-				}
-
-				i.log.Info("round hop received")
-
-				// TODO remove log
-				suggestedRound := msgs[0].View.Round
-
-				// TODO we shouldn't do this if for example
-				// we are the proposer and failed to insert a block (already ran)
-				i.moveToNewRoundWithRC(suggestedRound, i.state.getHeight())
-			default:
-			}
+		default:
 		}
 	}
 }
+
+func (i *IBFT) runState() error {
+	switch i.state.name {
+	case newRound:
+		return i.runNewRound()
+	case prepare:
+		return i.runPrepare()
+	case commit:
+		return i.runCommit()
+	case fin:
+		return i.runFin()
+	default:
+		// wat
+		return nil
+	}
+}
+
+func (i *IBFT) runNewRound() error {
+	var (
+		view   = i.state.getView()
+		height = view.Height
+		round  = view.Round
+	)
+
+	if i.backend.IsProposer(i.backend.ID(), height, round) {
+		return i.proposeBlock(height)
+	}
+
+	// we are not the proposer, so we're checking on a PRE-PREPARE msg
+	newProposal := i.verifiedMessages.GetProposal(view)
+	if newProposal == nil {
+		// no PRE-PREPARE message received yet
+		return nil
+	}
+
+	i.acceptProposal(newProposal)
+
+	i.transport.Multicast(
+		i.backend.BuildPrepareMessage(newProposal, view),
+	)
+
+	return nil
+}
+
+func (i *IBFT) runPrepare() error {
+	var (
+		view     = i.state.getView()
+		quorum   = i.backend.Quorum(view.Height)
+		proposal = i.state.proposal
+	)
+
+	// TODO: Q(P+C)
+	if len(i.verifiedMessages.GetMessages(view, proto.MessageType_PREPARE)) < int(quorum) {
+		return errors.New("quorum not reached")
+	}
+
+	i.state.name = commit
+	i.state.locked = true
+
+	i.transport.Multicast(
+		i.backend.BuildCommitMessage(proposal, view),
+	)
+
+	return nil
+}
+
+func (i *IBFT) runCommit() error {
+	var (
+		view   = i.state.getView()
+		quorum = i.backend.Quorum(view.Height)
+	)
+
+	// get commit messages
+	commitMessages := i.verifiedMessages.GetMessages(view, proto.MessageType_COMMIT)
+	if len(commitMessages) < int(quorum) {
+		return errors.New("quorum not reached")
+	}
+
+	// add seals
+	// TODO: these need to be pruned before each new round
+	i.state.seals = i.verifiedMessages.GetCommittedSeals(view)
+
+	// block proposal finalized -> fin state
+	i.state.name = fin
+
+	return nil
+}
+
+// runFin runs the fin state (block insertion)
+func (i *IBFT) runFin() error {
+	if err := i.backend.InsertBlock(
+		i.state.getProposal(),
+		i.state.getCommittedSeals(),
+	); err != nil {
+		return errInsertBlock
+	}
+
+	// Remove stale messages
+	view := i.state.getView()
+	i.verifiedMessages.PruneByHeight(view)
+	i.unverifiedMessages.PruneByHeight(view)
+
+	return nil
+}
+
+// runRound is the main run loop for the IBFT round
+//func (i *IBFT) runRound(quit <-chan struct{}) {
+//	// Set the initial state
+//	if !i.state.isRoundStarted() {
+//		i.startNewRound()
+//	}
+//
+//	for {
+//		select {
+//		case <-quit:
+//			return
+//		case err := <-i.errorCh:
+//			i.log.Error("error during processing", err)
+//
+//			if errors.Is(err, errInvalidBlockProposal) || errors.Is(err, errInvalidBlockProposed) {
+//				i.log.Info("invalid proposal received")
+//				i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
+//			}
+//		case event := <-i.eventCh:
+//			// New event received from the message handler, parse it
+//
+//			// TODO FIX THE PROBLEM WHERE THESE STATE HANDLERS CAN BE TRIGGERED MULTIPLE TIMES
+//
+//			switch event {
+//			case proposalReceived:
+//				// Make sure no block is accepted yet
+//				if i.state.getProposal() != nil {
+//					// Ignore any kind of additional proposal once one has been accepted
+//					continue
+//				}
+//
+//				i.log.Info("proposal received")
+//
+//				proposal := i.verifiedMessages.GetProposal(i.state.getView())
+//				if proposal == nil {
+//					// TODO this is not possible?
+//					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
+//				}
+//
+//				i.acceptProposal(proposal)
+//
+//				i.transport.Multicast(
+//					i.backend.BuildPrepareMessage(proposal, i.state.getView()),
+//				)
+//
+//				// Alert the message handler that
+//				// unverified messages can now be verified
+//				i.proposalAcceptedCh <- struct{}{}
+//			case quorumPrepares:
+//				// Make sure there is currently no locked block
+//				if i.state.isLocked() {
+//					continue
+//				}
+//
+//				i.log.Info("quorum prepares received")
+//
+//				i.state.setStateName(commit)
+//				i.state.setLocked(true)
+//
+//				i.transport.Multicast(
+//					i.backend.BuildCommitMessage(i.state.getProposal(), i.state.getView()),
+//				)
+//			case quorumCommits:
+//				// TODO wait for @dbrajovic to untangle this insanity
+//				if i.state.getStateName() == fin {
+//					continue
+//				}
+//
+//				i.log.Info("quorum commits received")
+//
+//				// Extract the committed seals
+//				committedSeals := i.verifiedMessages.GetCommittedSeals(i.state.getView())
+//
+//				i.state.addCommittedSeals(committedSeals)
+//
+//				i.state.setStateName(fin)
+//
+//				if err := i.runFin(); err != nil {
+//					i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
+//					i.state.setLocked(false)
+//
+//					continue
+//				}
+//
+//				// Signalize finish
+//				i.roundDone <- consensusReached
+//			case quorumRoundChanges:
+//				if i.state.getStateName() != roundChange {
+//					continue
+//				}
+//
+//				i.log.Info("quorum round changes received")
+//
+//				// TODO get this data as part of the event?
+//				msgs := i.verifiedMessages.GetMessages(i.state.getView(), proto.MessageType_ROUND_CHANGE)
+//
+//				if len(msgs) < 1 {
+//					continue
+//				}
+//
+//				i.log.Info("quorum round changes received")
+//
+//				// TODO check if this can cause a race :(
+//				i.verifiedMessages.PruneByRound(i.state.getView())
+//
+//				i.roundDone <- repeatSequence
+//			case roundHop:
+//				i.log.Info("round hop received")
+//
+//				// TODO get this data as part of the event?
+//				msgs := i.verifiedMessages.GetMostRoundChangeMessages(i.state.getRound()+1, i.state.getHeight())
+//
+//				if len(msgs) < 1 {
+//					continue
+//				}
+//
+//				i.log.Info("round hop received")
+//
+//				// TODO remove log
+//				suggestedRound := msgs[0].View.Round
+//
+//				// TODO we shouldn't do this if for example
+//				// we are the proposer and failed to insert a block (already ran)
+//				i.moveToNewRoundWithRC(suggestedRound, i.state.getHeight())
+//			default:
+//			}
+//		}
+//	}
+//}
 
 func (i *IBFT) startNewRound() {
 	i.state.setStateName(newRound)
@@ -330,23 +461,6 @@ func (i *IBFT) moveToNewRoundWithRC(round, height uint64) {
 	)
 
 	i.log.Info(fmt.Sprintf("multicasted RC round=%d height=%d", round, height))
-}
-
-// runFin runs the fin state (block insertion)
-func (i *IBFT) runFin() error {
-	if err := i.backend.InsertBlock(
-		i.state.getProposal(),
-		i.state.getCommittedSeals(),
-	); err != nil {
-		return errInsertBlock
-	}
-
-	// Remove stale messages
-	view := i.state.getView()
-	i.verifiedMessages.PruneByHeight(view)
-	i.unverifiedMessages.PruneByHeight(view)
-
-	return nil
 }
 
 // buildProposal builds a new proposal
