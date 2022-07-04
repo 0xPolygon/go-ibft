@@ -125,7 +125,6 @@ func (i *IBFT) runSequence(h uint64) {
 
 			if err == nil {
 				//	all good, consensus was reached
-				//	TODO: mutate state ?
 				return
 			}
 
