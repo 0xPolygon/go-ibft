@@ -201,6 +201,9 @@ func (i *IBFT) runNewRound() error {
 		round  = view.Round
 	)
 
+	// TODO @dusan, we can move this out before calling runNewRound
+	// so runNewRound only waits for the proposal and acts accordingly
+	// when it receives it, just like other state methods
 	if i.backend.IsProposer(i.backend.ID(), height, round) {
 		return i.proposeBlock(height)
 	}
@@ -422,9 +425,7 @@ func (i *IBFT) startNewRound() {
 		i.state.getHeight(),
 		i.state.getRound(),
 	) {
-		// TODO should this emit a proposal accepted event to the event handler?
 		if err := i.proposeBlock(i.state.getHeight()); err != nil {
-			//i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 			i.roundDone <- err
 		}
 	}
