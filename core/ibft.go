@@ -52,7 +52,7 @@ type IBFT struct {
 
 	transport Transport
 
-	roundDone chan event
+	roundDone chan error
 
 	roundTimer *time.Timer
 
@@ -101,40 +101,43 @@ func (i *IBFT) runSequence(h uint64) {
 		Round:  0,
 	})
 
-	// Start the message handler thread
-	messageHandlerQuit := make(chan struct{})
-	go i.runMessageHandler(messageHandlerQuit)
-
-	defer func() {
-		messageHandlerQuit <- struct{}{}
-	}()
-
 	for {
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
 
 		go i.runRound(quitCh)
 
+		//	TODO: go waitForRoundHop
+
 		select {
-		case <-i.newRoundTimer(currentRound):
+		case <-i.newRoundTimer(currentRound): // timeout expired for this round
 			close(quitCh)
 
 			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 			i.state.setLocked(false)
-		case event := <-i.roundDone:
+		case <-roundHop: // f+1 RC messages received
+
+		//	move to new round
+		//	multicast RC message
+		case err := <-i.roundDone: // round completed
 			i.stopRoundTimeout()
 			close(quitCh)
 
-			switch event {
-			case consensusReached:
-				// Sequence is finished, exit
-				return
-			case repeatSequence:
-				// Reset the round started
-				i.state.setRoundStarted(false)
-			default:
+			if err != nil {
+				//	this means PP was bad
+
+				//	move to new round
+				//	multicast RC message
 			}
+
+			//	all good, consensus was reached
+			//	TODO: mutate state ?
+			return
 		}
+
+		/*	ROUND CHANGE state	*/
+
+		//	this is where we wait on quorum RC messages...
 	}
 }
 
