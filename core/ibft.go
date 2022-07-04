@@ -156,8 +156,10 @@ func (i *IBFT) stopRoundTimeout() {
 }
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
-	i.state.name = newRound
-	i.state.roundStarted = true
+	if !i.state.roundStarted {
+		i.state.name = newRound
+		i.state.roundStarted = true
+	}
 
 	for {
 		err := i.runState()
@@ -215,6 +217,7 @@ func (i *IBFT) runNewRound() error {
 		// no PRE-PREPARE message received yet
 		return nil
 	}
+	// TODO validate this proposal
 
 	i.acceptProposal(newProposal)
 
@@ -236,6 +239,7 @@ func (i *IBFT) runPrepare() error {
 	if len(i.verifiedMessages.GetMessages(view, proto.MessageType_PREPARE)) < int(quorum) {
 		return errors.New("quorum not reached")
 	}
+	// TODO validate these messages
 
 	i.state.name = commit
 	i.state.locked = true
@@ -258,6 +262,8 @@ func (i *IBFT) runCommit() error {
 	if len(commitMessages) < int(quorum) {
 		return errors.New("quorum not reached")
 	}
+
+	// TODO validate these commit messages
 
 	// add seals
 	// TODO: these need to be pruned before each new round
