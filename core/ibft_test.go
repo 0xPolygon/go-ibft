@@ -629,6 +629,8 @@ func TestRunRoundChange(t *testing.T) {
 
 			i := NewIBFT(log, backend, transport)
 			i.verifiedMessages = messages
+			i.state.name = roundChange
+			i.state.roundStarted = true
 
 			// Make sure the proper event is emitted
 			var wg sync.WaitGroup
