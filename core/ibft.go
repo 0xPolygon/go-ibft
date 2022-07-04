@@ -129,6 +129,7 @@ func (i *IBFT) runSequence(h uint64) {
 			}
 
 			//	this means PP was bad, move to new round
+			i.state.setLocked(false)
 			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 		}
 
@@ -161,15 +162,11 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
 		err := i.runState()
 
-		if errors.Is(err, errInvalidBlockProposal) {
+		if errors.Is(err, errInvalidBlockProposal) ||
+			errors.Is(err, errInsertBlock) {
 			// consensus err -> go to round change
 			i.roundDone <- err
 
-			return
-		}
-
-		if errors.Is(err, errInsertBlock) {
-			// TODO: ??? (not a consensus error)
 			return
 		}
 
