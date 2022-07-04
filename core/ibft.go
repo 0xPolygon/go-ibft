@@ -123,16 +123,14 @@ func (i *IBFT) runSequence(h uint64) {
 			i.stopRoundTimeout()
 			close(quitCh)
 
-			if err != nil {
-				//	this means PP was bad
-
-				//	move to new round
-				//	multicast RC message
+			if err == nil {
+				//	all good, consensus was reached
+				//	TODO: mutate state ?
+				return
 			}
 
-			//	all good, consensus was reached
-			//	TODO: mutate state ?
-			return
+			//	this means PP was bad, move to new round
+			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 		}
 
 		/*	ROUND CHANGE state	*/
@@ -299,7 +297,8 @@ func (i *IBFT) startNewRound() {
 	) {
 		// TODO should this emit a proposal accepted event to the event handler?
 		if err := i.proposeBlock(i.state.getHeight()); err != nil {
-			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
+			//i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
+			i.roundDone <- err
 		}
 	}
 }
