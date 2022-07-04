@@ -526,13 +526,10 @@ func TestRunCommit(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			quitCh := make(chan struct{}, 1)
-
 			var (
 				proposal                        = []byte("block proposal")
 				insertedProposal       []byte   = nil
 				insertedCommittedSeals [][]byte = nil
-				capturedEvent                   = noEvent
 				committedSeals                  = [][]byte{[]byte("seal")}
 
 				log       = mockLogger{}
@@ -544,10 +541,16 @@ func TestRunCommit(t *testing.T) {
 
 						return nil
 					},
+					quorumFn: func(_ uint64) uint64 {
+						return 1
+					},
 				}
 				messages = mockMessages{
 					getCommittedSeals: func(view *proto.View) [][]byte {
 						return committedSeals
+					},
+					getMessages: func(_ *proto.View, _ proto.MessageType) []*proto.Message {
+						return generateCommitMessages(1)
 					},
 				}
 			)
@@ -556,43 +559,28 @@ func TestRunCommit(t *testing.T) {
 			i.verifiedMessages = messages
 			i.unverifiedMessages = messages
 			i.state.proposal = proposal
+			i.state.roundStarted = true
+			i.state.name = commit
 
-			// Make sure the proper event is emitted
-			var wg sync.WaitGroup
-			wg.Add(1)
-			//go func(i *IBFT) {
-			//	defer func() {
-			//		wg.Done()
-			//
-			//		// Close out the main run loop
-			//		// as soon as the quorum commit event is parsed
-			//		quitCh <- struct{}{}
-			//	}()
-			//
-			//	select {
-			//	case event := <-i.roundDone:
-			//		capturedEvent = event
-			//	case <-time.After(5 * time.Second):
-			//		return
-			//	}
-			//}(i)
-
-			i.eventCh <- quorumCommits
+			quitCh := make(chan struct{}, 1)
+			quitCh <- struct{}{}
 
 			i.runRound(quitCh)
 
 			// Make sure the node changed the state to fin
 			assert.Equal(t, fin, i.state.name)
 
+			// Run the round again to make sure FIN executes
+			quitCh = make(chan struct{}, 1)
+			quitCh <- struct{}{}
+
+			i.runRound(quitCh)
+
 			// Make sure the inserted proposal was the one present
 			assert.Equal(t, insertedProposal, proposal)
 
 			// Make sure the inserted committed seals were correct
 			assert.Equal(t, insertedCommittedSeals, committedSeals)
-
-			// Make sure the proper event was emitted
-			wg.Wait()
-			assert.Equal(t, consensusReached, capturedEvent)
 		},
 	)
 
@@ -604,23 +592,14 @@ func TestRunCommit(t *testing.T) {
 			quitCh := make(chan struct{}, 1)
 
 			var (
-				multicastedRoundChange *proto.Message = nil
+				wg          sync.WaitGroup
+				capturedErr error = nil
 
 				log       = mockLogger{}
-				transport = mockTransport{
-					func(message *proto.Message) {
-						if message != nil && message.Type == proto.MessageType_ROUND_CHANGE {
-							multicastedRoundChange = message
-
-							// Make sure to close the main run loop
-							// once the round change event has been emitted
-							quitCh <- struct{}{}
-						}
-					},
-				}
-				backend = mockBackend{
+				transport = mockTransport{}
+				backend   = mockBackend{
 					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
-						return errors.New("unable to insert block")
+						return errInsertBlock
 					},
 					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
 						return &proto.Message{
@@ -637,26 +616,33 @@ func TestRunCommit(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			i.verifiedMessages = mockMessages{}
 			i.unverifiedMessages = mockMessages{}
+			i.state.name = fin
+			i.state.roundStarted = true
 
-			i.eventCh <- quorumCommits
+			wg.Add(1)
+			go func(i *IBFT) {
+				defer func() {
+					wg.Done()
+
+					// Close out the main run loop
+					// as soon as the error is parsed
+					quitCh <- struct{}{}
+				}()
+
+				select {
+				case err := <-i.roundDone:
+					capturedErr = err
+				case <-time.After(5 * time.Second):
+					return
+				}
+			}(i)
 
 			i.runRound(quitCh)
 
-			// Make sure the node changed the state to fin
-			assert.Equal(t, roundChange, i.state.name)
+			wg.Wait()
 
-			// Make sure the node is not locked on the proposal
-			assert.Equal(t, false, i.state.locked)
-
-			// Make sure the round is not started
-			assert.Equal(t, false, i.state.roundStarted)
-
-			// Make sure the round is increased
-			assert.Equal(t, uint64(1), i.state.view.Round)
-
-			// Make sure the correct message view was multicasted
-			assert.Equal(t, uint64(0), multicastedRoundChange.View.Height)
-			assert.Equal(t, uint64(1), multicastedRoundChange.View.Round)
+			// Make sure the captured error is correct
+			assert.ErrorIs(t, capturedErr, errInsertBlock)
 		},
 	)
 }
