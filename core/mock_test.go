@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
+	"sync"
 )
 
 // Define delegation methods
@@ -265,149 +266,118 @@ type backendConfigCallback func(*mockBackend)
 type loggerConfigCallback func(*mockLogger)
 type transportConfigCallback func(*mockTransport)
 
-//
-//// newMockCluster creates a new IBFT cluster
-//func newMockCluster(
-//	numNodes int,
-//	backendCallbackMap map[int]backendConfigCallback,
-//	loggerCallbackMap map[int]loggerConfigCallback,
-//	transportCallbackMap map[int]transportConfigCallback,
-//) *mockCluster {
-//	if numNodes < 1 {
-//		return nil
-//	}
-//
-//	nodes := make([]*IBFT, numNodes)
-//	quitChannels := make([]chan struct{}, numNodes)
-//	messageHandlersQuit := make([]chan struct{}, numNodes)
-//	roundDoneChannels := make([]chan error, numNodes)
-//
-//	for index := 0; index < numNodes; index++ {
-//		var (
-//			logger    = &mockLogger{}
-//			transport = &mockTransport{}
-//			backend   = &mockBackend{}
-//		)
-//
-//		// Execute set callbacks, if any
-//		if backendCallbackMap != nil {
-//			if backendCallback, isSet := backendCallbackMap[index]; isSet {
-//				backendCallback(backend)
-//			}
-//		}
-//
-//		if loggerCallbackMap != nil {
-//			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
-//				loggerCallback(logger)
-//			}
-//		}
-//
-//		if transportCallbackMap != nil {
-//			if transportCallback, isSet := transportCallbackMap[index]; isSet {
-//				transportCallback(transport)
-//			}
-//		}
-//
-//		// Create a new instance of the IBFT node
-//		i := NewIBFT(logger, backend, transport)
-//
-//		// Make sure the node uses real message queue
-//		// implementations
-//		i.messages = messages.NewMessages()
-//		i.unverifiedMessages = messages.NewMessages()
-//
-//		// Instantiate quit channels for node routines
-//		quitChannels[index] = make(chan struct{})
-//		messageHandlersQuit[index] = make(chan struct{})
-//		roundDoneChannels[index] = i.roundDone
-//
-//		nodes[index] = i
-//	}
-//
-//	return &mockCluster{
-//		nodes:               nodes,
-//		quitChannels:        quitChannels,
-//		messageHandlersQuit: messageHandlersQuit,
-//		roundDoneChannels:   roundDoneChannels,
-//	}
-//}
-//
-//// mockCluster represents a mock IBFT cluster
-//type mockCluster struct {
-//	nodes []*IBFT // references to the nodes in the cluster
-//
-//	quitChannels        []chan struct{} // quit channels for all nodes
-//	roundDoneChannels   []chan error    // round done channels for all nodes
-//	messageHandlersQuit []chan struct{} // message handler quit channels for all nodes
-//
-//	wg sync.WaitGroup
-//}
-//
-//// runNewRound runs the round for all the nodes
-//func (m *mockCluster) runNewRound() {
-//	for index, node := range m.nodes {
-//		m.wg.Add(1)
-//
-//		// Start the round done monitor service for the node
-//		go m.runDoneMonitor(index)
-//
-//		// Start the message handler service for the node
-//		go node.runMessageHandler(m.messageHandlersQuit[index])
-//
-//		// Start the main run loop for the node
-//		go node.runRound(m.quitChannels[index])
-//	}
-//}
-//
-//// stop sends a quit signal to all nodes
-//// in the cluster
-//func (m *mockCluster) stop() {
-//	// Wait for all main run loops to signalize
-//	// that they're finished
-//	m.wg.Wait()
-//
-//	// Close off any running routines
-//	for index := range m.nodes {
-//		m.quitChannels[index] <- struct{}{}
-//		m.messageHandlersQuit[index] <- struct{}{}
-//	}
-//}
-//
-//// pushMessage imitates a message passing service,
-//// it relays a message to all nodes in the network
-//func (m *mockCluster) pushMessage(message *proto.Message) {
-//	for _, node := range m.nodes {
-//		node.AddMessage(message)
-//	}
-//}
-//
-//// runDoneMonitor monitors the passed done channel for the node
-//// so the cluster is aware of node run loop completion
-//func (m *mockCluster) runDoneMonitor(nodeIndex int) {
-//	// Wait for the done event to happen
-//	//doneEvent := <-m.roundDoneChannels[nodeIndex]
-//	//if doneEvent == repeatSequence {
-//	//	m.resetRoundStarted(nodeIndex)
-//	//}
-//	//
-//	//// Alert the wait group
-//	//m.wg.Done()
-//}
-//
-//// areAllNodesOnRound checks to make sure all nodes
-//// are on the same specified round
-//func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
-//	for _, node := range m.nodes {
-//		if node.state.getRound() != round {
-//			return false
-//		}
-//	}
-//
-//	return true
-//}
-//
-//// resetRoundStarted resets the round started flag
-//// for the specified node
-//func (m *mockCluster) resetRoundStarted(nodeIndex int) {
-//	m.nodes[nodeIndex].state.setRoundStarted(false)
-//}
+// newMockCluster creates a new IBFT cluster
+func newMockCluster(
+	numNodes int,
+	backendCallbackMap map[int]backendConfigCallback,
+	loggerCallbackMap map[int]loggerConfigCallback,
+	transportCallbackMap map[int]transportConfigCallback,
+) *mockCluster {
+	if numNodes < 1 {
+		return nil
+	}
+
+	nodes := make([]*IBFT, numNodes)
+	quitChannels := make([]chan struct{}, numNodes)
+	messageHandlersQuit := make([]chan struct{}, numNodes)
+
+	for index := 0; index < numNodes; index++ {
+		var (
+			logger    = &mockLogger{}
+			transport = &mockTransport{}
+			backend   = &mockBackend{}
+		)
+
+		// Execute set callbacks, if any
+		if backendCallbackMap != nil {
+			if backendCallback, isSet := backendCallbackMap[index]; isSet {
+				backendCallback(backend)
+			}
+		}
+
+		if loggerCallbackMap != nil {
+			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
+				loggerCallback(logger)
+			}
+		}
+
+		if transportCallbackMap != nil {
+			if transportCallback, isSet := transportCallbackMap[index]; isSet {
+				transportCallback(transport)
+			}
+		}
+
+		// Create a new instance of the IBFT node
+		i := NewIBFT(logger, backend, transport)
+
+		// Make sure the node uses real message queue
+		// implementations
+		i.messages = messages.NewMessages()
+
+		// Instantiate quit channels for node routines
+		quitChannels[index] = make(chan struct{})
+		messageHandlersQuit[index] = make(chan struct{})
+
+		nodes[index] = i
+	}
+
+	return &mockCluster{
+		nodes: nodes,
+	}
+}
+
+// mockCluster represents a mock IBFT cluster
+type mockCluster struct {
+	nodes []*IBFT // references to the nodes in the cluster
+
+	wg sync.WaitGroup
+}
+
+func (m *mockCluster) runSequence(height uint64) {
+	for _, node := range m.nodes {
+		m.wg.Add(1)
+
+		go func(node *IBFT, height uint64, wg *sync.WaitGroup) {
+			defer func() {
+				wg.Done()
+			}()
+
+			// Start the main run loop for the node
+			node.runSequence(height)
+		}(node, height, &m.wg)
+	}
+}
+
+// stop sends a quit signal to all nodes
+// in the cluster
+func (m *mockCluster) stop() {
+	// Wait for all main run loops to signalize
+	// that they're finished
+	m.wg.Wait()
+}
+
+// pushMessage imitates a message passing service,
+// it relays a message to all nodes in the network
+func (m *mockCluster) pushMessage(message *proto.Message) {
+	for _, node := range m.nodes {
+		node.AddMessage(message)
+	}
+}
+
+// areAllNodesOnRound checks to make sure all nodes
+// are on the same specified round
+func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
+	for _, node := range m.nodes {
+		if node.state.getRound() != round {
+			return false
+		}
+	}
+
+	return true
+}
+
+// resetRoundStarted resets the round started flag
+// for the specified node
+func (m *mockCluster) resetRoundStarted(nodeIndex int) {
+	m.nodes[nodeIndex].state.setRoundStarted(false)
+}

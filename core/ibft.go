@@ -143,9 +143,9 @@ func (i *IBFT) startRoundTimer(
 // at any point in time to trigger a round hop to the highest round
 // which has F+1 Round Change messages
 func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
-	view := i.state.getView()
-
 	for {
+		view := i.state.getView()
+
 		// Get the messages from the message queue
 		rcMessages := i.messages.
 			GetMostRoundChangeMessages(
@@ -181,6 +181,8 @@ func (i *IBFT) runSequence(h uint64) {
 		Round:  0,
 	})
 
+	i.log.Info("sequence started")
+
 	for {
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
@@ -198,6 +200,8 @@ func (i *IBFT) runSequence(h uint64) {
 		case newRound := <-i.roundChange:
 			// Round Change request received.
 			// Stop all running worker threads
+			i.log.Info("round change received")
+
 			close(quitCh)
 			i.wg.Wait()
 
@@ -207,10 +211,14 @@ func (i *IBFT) runSequence(h uint64) {
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
+			i.log.Info("round done received")
+
 			close(quitCh)
 
 			return
 		}
+
+		i.log.Info("going to round change...")
 
 		// Wait to reach quorum on what the next round
 		// should be before starting the cycle again
@@ -229,6 +237,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		// Round is not yet started, kick the round off
 		i.state.name = newRound
 		i.state.roundStarted = true
+
+		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
 	}
 
 	// Check if any block needs to be proposed
@@ -237,6 +247,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.state.getHeight(),
 		i.state.getRound(),
 	) {
+		i.log.Info("we are the proposer")
+
 		// The current node is the proposer, submit the proposal
 		// to other nodes
 		if err := i.proposeBlock(i.state.getHeight()); err != nil {
@@ -250,6 +262,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
 		var err error
 
+		i.log.Info(fmt.Sprintf("current state %v", i.state.name))
 		switch i.state.name {
 		case newRound:
 			err = i.runNewRound(quit)
@@ -258,22 +271,31 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case commit:
 			err = i.runCommit(quit)
 		case fin:
+			i.log.Info("fin state")
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
 				// sequence is complete
+				i.log.Info("sending round done")
+
 				i.roundDone <- struct{}{}
+
+				i.log.Info("round done sent")
 
 				return
 			}
 		}
 
 		if errors.Is(err, errTimeoutExpired) {
+			i.log.Info("timeout expired")
+
 			return
 		}
 
 		if err != nil {
 			// There was a critical consensus error (or timeout) during
 			// state execution, move to the round change state
+			i.log.Info(fmt.Sprintf("error during state processing: %v", err))
+
 			i.roundChange <- i.state.getRound() + 1
 
 			return
@@ -515,9 +537,13 @@ func (i *IBFT) runRoundChange() {
 	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
+	i.log.Info("waiting on round quorum")
+
 	// Wait until a quorum of Round Change messages
 	// has been received in order to start the new round
 	<-sub.GetCh()
+
+	i.log.Info("received round quorum")
 }
 
 // moveToNewRound moves the state to the new round
