@@ -220,8 +220,10 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 				return
 			}
 		case prepare:
+			//	TODO: cannot possibly error here
 			_ = i.runPrepare(quit)
 		case commit:
+			//	TODO: cannot possibly error here
 			_ = i.runCommit(quit)
 		case fin:
 			_ = i.runFin()
@@ -298,15 +300,35 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 		case <-quit:
 			return errors.New("round timeout expired")
 		case <-sub.GetCh():
-			//	TODO
-			//	get messages
+			validCount := uint64(0)
 
-			//	validation
-			//		#1:	kec(proposal) == kec(prepare)
+			//	get messages
+			msgs := i.verifiedMessages.GetMessages(view, proto.MessageType_PREPARE)
+			for _, msg := range msgs {
+				proposalHash := msg.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
+				if err := i.backend.VerifyProposalHash(i.state.proposal, proposalHash); err != nil {
+					continue
+				}
+
+				validCount += 1
+				if validCount >= quorum {
+					break
+				}
+			}
+
+			if validCount < quorum {
+				continue
+			}
 
 			//	multicast COMMIT message
+			i.transport.Multicast(
+				i.backend.BuildCommitMessage(i.state.proposal, view),
+			)
 
 			//	move to commit state and return
+			i.state.name = commit
+
+			return nil
 		}
 	}
 }
