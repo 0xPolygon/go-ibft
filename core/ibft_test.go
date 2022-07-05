@@ -356,7 +356,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = messages
+			i.messages = messages
 
 			i.runRound(quitCh)
 
@@ -497,7 +497,7 @@ func TestRunPrepare(t *testing.T) {
 			i.state.name = prepare
 			i.state.roundStarted = true
 			i.state.proposal = proposal
-			i.verifiedMessages = messages
+			i.messages = messages
 
 			i.runRound(quitCh)
 
@@ -556,7 +556,7 @@ func TestRunCommit(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = messages
+			i.messages = messages
 			i.unverifiedMessages = messages
 			i.state.proposal = proposal
 			i.state.roundStarted = true
@@ -614,7 +614,7 @@ func TestRunCommit(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = mockMessages{}
+			i.messages = mockMessages{}
 			i.unverifiedMessages = mockMessages{}
 			i.state.name = fin
 			i.state.roundStarted = true
@@ -683,7 +683,7 @@ func TestRunRoundChange(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = messages
+			i.messages = messages
 			i.state.name = roundChange
 			i.state.roundStarted = true
 
@@ -766,7 +766,7 @@ func TestRunRoundChange(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.verifiedMessages = messages
+			i.messages = messages
 
 			i.eventCh <- roundHop
 
@@ -1095,7 +1095,7 @@ func TestIBFT_EventPossible(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 
 			i.state = testCase.currentState
-			i.verifiedMessages = testCase.messages
+			i.messages = testCase.messages
 
 			assert.Equal(t, testCase.expectedEvent, i.eventPossible(testCase.messageType))
 		})
@@ -1654,7 +1654,7 @@ func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
 		}
 
 		i := NewIBFT(log, backend, transport)
-		i.verifiedMessages = verifiableMessages
+		i.messages = verifiableMessages
 		i.unverifiedMessages = unverifiableMessages
 
 		message := &proto.Message{
@@ -1707,7 +1707,7 @@ func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
 		}
 
 		i := NewIBFT(log, backend, transport)
-		i.verifiedMessages = verifiableMessages
+		i.messages = verifiableMessages
 		i.unverifiedMessages = unverifiableMessages
 		i.state.name = prepare
 
@@ -1781,7 +1781,7 @@ func TestIBFT_MessageHandler_NewMessage(t *testing.T) {
 		}
 
 		i := NewIBFT(log, backend, transport)
-		i.verifiedMessages = verifiableMessages
+		i.messages = verifiableMessages
 		i.unverifiedMessages = unverifiableMessages
 		i.state.name = prepare
 
@@ -1900,7 +1900,7 @@ func TestIBFT_MessageHandler_ProposalAccepted(t *testing.T) {
 	}
 
 	i := NewIBFT(log, backend, transport)
-	i.verifiedMessages = verifiableMessages
+	i.messages = verifiableMessages
 	i.unverifiedMessages = unverifiableMessages
 	i.state.name = prepare
 

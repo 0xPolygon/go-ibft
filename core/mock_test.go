@@ -325,7 +325,7 @@ func newMockCluster(
 
 		// Make sure the node uses real message queue
 		// implementations
-		i.verifiedMessages = messages.NewMessages()
+		i.messages = messages.NewMessages()
 		i.unverifiedMessages = messages.NewMessages()
 
 		// Instantiate quit channels for node routines
