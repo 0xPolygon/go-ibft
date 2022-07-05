@@ -171,27 +171,28 @@ func (i *IBFT) stopRoundTimeout() {
 }
 
 func (i *IBFT) runRound(quit <-chan struct{}) {
+	i.wg.Add(1)
+	defer i.wg.Done()
+
+	//	TODO: is if needed  (for tests)?
 	if !i.state.roundStarted {
 		i.state.name = newRound
 		i.state.roundStarted = true
 	}
 
+	//	proposer logic
+
+	//	state loop
 	for {
-		err := i.runState()
-
-		if errors.Is(err, errInvalidBlockProposal) ||
-			errors.Is(err, errInsertBlock) ||
-			errors.Is(err, errBuildProposal) {
-			// consensus err -> go to round change
-			i.roundDone <- err
-
-			return
-		}
-
-		select {
-		case <-quit:
-			return
-		default:
+		switch i.state.name {
+		case newRound:
+			err := i.runNewRound()
+		case prepare:
+			err := i.runPrepare()
+		case commit:
+			err := i.runCommit()
+		case fin:
+			err := i.runFin()
 		}
 	}
 }
