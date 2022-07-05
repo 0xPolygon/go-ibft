@@ -42,13 +42,16 @@ type Backend interface {
 	// IsValidCommittedSeal checks if the seal for the proposal is valid
 	IsValidCommittedSeal(proposal, seal []byte) bool
 
+	// InsertBlock inserts a proposal with the specified committed seals
 	InsertBlock(proposal []byte, committedSeals [][]byte) error
 
 	// ID returns the validator's ID
 	ID() []byte
 
 	// AllowedFaulty returns the maximum number of faulty nodes based
-	// on the validator set
+	// on the validator set.
+	// This should optimally be floor((n-1)/3), where n is the
+	// number of validators in the network
 	AllowedFaulty() uint64
 
 	// Quorum returns what is the quorum size for the
