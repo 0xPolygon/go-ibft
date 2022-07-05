@@ -36,34 +36,48 @@ var (
 	errBuildProposal        = errors.New("failed to build proposal")
 	errInvalidBlockProposal = errors.New("invalid block proposal")
 	errInvalidBlockProposed = errors.New("invalid block proposed")
-	errInvalidProposer      = errors.New("invalid block proposer")
-	errInvalidCommittedSeal = errors.New("invalid commit seal in commit message")
 	errInsertBlock          = errors.New("failed to insert block")
-	errViewMismatch         = errors.New("invalid message view")
-	errHashMismatch         = errors.New("data hash mismatch")
+	errQuitReceived         = errors.New("quit signal received")
 
 	roundZeroTimeout = 10 * time.Second
 )
 
+// IBFT represents a single instance of the IBFT state machine
 type IBFT struct {
+	// log is the logger instance
 	log Logger
 
+	// state is the current IBFT node state
 	state *state
 
+	// messages is the message storage layer
 	messages Messages
 
+	// backend is the reference to the
+	// Backend implementation
 	backend Backend
 
+	// transport is the reference to the
+	// Transport implementation
 	transport Transport
 
-	roundDone   chan struct{}
+	// roundDone is the channel used for signalizing
+	// consensus finalization upon a certain sequence
+	roundDone chan struct{}
+
+	// roundChange is the channel used for signalizing
+	// round changing events
 	roundChange chan uint64
 
+	// wg is a simple barrier used for synchronizing
+	// state modification routines
 	wg sync.WaitGroup
 
+	// roundTimer is the main timer for a single round
 	roundTimer *time.Timer
 }
 
+// NewIBFT creates a new instance of the IBFT consensus protocol
 func NewIBFT(
 	log Logger,
 	backend Backend,
@@ -82,13 +96,15 @@ func NewIBFT(
 			seals:        make([][]byte, 0),
 			roundStarted: false,
 			locked:       false,
-			name:         0,
+			name:         newRound,
 		},
 		roundDone:   make(chan struct{}),
 		roundChange: make(chan uint64),
 	}
 }
 
+// startRoundTimer starts the exponential round timer, based on the
+// passed in round number
 func (i *IBFT) startRoundTimer(round uint64, quit <-chan struct{}) {
 	var (
 		duration     = int(roundZeroTimeout)
@@ -96,66 +112,56 @@ func (i *IBFT) startRoundTimer(round uint64, quit <-chan struct{}) {
 		roundTimeout = time.Duration(duration * roundFactor)
 	)
 
-	//	timer for this round
+	//	Create a new timer instance
 	timer := time.NewTimer(roundTimeout)
 
 	select {
 	case <-quit:
+		// Stop signal received, stop the timer
 		timer.Stop()
 	case <-timer.C:
+		// Timer expired, alert the round change channel to move
+		// to the next round
 		i.roundChange <- round + 1
 	}
 
 	return
 }
 
+// watchForRoundHop checks if there are F+1 Round Change messages
+// at any point in time to trigger a round hop to the highest round
+// which has F+1 Round Change messages
 func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	view := i.state.getView()
 
 	for {
+		// Get the messages from the message queue
 		rcMessages := i.messages.
 			GetMostRoundChangeMessages(
 				view.Round,
-				view.Height)
+				view.Height,
+			)
 
-		//	signal round change if enough round change messages were received
+		//	Signal round change if enough round change messages were received
 		if len(rcMessages) >= int(i.backend.AllowedFaulty()) {
+			// The round in the Round Change messages should be the highest
+			// round for which there are F+1 RC messages
 			newRound := rcMessages[0].View.Round
 			i.roundChange <- newRound
 
 			return
 		}
 
-		//	return if this goroutine is cancelled
 		select {
 		case <-quit:
+			// Quit signal received, teardown the worker
 			return
 		default:
 		}
 	}
 }
 
-func (i *IBFT) runRoundChange() {
-	var (
-		view   = i.state.getView()
-		quorum = i.backend.Quorum(view.Height)
-	)
-
-	sub := i.messages.Subscribe(
-		messages.SubscriptionDetails{
-			MessageType: proto.MessageType_ROUND_CHANGE,
-			View:        view,
-			NumMessages: int(quorum),
-		})
-
-	defer i.messages.Unsubscribe(sub.GetID())
-
-	//	wait until we have received a quorum
-	//	od RC messages in order to start the new round
-	<-sub.GetCh()
-
-}
-
+// runSequence runs the consensus cycle for the specified block height
 func (i *IBFT) runSequence(h uint64) {
 	// TODO do state clear here
 	// Set the starting state data
@@ -168,46 +174,62 @@ func (i *IBFT) runSequence(h uint64) {
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
 
+		// Start the round timer worker
 		go i.startRoundTimer(currentRound, quitCh)
+
+		// Start the state machine worker
 		go i.runRound(quitCh)
+
+		// Start the round hop worker
 		go i.watchForRoundHop(quitCh)
 
 		select {
 		case newRound := <-i.roundChange:
-			//	stop all running goroutines
+			// Round Change request received.
+			// Stop all running worker threads
 			close(quitCh)
 			i.wg.Wait()
 
-			//	move to new round
+			//	Move to the new round
 			i.moveToNewRoundWithRC(newRound, i.state.getHeight())
 			i.state.setLocked(false)
 		case <-i.roundDone:
+			// The consensus cycle for the block height is finished.
+			// Stop all running worker threads
 			close(quitCh)
 
-			//	block is finalized for this sequence
 			return
 		}
 
+		// Wait to reach quorum on what the next round
+		// should be before starting the cycle again
 		i.runRoundChange()
 	}
 }
 
+// runRound runs the state machine loop for the current round
 func (i *IBFT) runRound(quit <-chan struct{}) {
+	// Register this worker thread with the barrier
 	i.wg.Add(1)
 	defer i.wg.Done()
 
 	//	TODO: is if needed  (for tests)?
 	if !i.state.roundStarted {
+		// Round is not yet started, kick the round off
 		i.state.name = newRound
 		i.state.roundStarted = true
 	}
 
+	// Check if any block needs to be proposed
 	if i.backend.IsProposer(
 		i.backend.ID(),
 		i.state.getHeight(),
 		i.state.getRound(),
 	) {
+		// The current node is the proposer, submit the proposal
+		// to other nodes
 		if err := i.proposeBlock(i.state.getHeight()); err != nil {
+			// Proposal is unable to be submitted, move to the round change state
 			i.roundChange <- i.state.getRound() + 1
 
 			return
@@ -219,11 +241,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 		switch i.state.name {
 		case newRound:
-			if err = i.runNewRound(quit); err != nil {
-				i.roundChange <- i.state.getRound() + 1
-
-				return
-			}
+			err = i.runNewRound(quit)
 		case prepare:
 			//	TODO: cannot possibly error here
 			_ = i.runPrepare(quit)
@@ -231,41 +249,57 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			//	TODO: cannot possibly error here
 			_ = i.runCommit(quit)
 		case fin:
-			if err = i.runFin(); err != nil {
-				i.roundChange <- i.state.getRound() + 1
+			if err = i.runFin(); err == nil {
+				//	Block inserted without any errors,
+				// sequence is complete
+				i.roundDone <- struct{}{}
 
 				return
 			}
+		}
 
-			//	round is complete
-			i.roundDone <- struct{}{}
+		if err != nil {
+			// There was a critical consensus error during
+			// state execution, move to the round change state
+			i.roundChange <- i.state.getRound() + 1
 
 			return
 		}
-
 	}
 }
 
+// runNewRound runs the New Round IBFT state
 func (i *IBFT) runNewRound(quit <-chan struct{}) error {
-	view := i.state.getView()
-	sub := i.messages.Subscribe(
-		messages.SubscriptionDetails{
-			MessageType: proto.MessageType_PREPREPARE,
-			View:        view,
-			NumMessages: 1,
-		})
+	var (
+		// Grab the current view
+		view = i.state.getView()
 
+		// Subscribe for PREPREPARE messages
+		messageType = proto.MessageType_PREPREPARE
+		sub         = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				MessageType: messageType,
+				View:        view,
+				NumMessages: 1,
+			},
+		)
+	)
+
+	// The subscription is not needed anymore after
+	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
 	for {
 		select {
 		case <-quit:
-			//	TODO: type error
-			return errors.New("round timeout expired")
+			// Stop signal received, exit
+			return errQuitReceived
 		case <-sub.GetCh():
+			// Subscription conditions have been met,
+			// grab the proposal messages
 			var proposal []byte
 
-			msgs := i.messages.GetMessages(view, proto.MessageType_PREPREPARE)
+			msgs := i.messages.GetMessages(view, messageType)
 			for _, msg := range msgs {
 				if !i.backend.IsProposer(msg.From, view.Height, view.Round) {
 					continue
@@ -280,14 +314,15 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 				break
 			}
 
+			// Accept the proposal since it's valid
 			i.acceptProposal(proposal)
 
-			//	multicast PREPARE message
+			// Multicast the PREPARE message
 			i.transport.Multicast(
 				i.backend.BuildPrepareMessage(proposal, i.state.getView()),
 			)
 
-			//	set state to PREPARE and return
+			// Move to the prepare state
 			i.state.name = prepare
 
 			return nil
@@ -295,30 +330,41 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 	}
 }
 
+// runPrepare runs the Prepare IBFT state
 func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 	var (
-		view   = i.state.getView()
+		// Grab the current view
+		view = i.state.getView()
+
+		// Grab quorum information
 		quorum = i.backend.Quorum(view.Height)
+
+		// Subscribe to PREPARE messages
+		messageType = proto.MessageType_PREPARE
+		sub         = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				MessageType: messageType,
+				View:        view,
+				NumMessages: int(quorum),
+			},
+		)
 	)
 
-	sub := i.messages.Subscribe(
-		messages.SubscriptionDetails{
-			MessageType: proto.MessageType_PREPARE,
-			View:        view,
-			NumMessages: int(quorum),
-		})
-
+	// The subscription is not needed anymore after
+	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
 	for {
 		select {
 		case <-quit:
-			return errors.New("round timeout expired")
+			// Stop signal received, exit
+			return errQuitReceived
 		case <-sub.GetCh():
+			// Subscription conditions have been met,
+			// grab the prepare messages
 			validCount := uint64(0)
 
-			//	get messages
-			msgs := i.messages.GetMessages(view, proto.MessageType_PREPARE)
+			msgs := i.messages.GetMessages(view, messageType)
 			for _, msg := range msgs {
 				proposalHash := msg.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
 				if err := i.backend.VerifyProposalHash(i.state.proposal, proposalHash); err != nil {
@@ -336,12 +382,12 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 				continue
 			}
 
-			//	multicast COMMIT message
+			// Multicast the COMMIT message
 			i.transport.Multicast(
 				i.backend.BuildCommitMessage(i.state.proposal, view),
 			)
 
-			//	move to commit state and return
+			//	Move to the commit state
 			i.state.name = commit
 
 			return nil
@@ -349,30 +395,41 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 	}
 }
 
+// runCommit runs the Commit IBFT state
 func (i *IBFT) runCommit(quit <-chan struct{}) error {
 	var (
-		view   = i.state.getView()
+		// Grab the current view
+		view = i.state.getView()
+
+		// Grab quorum information
 		quorum = i.backend.Quorum(view.Height)
+
+		// Subscribe to COMMIT messages
+		messageType = proto.MessageType_COMMIT
+		sub         = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				MessageType: messageType,
+				View:        view,
+				NumMessages: int(quorum),
+			},
+		)
 	)
 
-	sub := i.messages.Subscribe(
-		messages.SubscriptionDetails{
-			MessageType: proto.MessageType_COMMIT,
-			View:        view,
-			NumMessages: int(quorum),
-		})
-
+	// The subscription is not needed anymore after
+	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
 	for {
 		select {
 		case <-quit:
-			return errors.New("round timeout expired")
+			// Stop signal received, exit
+			return errQuitReceived
 		case <-sub.GetCh():
+			// Subscription conditions have been met,
+			// grab the commit messages
 			validCount := uint64(0)
 
-			//	get messages
-			msgs := i.messages.GetMessages(view, proto.MessageType_COMMIT)
+			msgs := i.messages.GetMessages(view, messageType)
 			for _, msg := range msgs {
 
 				//	verify hash
@@ -398,7 +455,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 				continue
 			}
 
-			//	move to FIN state and return
+			//	Move to the fin state
 			i.state.name = fin
 
 			return nil
@@ -408,6 +465,8 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 
 // runFin runs the fin state (block insertion)
 func (i *IBFT) runFin() error {
+	// Insert the block to the node's underlying
+	// blockchain layer
 	if err := i.backend.InsertBlock(
 		i.state.getProposal(),
 		i.state.getCommittedSeals(),
@@ -422,7 +481,35 @@ func (i *IBFT) runFin() error {
 	return nil
 }
 
-// moveToNewRound moves the state to the new round change
+// runRoundChange runs the Round Change IBFT state
+func (i *IBFT) runRoundChange() {
+	var (
+		// Grab the current view
+		view = i.state.getView()
+
+		// Grab quorum information
+		quorum = i.backend.Quorum(view.Height)
+
+		// Subscribe to ROUND CHANGE messages
+		sub = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				MessageType: proto.MessageType_ROUND_CHANGE,
+				View:        view,
+				NumMessages: int(quorum),
+			},
+		)
+	)
+
+	// The subscription is not needed anymore after
+	// this state is done executing
+	defer i.messages.Unsubscribe(sub.GetID())
+
+	// Wait until a quorum of Round Change messages
+	// has been received in order to start the new round
+	<-sub.GetCh()
+}
+
+// moveToNewRound moves the state to the new round
 func (i *IBFT) moveToNewRound(round, height uint64) {
 	i.state.setView(&proto.View{
 		Height: height,
@@ -515,13 +602,13 @@ func (i *IBFT) acceptProposal(proposal []byte) {
 }
 
 // AddMessage adds a new message to the IBFT message system
-// TODO should this return an error?
 func (i *IBFT) AddMessage(message *proto.Message) {
 	// Make sure the message is present
 	if message == nil {
 		return
 	}
 
+	// Check if the message should even be considered
 	if i.isAcceptableMessage(message) {
 		i.messages.AddMessage(message)
 	}
@@ -541,7 +628,7 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 	}
 
 	// Make sure the message is in accordance with
-	// the current state height
+	// the current state height, or greater
 	if i.state.getHeight() >= message.View.Height {
 		return false
 	}
