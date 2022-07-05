@@ -56,7 +56,7 @@ type IBFT struct {
 
 	transport Transport
 
-	roundDone   chan error
+	roundDone   chan struct{}
 	roundChange chan uint64
 
 	wg sync.WaitGroup
@@ -84,8 +84,8 @@ func NewIBFT(
 			locked:       false,
 			name:         0,
 		},
-		roundDone: make(chan error),
-		//	TODO: create roundChange
+		roundDone:   make(chan struct{}),
+		roundChange: make(chan uint64),
 	}
 }
 
@@ -181,10 +181,11 @@ func (i *IBFT) runSequence(h uint64) {
 			//	move to new round
 			i.moveToNewRoundWithRC(newRound, i.state.getHeight())
 			i.state.setLocked(false)
-		case _ = <-i.roundDone:
+		case <-i.roundDone:
 			close(quitCh)
-			//	TODO: check error
 
+			//	block is finalized for this sequence
+			return
 		}
 
 		i.runRoundChange()
@@ -213,7 +214,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		}
 	}
 
-	//	TODO: state loop
 	for {
 		var err error
 
@@ -236,6 +236,11 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 				return
 			}
+
+			//	round is complete
+			i.roundDone <- struct{}{}
+
+			return
 		}
 
 	}
@@ -255,6 +260,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 	for {
 		select {
 		case <-quit:
+			//	TODO: type error
 			return errors.New("round timeout expired")
 		case <-sub.GetCh():
 			var proposal []byte
