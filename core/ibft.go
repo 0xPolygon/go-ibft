@@ -121,6 +121,32 @@ func (i *IBFT) startRoundTimer(round uint64, quit <-chan struct{}) {
 	return
 }
 
+func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
+	view := i.state.getView()
+
+	for {
+		rcMessages := i.verifiedMessages.
+			GetMostRoundChangeMessages(
+				view.Round,
+				view.Height)
+
+		//	signal round change if enough round change messages were received
+		if len(rcMessages) >= int(i.backend.AllowedFaulty()) {
+			newRound := rcMessages[0].View.Round
+			i.roundChange <- newRound
+
+			return
+		}
+
+		//	return if this goroutine is cancelled
+		select {
+		case <-quit:
+			return
+		default:
+		}
+	}
+}
+
 func (i *IBFT) runSequence(h uint64) {
 	// TODO do state clear here
 	// Set the starting state data
@@ -135,7 +161,7 @@ func (i *IBFT) runSequence(h uint64) {
 
 		go i.startRoundTimer(currentRound, quitCh)
 		go i.runRound(quitCh)
-		//	TODO: go waitForRoundHop
+		go i.watchForRoundHop(quitCh)
 
 		select {
 		case newRound := <-i.roundChange:
