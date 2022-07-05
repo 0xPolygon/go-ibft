@@ -196,7 +196,17 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.state.roundStarted = true
 	}
 
-	//	TODO: proposer logic
+	if i.backend.IsProposer(
+		i.backend.ID(),
+		i.state.getHeight(),
+		i.state.getRound(),
+	) {
+		if err := i.proposeBlock(i.state.getHeight()); err != nil {
+			i.roundChange <- i.state.getRound() + 1
+
+			return
+		}
+	}
 
 	//	TODO: state loop
 	for {
