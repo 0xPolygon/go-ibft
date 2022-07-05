@@ -20,11 +20,23 @@ type protoMessages map[string]*proto.Message
 type Messages struct {
 	sync.RWMutex
 
+	eventManager *eventManager
+
 	// message maps for different message types
 	preprepareMessages,
 	prepareMessages,
 	commitMessages,
 	roundChangeMessages heightMessageMap
+}
+
+func (ms *Messages) Subscribe(
+	details SubscriptionDetails,
+) *SubscribeResult {
+	return ms.eventManager.subscribe(details)
+}
+
+func (ms *Messages) Unsubscribe(id SubscriptionID) {
+	ms.eventManager.cancelSubscription(id)
 }
 
 // NewMessages returns a new Messages wrapper
@@ -34,6 +46,8 @@ func NewMessages() *Messages {
 		prepareMessages:     make(heightMessageMap),
 		commitMessages:      make(heightMessageMap),
 		roundChangeMessages: make(heightMessageMap),
+
+		eventManager: newEventManager(),
 	}
 }
 
@@ -48,6 +62,16 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
 	messages[string(message.From)] = message
+
+	ms.eventManager.signalEvent(
+		message.Type,
+		message.View, // TODO ptr?
+		len(messages),
+	)
+}
+
+func (ms *Messages) Close() {
+	ms.eventManager.close()
 }
 
 // getMessageMap fetches the corresponding message map by type

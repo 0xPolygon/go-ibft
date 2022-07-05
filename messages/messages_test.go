@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // generateRandomMessages generates random messages for the
@@ -64,6 +65,7 @@ func TestMessages_AddMessage(t *testing.T) {
 	}
 
 	messages := NewMessages()
+	defer messages.Close()
 
 	// Append random message types
 	randomMessages := generateRandomMessages(
@@ -100,6 +102,7 @@ func TestMessages_AddDuplicates(t *testing.T) {
 	}
 
 	messages := NewMessages()
+	defer messages.Close()
 
 	// Append random message types
 	randomMessages := generateRandomMessages(
@@ -124,6 +127,7 @@ func TestMessages_Prune(t *testing.T) {
 	numMessages := 5
 	messageType := proto.MessageType_PREPARE
 	messages := NewMessages()
+	defer messages.Close()
 
 	views := make([]*proto.View, 0)
 	for index := uint64(1); index <= 3; index++ {
@@ -214,6 +218,7 @@ func TestMessages_GetMessage(t *testing.T) {
 			t.Parallel()
 			// Add the initial message set
 			messages := NewMessages()
+			defer messages.Close()
 
 			// Generate random messages
 			randomMessages := generateRandomMessages(
@@ -262,6 +267,8 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	t.Parallel()
 
 	messages := NewMessages()
+	defer messages.Close()
+
 	mostMessageCount := 3
 	mostMessagesRound := uint64(2)
 
@@ -295,4 +302,44 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	}
 
 	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].View.Round)
+}
+
+// TestMessages_EventManager checks that the event manager
+// behaves correctly when new messages appear
+func TestMessages_EventManager(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	numMessages := 10
+	messageType := proto.MessageType_PREPARE
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	// Create the subscription
+	subscription := messages.Subscribe(SubscriptionDetails{
+		MessageType: messageType,
+		View:        baseView,
+		NumMessages: numMessages,
+	})
+
+	defer messages.Unsubscribe(subscription.GetID())
+
+	// Push random messages
+	randomMessages := generateRandomMessages(numMessages, baseView, messageType)
+	for _, message := range randomMessages {
+		messages.AddMessage(message)
+	}
+
+	// Wait for the subscription event to happen
+	select {
+	case <-subscription.GetCh():
+	case <-time.After(5 * time.Second):
+	}
+
+	// Make sure the number of messages is actually accurate
+	assert.Equal(t, numMessages, messages.NumMessages(baseView, messageType))
 }
