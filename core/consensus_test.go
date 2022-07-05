@@ -257,7 +257,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 // - Node 1 proposes a valid block B'
 // - All nodes go through the consensus states to insert the valid block B'
 func TestConsensus_InvalidBlock(t *testing.T) {
-	t.SkipNow()
 	var multicastFn func(message *proto.Message)
 
 	proposals := [][]byte{
@@ -273,7 +272,6 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	numNodes := 4
 	nodes := generateNodeAddresses(numNodes)
 	insertedBlocks := make([][]byte, numNodes)
-	roundSwitched := false
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
@@ -311,10 +309,6 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the only proposer is node 0
 		backend.isProposerFn = func(from []byte, _ uint64, round uint64) bool {
-			if bytes.Equal(from, nodes[1]) {
-				roundSwitched = true
-			}
-
 			// Node 0 is the proposer for round 0
 			// Node 1 is the proposer for round 1
 			return bytes.Equal(from, nodes[round])
@@ -322,13 +316,8 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the proposal is valid if it matches what node 0 proposed
 		backend.isValidBlockFn = func(newProposal []byte) bool {
-			if !roundSwitched {
-				// Node 0 is the proposer for round 0,
-				// and their proposal is invalid
-				return false
-			}
-
-			// Node 1 is the proposer for round 1
+			// Node 1 is the proposer for round 1,
+			// and their proposal is the only one that's valid
 			return bytes.Equal(newProposal, proposals[1])
 		}
 

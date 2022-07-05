@@ -133,6 +133,7 @@ func (i *IBFT) startRoundTimer(
 	case <-timer.C:
 		// Timer expired, alert the round change channel to move
 		// to the next round
+		i.log.Info("round timer expired, alerting of change")
 		i.roundChange <- round + 1
 	}
 
@@ -149,7 +150,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		// Get the messages from the message queue
 		rcMessages := i.messages.
 			GetMostRoundChangeMessages(
-				view.Round,
+				view.Round+1,
 				view.Height,
 			)
 
@@ -157,6 +158,8 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes())+1 {
 			// The round in the Round Change messages should be the highest
 			// round for which there are F+1 RC messages
+			i.log.Info("round hop detected, alerting of change")
+
 			newRound := rcMessages[0].View.Round
 			i.roundChange <- newRound
 
@@ -253,6 +256,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		// to other nodes
 		if err := i.proposeBlock(i.state.getHeight()); err != nil {
 			// Proposal is unable to be submitted, move to the round change state
+			i.log.Info("unable to propose block, alerting of change")
+
 			i.roundChange <- i.state.getRound() + 1
 
 			return
