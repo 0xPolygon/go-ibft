@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -52,7 +53,10 @@ type IBFT struct {
 
 	transport Transport
 
-	roundDone chan error
+	roundDone   chan error
+	roundChange chan uint64
+
+	wg sync.WaitGroup
 
 	roundTimer *time.Timer
 
@@ -93,6 +97,26 @@ func NewIBFT(
 	}
 }
 
+func (i *IBFT) startRoundTimer(round uint64, quit <-chan struct{}) {
+	var (
+		duration     = int(roundZeroTimeout)
+		roundFactor  = int(math.Pow(float64(2), float64(round)))
+		roundTimeout = time.Duration(duration * roundFactor)
+	)
+
+	//	timer for this round
+	timer := time.NewTimer(roundTimeout)
+
+	select {
+	case <-quit:
+		timer.Stop()
+	case <-timer.C:
+		i.roundChange <- round + 1
+	}
+
+	return
+}
+
 func (i *IBFT) runSequence(h uint64) {
 	// TODO do state clear here
 	// Set the starting state data
@@ -105,37 +129,28 @@ func (i *IBFT) runSequence(h uint64) {
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
 
+		go i.startRoundTimer(currentRound, quitCh)
 		go i.runRound(quitCh)
-
 		//	TODO: go waitForRoundHop
 
 		select {
-		case <-i.newRoundTimer(currentRound): // timeout expired for this round
+		case newRound := <-i.roundChange:
+			//	stop all running goroutines
 			close(quitCh)
+			i.wg.Wait()
 
-			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
+			//	move to new round
+			i.moveToNewRoundWithRC(newRound, i.state.getHeight())
 			i.state.setLocked(false)
-		//case <-roundHop: // f+1 RC messages received
+		case err := <-i.roundDone:
+			//	TODO: check error
 
-		//	move to new round
-		//	multicast RC message
-		case err := <-i.roundDone: // round completed
-			i.stopRoundTimeout()
-			close(quitCh)
-
-			if err == nil {
-				//	all good, consensus was reached
-				return
-			}
-
-			//	this means PP was bad, move to new round
-			i.state.setLocked(false)
-			i.moveToNewRoundWithRC(i.state.getRound()+1, i.state.getHeight())
 		}
 
 		/*	ROUND CHANGE state	*/
 
-		//	this is where we wait on quorum RC messages...
+		//	this is where we wait on quorum RC messages
+		//	before moving on with the for loop...
 	}
 }
 
