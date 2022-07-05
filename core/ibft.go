@@ -135,6 +135,27 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	}
 }
 
+func (i *IBFT) runRoundChange() {
+	var (
+		view   = i.state.getView()
+		quorum = i.backend.Quorum(view.Height)
+	)
+
+	sub := i.messages.Subscribe(
+		messages.SubscriptionDetails{
+			MessageType: proto.MessageType_ROUND_CHANGE,
+			View:        view,
+			NumMessages: int(quorum),
+		})
+
+	defer i.messages.Unsubscribe(sub.GetID())
+
+	//	wait until we have received a quorum
+	//	od RC messages in order to start the new round
+	<-sub.GetCh()
+
+}
+
 func (i *IBFT) runSequence(h uint64) {
 	// TODO do state clear here
 	// Set the starting state data
@@ -166,11 +187,7 @@ func (i *IBFT) runSequence(h uint64) {
 
 		}
 
-		//	TODO
-		/*	ROUND CHANGE state	*/
-
-		//	this is where we wait on quorum RC messages
-		//	before moving on with the for loop...
+		i.runRoundChange()
 	}
 }
 
