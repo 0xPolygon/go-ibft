@@ -112,9 +112,13 @@ func NewIBFT(
 
 // startRoundTimer starts the exponential round timer, based on the
 // passed in round number
-func (i *IBFT) startRoundTimer(round uint64, quit <-chan struct{}) {
+func (i *IBFT) startRoundTimer(
+	round uint64,
+	baseTimeout time.Duration,
+	quit <-chan struct{},
+) {
 	var (
-		duration     = int(roundZeroTimeout)
+		duration     = int(baseTimeout)
 		roundFactor  = int(math.Pow(float64(2), float64(round)))
 		roundTimeout = time.Duration(duration * roundFactor)
 	)
@@ -182,7 +186,7 @@ func (i *IBFT) runSequence(h uint64) {
 		quitCh := make(chan struct{})
 
 		// Start the round timer worker
-		go i.startRoundTimer(currentRound, quitCh)
+		go i.startRoundTimer(currentRound, roundZeroTimeout, quitCh)
 
 		// Start the state machine worker
 		go i.runRound(quitCh)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/stretchr/testify/assert"
+	"sync"
 	"testing"
 	"time"
 
@@ -828,4 +829,76 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 			assert.Equal(t, testCase.acceptable, i.isAcceptableMessage(message))
 		})
 	}
+}
+
+// TestIBFT_StartRoundTimer makes sure that the
+// round timer behaves correctly
+func TestIBFT_StartRoundTimer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("round timer exits due to a quit signal", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			wg sync.WaitGroup
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		quitCh := make(chan struct{})
+
+		wg.Add(1)
+		go func() {
+			i.startRoundTimer(0, roundZeroTimeout, quitCh)
+
+			wg.Done()
+		}()
+
+		quitCh <- struct{}{}
+
+		wg.Wait()
+	})
+
+	t.Run("round timer expires", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			wg            sync.WaitGroup
+			capturedRound uint64 = 0
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		quitCh := make(chan struct{}, 1)
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+
+				quitCh <- struct{}{}
+			}()
+
+			select {
+			case newRound := <-i.roundChange:
+				capturedRound = newRound
+			case <-time.After(5 * time.Second):
+			}
+		}()
+
+		i.startRoundTimer(0, 0*time.Second, quitCh)
+
+		wg.Wait()
+
+		// Make sure the proper round was emitted
+		assert.Equal(t, uint64(1), capturedRound)
+	})
 }
