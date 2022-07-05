@@ -29,9 +29,7 @@ type Messages struct {
 	roundChangeMessages heightMessageMap
 }
 
-func (ms *Messages) Subscribe(
-	details SubscriptionDetails,
-) *SubscribeResult {
+func (ms *Messages) Subscribe(details SubscriptionDetails) *SubscribeResult {
 	return ms.eventManager.subscribe(details)
 }
 

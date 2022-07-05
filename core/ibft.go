@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"math"
 	"sync"
@@ -26,6 +27,9 @@ type Messages interface {
 	GetProposal(view *proto.View) []byte
 	GetCommittedSeals(view *proto.View) [][]byte
 	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
+
+	Subscribe(details messages.SubscriptionDetails) *messages.SubscribeResult
+	Unsubscribe(id messages.SubscriptionID)
 }
 
 var (
@@ -186,7 +190,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
 		switch i.state.name {
 		case newRound:
-			err := i.runNewRound()
+			err := i.runNewRound(quit)
 		case prepare:
 			err := i.runPrepare()
 		case commit:
@@ -197,51 +201,31 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	}
 }
 
-func (i *IBFT) runState() error {
-	switch i.state.name {
-	case newRound:
-		return i.runNewRound()
-	case prepare:
-		return i.runPrepare()
-	case commit:
-		return i.runCommit()
-	case fin:
-		return i.runFin()
-	default:
-		// wat
-		return nil
+func (i *IBFT) runNewRound(quit <-chan struct{}) error {
+	sub := i.verifiedMessages.Subscribe(
+		messages.SubscriptionDetails{
+			MessageType: proto.MessageType_PREPREPARE,
+			View:        i.state.getView(),
+			NumMessages: 1,
+		})
+
+	defer i.verifiedMessages.Unsubscribe(sub.GetID())
+
+	for {
+		select {
+		case <-quit:
+			return errors.New("round timeout expired")
+		case <-sub.GetCh():
+			//	get the message
+
+			// 	validation
+			//		TODO: on fail ?
+
+			//	multicast PREPARE message
+
+			//	set state to PREPARE and return
+		}
 	}
-}
-
-func (i *IBFT) runNewRound() error {
-	var (
-		view   = i.state.getView()
-		height = view.Height
-		round  = view.Round
-	)
-
-	// TODO @dusan, we can move this out before calling runNewRound
-	// so runNewRound only waits for the proposal and acts accordingly
-	// when it receives it, just like other state methods
-	if i.backend.IsProposer(i.backend.ID(), height, round) {
-		return i.proposeBlock(height)
-	}
-
-	// we are not the proposer, so we're checking on a PRE-PREPARE msg
-	newProposal := i.verifiedMessages.GetProposal(view)
-	if newProposal == nil {
-		// no PRE-PREPARE message received yet
-		return nil
-	}
-	// TODO validate this proposal
-
-	i.acceptProposal(newProposal)
-
-	i.transport.Multicast(
-		i.backend.BuildPrepareMessage(newProposal, view),
-	)
-
-	return nil
 }
 
 func (i *IBFT) runPrepare() error {
