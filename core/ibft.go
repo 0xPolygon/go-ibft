@@ -194,7 +194,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case prepare:
 			_ = i.runPrepare(quit)
 		case commit:
-			_ = i.runCommit()
+			_ = i.runCommit(quit)
 		case fin:
 			_ = i.runFin()
 		}
@@ -260,28 +260,34 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 	}
 }
 
-func (i *IBFT) runCommit() error {
+func (i *IBFT) runCommit(quit <-chan struct{}) error {
 	var (
 		view   = i.state.getView()
 		quorum = i.backend.Quorum(view.Height)
 	)
 
-	// get commit messages
-	commitMessages := i.verifiedMessages.GetMessages(view, proto.MessageType_COMMIT)
-	if len(commitMessages) < int(quorum) {
-		return errors.New("quorum not reached")
+	sub := i.verifiedMessages.Subscribe(
+		messages.SubscriptionDetails{
+			MessageType: proto.MessageType_COMMIT,
+			View:        view,
+			NumMessages: int(quorum),
+		})
+
+	defer i.verifiedMessages.Unsubscribe(sub.GetID())
+
+	for {
+		select {
+		case <-quit:
+			return errors.New("round timeout expired")
+		case <-sub.GetCh():
+			//	get messages
+
+			//	validate
+
+			//	move to FIN state and return
+
+		}
 	}
-
-	// TODO validate these commit messages
-
-	// add seals
-	// TODO: these need to be pruned before each new round
-	i.state.seals = i.verifiedMessages.GetCommittedSeals(view)
-
-	// block proposal finalized -> fin state
-	i.state.name = fin
-
-	return nil
 }
 
 // runFin runs the fin state (block insertion)
