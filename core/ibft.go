@@ -226,7 +226,11 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			//	TODO: cannot possibly error here
 			_ = i.runCommit(quit)
 		case fin:
-			_ = i.runFin()
+			if err = i.runFin(); err != nil {
+				i.roundChange <- i.state.getRound() + 1
+
+				return
+			}
 		}
 
 	}
