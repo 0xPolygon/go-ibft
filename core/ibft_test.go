@@ -588,137 +588,159 @@ func TestRunPrepare(t *testing.T) {
 	)
 }
 
-//// TestRunCommit makes sure the node
-//// behaves correctly in the commit state
-//func TestRunCommit(t *testing.T) {
-//	t.Parallel()
-//
-//	t.Run(
-//		"validator received quorum of valid commit messages",
-//		func(t *testing.T) {
-//			t.Parallel()
-//
-//			var (
-//				proposal                        = []byte("block proposal")
-//				insertedProposal       []byte   = nil
-//				insertedCommittedSeals [][]byte = nil
-//				committedSeals                  = [][]byte{[]byte("seal")}
-//
-//				log       = mockLogger{}
-//				transport = mockTransport{}
-//				backend   = mockBackend{
-//					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
-//						insertedProposal = proposal
-//						insertedCommittedSeals = committedSeals
-//
-//						return nil
-//					},
-//					quorumFn: func(_ uint64) uint64 {
-//						return 1
-//					},
-//				}
-//				messages = mockMessages{
-//					getCommittedSeals: func(view *proto.View) [][]byte {
-//						return committedSeals
-//					},
-//					getMessages: func(_ *proto.View, _ proto.MessageType) []*proto.Message {
-//						return generateCommitMessages(1)
-//					},
-//				}
-//			)
-//
-//			i := NewIBFT(log, backend, transport)
-//			i.messages = messages
-//			i.unverifiedMessages = messages
-//			i.state.proposal = proposal
-//			i.state.roundStarted = true
-//			i.state.name = commit
-//
-//			quitCh := make(chan struct{}, 1)
-//			quitCh <- struct{}{}
-//
-//			i.runRound(quitCh)
-//
-//			// Make sure the node changed the state to fin
-//			assert.Equal(t, fin, i.state.name)
-//
-//			// Run the round again to make sure FIN executes
-//			quitCh = make(chan struct{}, 1)
-//			quitCh <- struct{}{}
-//
-//			i.runRound(quitCh)
-//
-//			// Make sure the inserted proposal was the one present
-//			assert.Equal(t, insertedProposal, proposal)
-//
-//			// Make sure the inserted committed seals were correct
-//			assert.Equal(t, insertedCommittedSeals, committedSeals)
-//		},
-//	)
-//
-//	t.Run(
-//		"validator failed to insert the finalized block",
-//		func(t *testing.T) {
-//			t.Parallel()
-//
-//			quitCh := make(chan struct{}, 1)
-//
-//			var (
-//				wg          sync.WaitGroup
-//				capturedErr error = nil
-//
-//				log       = mockLogger{}
-//				transport = mockTransport{}
-//				backend   = mockBackend{
-//					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
-//						return errInsertBlock
-//					},
-//					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
-//						return &proto.Message{
-//							View: &proto.View{
-//								Height: height,
-//								Round:  round,
-//							},
-//							Type: proto.MessageType_ROUND_CHANGE,
-//						}
-//					},
-//				}
-//			)
-//
-//			i := NewIBFT(log, backend, transport)
-//			i.messages = mockMessages{}
-//			i.unverifiedMessages = mockMessages{}
-//			i.state.name = fin
-//			i.state.roundStarted = true
-//
-//			wg.Add(1)
-//			go func(i *IBFT) {
-//				defer func() {
-//					wg.Done()
-//
-//					// Close out the main run loop
-//					// as soon as the error is parsed
-//					quitCh <- struct{}{}
-//				}()
-//
-//				select {
-//				case err := <-i.roundDone:
-//					capturedErr = err
-//				case <-time.After(5 * time.Second):
-//					return
-//				}
-//			}(i)
-//
-//			i.runRound(quitCh)
-//
-//			wg.Wait()
-//
-//			// Make sure the captured error is correct
-//			assert.ErrorIs(t, capturedErr, errInsertBlock)
-//		},
-//	)
-//}
-//
+// TestRunCommit makes sure the node
+// behaves correctly in the commit state
+func TestRunCommit(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"validator received quorum of valid commit messages",
+		func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				proposal                        = []byte("block proposal")
+				proposalHash                    = []byte("proposal hash")
+				insertedProposal       []byte   = nil
+				insertedCommittedSeals [][]byte = nil
+				committedSeals                  = generateSeals(1)
+				doneReceived                    = false
+				notifyCh                        = make(chan struct{}, 1)
+
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
+						insertedProposal = proposal
+						insertedCommittedSeals = committedSeals
+
+						return nil
+					},
+					quorumFn: func(_ uint64) uint64 {
+						return 1
+					},
+					isValidProposalHashFn: func(_ []byte, hash []byte) bool {
+						return bytes.Equal(proposalHash, hash)
+					},
+				}
+				messages = mockMessages{
+					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
+						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
+					},
+					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
+						return filterMessages(
+							[]*proto.Message{
+								{
+									View: view,
+									Type: proto.MessageType_COMMIT,
+									Payload: &proto.Message_CommitData{
+										CommitData: &proto.CommitMessage{
+											ProposalHash:  proposalHash,
+											CommittedSeal: committedSeals[0],
+										},
+									},
+								},
+							},
+							isValid,
+						)
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.messages = messages
+			i.state.proposal = proposal
+			i.state.roundStarted = true
+			i.state.name = commit
+
+			quitCh := make(chan struct{}, 1)
+
+			go func(i *IBFT) {
+				defer func() {
+					quitCh <- struct{}{}
+				}()
+
+				select {
+				case <-i.roundDone:
+					doneReceived = true
+				case <-time.After(5 * time.Second):
+					return
+				}
+			}(i)
+
+			// Make sure the notification is ready
+			notifyCh <- struct{}{}
+
+			i.runRound(quitCh)
+
+			i.wg.Wait()
+
+			// Make sure the node changed the state to fin
+			assert.Equal(t, fin, i.state.name)
+
+			// Make sure the inserted proposal was the one present
+			assert.Equal(t, insertedProposal, proposal)
+
+			// Make sure the inserted committed seals were correct
+			assert.Equal(t, insertedCommittedSeals, committedSeals)
+
+			// Make sure the proper done channel was notified
+			assert.True(t, doneReceived)
+		},
+	)
+
+	t.Run(
+		"validator failed to insert the finalized block",
+		func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				capturedRound uint64 = 0
+
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
+						return errInsertBlock
+					},
+					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
+						return &proto.Message{
+							View: &proto.View{
+								Height: height,
+								Round:  round,
+							},
+							Type: proto.MessageType_ROUND_CHANGE,
+						}
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.messages = mockMessages{}
+			i.state.name = fin
+			i.state.roundStarted = true
+
+			go func(i *IBFT) {
+				select {
+				case newRound := <-i.roundChange:
+					capturedRound = newRound
+				case <-time.After(5 * time.Second):
+					return
+				}
+			}(i)
+
+			quitCh := make(chan struct{}, 1)
+
+			i.runRound(quitCh)
+
+			i.wg.Wait()
+
+			// Make sure the captured round change number is captured
+			assert.Equal(t, uint64(1), capturedRound)
+		},
+	)
+}
+
 //// TestRunRoundChange makes sure the node
 //// behaves correctly in the round change state
 //func TestRunRoundChange(t *testing.T) {
