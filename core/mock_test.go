@@ -3,7 +3,6 @@ package core
 import (
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
-	"sync"
 )
 
 // Define delegation methods
@@ -11,7 +10,7 @@ type isValidBlockDelegate func([]byte) bool
 type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
 type buildProposalDelegate func(uint64) ([]byte, error)
-type verifyProposalHashDelegate func([]byte, []byte) error
+type isValidProposalHashDelegate func([]byte, []byte) bool
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
 type buildPrePrepareMessageDelegate func([]byte, *proto.View) *proto.Message
@@ -30,7 +29,7 @@ type mockBackend struct {
 	isValidSenderFn        isValidSenderDelegate
 	isProposerFn           isProposerDelegate
 	buildProposalFn        buildProposalDelegate
-	verifyProposalHashFn   verifyProposalHashDelegate
+	isValidProposalHashFn  isValidProposalHashDelegate
 	isValidCommittedSealFn isValidCommittedSealDelegate
 
 	buildPrePrepareMessageFn  buildPrePrepareMessageDelegate
@@ -100,11 +99,11 @@ func (m mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 }
 
 func (m mockBackend) IsValidProposalHash(proposal, hash []byte) bool {
-	if m.verifyProposalHashFn != nil {
-		return m.verifyProposalHashFn(proposal, hash)
+	if m.isValidProposalHashFn != nil {
+		return m.isValidProposalHashFn(proposal, hash)
 	}
 
-	return nil
+	return true
 }
 
 func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
@@ -121,6 +120,45 @@ func (m mockBackend) MaximumFaultyNodes() uint64 {
 	}
 
 	return 0
+}
+
+func (m mockBackend) BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message {
+	if m.buildPrePrepareMessageFn != nil {
+		return m.buildPrePrepareMessageFn(proposal, view)
+	}
+
+	return nil
+}
+
+func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message {
+	if m.buildPrepareMessageFn != nil {
+		return m.buildPrepareMessageFn(proposal, view)
+	}
+
+	return nil
+}
+
+func (m mockBackend) BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message {
+	if m.buildCommitMessageFn != nil {
+		return m.buildCommitMessageFn(proposal, view)
+	}
+
+	return nil
+}
+
+func (m mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
+	if m.buildRoundChangeMessageFn != nil {
+		return m.buildRoundChangeMessageFn(height, round)
+	}
+
+	return &proto.Message{
+		View: &proto.View{
+			Height: height,
+			Round:  round,
+		},
+		Type:    proto.MessageType_ROUND_CHANGE,
+		Payload: nil,
+	}
 }
 
 // Define delegation methods
@@ -167,14 +205,40 @@ func (l mockLogger) Error(msg string, args ...interface{}) {
 
 type mockMessages struct {
 	addMessageFn    func(message *proto.Message)
-	numMessagesFn   func(view *proto.View, messageType proto.MessageType) int
 	pruneByHeightFn func(view *proto.View)
-	pruneByRoundFn  func(view *proto.View)
 
-	getMessages                  func(view *proto.View, messageType proto.MessageType) []*proto.Message
+	getValidMessagesFn func(
+		view *proto.View,
+		messageType proto.MessageType,
+		isValid func(message *proto.Message) bool,
+	) []*proto.Message
 	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.Message
-	getProposal                  func(view *proto.View) []byte
-	getCommittedSeals            func(view *proto.View) [][]byte
+
+	subscribeFn   func(details messages.Subscription) *messages.SubscribeResult
+	unsubscribeFn func(id messages.SubscriptionID)
+}
+
+func (m mockMessages) GetValidMessages(view *proto.View, messageType proto.MessageType, isValid func(*proto.Message) bool) []*proto.Message {
+
+	if m.getValidMessagesFn != nil {
+		return m.getValidMessagesFn(view, messageType, isValid)
+	}
+
+	return nil
+}
+
+func (m mockMessages) Subscribe(details messages.Subscription) *messages.SubscribeResult {
+	if m.subscribeFn != nil {
+		return m.subscribeFn(details)
+	}
+
+	return nil
+}
+
+func (m mockMessages) Unsubscribe(id messages.SubscriptionID) {
+	if m.unsubscribeFn != nil {
+		m.unsubscribeFn(id)
+	}
 }
 
 func (m mockMessages) AddMessage(msg *proto.Message) {
@@ -183,23 +247,9 @@ func (m mockMessages) AddMessage(msg *proto.Message) {
 	}
 }
 
-func (m mockMessages) NumMessages(view *proto.View, messageType proto.MessageType) int {
-	if m.numMessagesFn != nil {
-		return m.numMessagesFn(view, messageType)
-	}
-
-	return 0
-}
-
 func (m mockMessages) PruneByHeight(view *proto.View) {
 	if m.pruneByHeightFn != nil {
 		m.pruneByHeightFn(view)
-	}
-}
-
-func (m mockMessages) PruneByRound(view *proto.View) {
-	if m.pruneByRoundFn != nil {
-		m.pruneByRoundFn(view)
 	}
 }
 
@@ -211,215 +261,153 @@ func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.
 	return nil
 }
 
-func (m mockMessages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
-	if m.getMessages != nil {
-		return m.getMessages(view, messageType)
-	}
-
-	return nil
-}
-
-func (m mockMessages) GetProposal(view *proto.View) []byte {
-	if m.getProposal != nil {
-		return m.getProposal(view)
-	}
-
-	return nil
-}
-
-func (m mockMessages) GetCommittedSeals(view *proto.View) [][]byte {
-	if m.getCommittedSeals != nil {
-		return m.getCommittedSeals(view)
-	}
-
-	return nil
-}
-
-func (m mockBackend) BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message {
-	if m.buildPrePrepareMessageFn != nil {
-		return m.buildPrePrepareMessageFn(proposal, view)
-	}
-
-	return nil
-}
-
-func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message {
-	if m.buildPrepareMessageFn != nil {
-		return m.buildPrepareMessageFn(proposal, view)
-	}
-
-	return nil
-}
-
-func (m mockBackend) BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message {
-	if m.buildCommitMessageFn != nil {
-		return m.buildCommitMessageFn(proposal, view)
-	}
-
-	return nil
-}
-
-func (m mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
-	if m.buildRoundChangeMessageFn != nil {
-		return m.buildRoundChangeMessageFn(height, round)
-	}
-
-	return &proto.Message{
-		View: &proto.View{
-			Height: height,
-			Round:  round,
-		},
-		Type:    proto.MessageType_ROUND_CHANGE,
-		Payload: nil,
-	}
-}
-
 type backendConfigCallback func(*mockBackend)
 type loggerConfigCallback func(*mockLogger)
 type transportConfigCallback func(*mockTransport)
 
-// newMockCluster creates a new IBFT cluster
-func newMockCluster(
-	numNodes int,
-	backendCallbackMap map[int]backendConfigCallback,
-	loggerCallbackMap map[int]loggerConfigCallback,
-	transportCallbackMap map[int]transportConfigCallback,
-) *mockCluster {
-	if numNodes < 1 {
-		return nil
-	}
-
-	nodes := make([]*IBFT, numNodes)
-	quitChannels := make([]chan struct{}, numNodes)
-	messageHandlersQuit := make([]chan struct{}, numNodes)
-	roundDoneChannels := make([]chan error, numNodes)
-
-	for index := 0; index < numNodes; index++ {
-		var (
-			logger    = &mockLogger{}
-			transport = &mockTransport{}
-			backend   = &mockBackend{}
-		)
-
-		// Execute set callbacks, if any
-		if backendCallbackMap != nil {
-			if backendCallback, isSet := backendCallbackMap[index]; isSet {
-				backendCallback(backend)
-			}
-		}
-
-		if loggerCallbackMap != nil {
-			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
-				loggerCallback(logger)
-			}
-		}
-
-		if transportCallbackMap != nil {
-			if transportCallback, isSet := transportCallbackMap[index]; isSet {
-				transportCallback(transport)
-			}
-		}
-
-		// Create a new instance of the IBFT node
-		i := NewIBFT(logger, backend, transport)
-
-		// Make sure the node uses real message queue
-		// implementations
-		i.messages = messages.NewMessages()
-		i.unverifiedMessages = messages.NewMessages()
-
-		// Instantiate quit channels for node routines
-		quitChannels[index] = make(chan struct{})
-		messageHandlersQuit[index] = make(chan struct{})
-		roundDoneChannels[index] = i.roundDone
-
-		nodes[index] = i
-	}
-
-	return &mockCluster{
-		nodes:               nodes,
-		quitChannels:        quitChannels,
-		messageHandlersQuit: messageHandlersQuit,
-		roundDoneChannels:   roundDoneChannels,
-	}
-}
-
-// mockCluster represents a mock IBFT cluster
-type mockCluster struct {
-	nodes []*IBFT // references to the nodes in the cluster
-
-	quitChannels        []chan struct{} // quit channels for all nodes
-	roundDoneChannels   []chan error    // round done channels for all nodes
-	messageHandlersQuit []chan struct{} // message handler quit channels for all nodes
-
-	wg sync.WaitGroup
-}
-
-// runNewRound runs the round for all the nodes
-func (m *mockCluster) runNewRound() {
-	for index, node := range m.nodes {
-		m.wg.Add(1)
-
-		// Start the round done monitor service for the node
-		go m.runDoneMonitor(index)
-
-		// Start the message handler service for the node
-		go node.runMessageHandler(m.messageHandlersQuit[index])
-
-		// Start the main run loop for the node
-		go node.runRound(m.quitChannels[index])
-	}
-}
-
-// stop sends a quit signal to all nodes
-// in the cluster
-func (m *mockCluster) stop() {
-	// Wait for all main run loops to signalize
-	// that they're finished
-	m.wg.Wait()
-
-	// Close off any running routines
-	for index := range m.nodes {
-		m.quitChannels[index] <- struct{}{}
-		m.messageHandlersQuit[index] <- struct{}{}
-	}
-}
-
-// pushMessage imitates a message passing service,
-// it relays a message to all nodes in the network
-func (m *mockCluster) pushMessage(message *proto.Message) {
-	for _, node := range m.nodes {
-		node.AddMessage(message)
-	}
-}
-
-// runDoneMonitor monitors the passed done channel for the node
-// so the cluster is aware of node run loop completion
-func (m *mockCluster) runDoneMonitor(nodeIndex int) {
-	// Wait for the done event to happen
-	//doneEvent := <-m.roundDoneChannels[nodeIndex]
-	//if doneEvent == repeatSequence {
-	//	m.resetRoundStarted(nodeIndex)
-	//}
-	//
-	//// Alert the wait group
-	//m.wg.Done()
-}
-
-// areAllNodesOnRound checks to make sure all nodes
-// are on the same specified round
-func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
-	for _, node := range m.nodes {
-		if node.state.getRound() != round {
-			return false
-		}
-	}
-
-	return true
-}
-
-// resetRoundStarted resets the round started flag
-// for the specified node
-func (m *mockCluster) resetRoundStarted(nodeIndex int) {
-	m.nodes[nodeIndex].state.setRoundStarted(false)
-}
+//
+//// newMockCluster creates a new IBFT cluster
+//func newMockCluster(
+//	numNodes int,
+//	backendCallbackMap map[int]backendConfigCallback,
+//	loggerCallbackMap map[int]loggerConfigCallback,
+//	transportCallbackMap map[int]transportConfigCallback,
+//) *mockCluster {
+//	if numNodes < 1 {
+//		return nil
+//	}
+//
+//	nodes := make([]*IBFT, numNodes)
+//	quitChannels := make([]chan struct{}, numNodes)
+//	messageHandlersQuit := make([]chan struct{}, numNodes)
+//	roundDoneChannels := make([]chan error, numNodes)
+//
+//	for index := 0; index < numNodes; index++ {
+//		var (
+//			logger    = &mockLogger{}
+//			transport = &mockTransport{}
+//			backend   = &mockBackend{}
+//		)
+//
+//		// Execute set callbacks, if any
+//		if backendCallbackMap != nil {
+//			if backendCallback, isSet := backendCallbackMap[index]; isSet {
+//				backendCallback(backend)
+//			}
+//		}
+//
+//		if loggerCallbackMap != nil {
+//			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
+//				loggerCallback(logger)
+//			}
+//		}
+//
+//		if transportCallbackMap != nil {
+//			if transportCallback, isSet := transportCallbackMap[index]; isSet {
+//				transportCallback(transport)
+//			}
+//		}
+//
+//		// Create a new instance of the IBFT node
+//		i := NewIBFT(logger, backend, transport)
+//
+//		// Make sure the node uses real message queue
+//		// implementations
+//		i.messages = messages.NewMessages()
+//		i.unverifiedMessages = messages.NewMessages()
+//
+//		// Instantiate quit channels for node routines
+//		quitChannels[index] = make(chan struct{})
+//		messageHandlersQuit[index] = make(chan struct{})
+//		roundDoneChannels[index] = i.roundDone
+//
+//		nodes[index] = i
+//	}
+//
+//	return &mockCluster{
+//		nodes:               nodes,
+//		quitChannels:        quitChannels,
+//		messageHandlersQuit: messageHandlersQuit,
+//		roundDoneChannels:   roundDoneChannels,
+//	}
+//}
+//
+//// mockCluster represents a mock IBFT cluster
+//type mockCluster struct {
+//	nodes []*IBFT // references to the nodes in the cluster
+//
+//	quitChannels        []chan struct{} // quit channels for all nodes
+//	roundDoneChannels   []chan error    // round done channels for all nodes
+//	messageHandlersQuit []chan struct{} // message handler quit channels for all nodes
+//
+//	wg sync.WaitGroup
+//}
+//
+//// runNewRound runs the round for all the nodes
+//func (m *mockCluster) runNewRound() {
+//	for index, node := range m.nodes {
+//		m.wg.Add(1)
+//
+//		// Start the round done monitor service for the node
+//		go m.runDoneMonitor(index)
+//
+//		// Start the message handler service for the node
+//		go node.runMessageHandler(m.messageHandlersQuit[index])
+//
+//		// Start the main run loop for the node
+//		go node.runRound(m.quitChannels[index])
+//	}
+//}
+//
+//// stop sends a quit signal to all nodes
+//// in the cluster
+//func (m *mockCluster) stop() {
+//	// Wait for all main run loops to signalize
+//	// that they're finished
+//	m.wg.Wait()
+//
+//	// Close off any running routines
+//	for index := range m.nodes {
+//		m.quitChannels[index] <- struct{}{}
+//		m.messageHandlersQuit[index] <- struct{}{}
+//	}
+//}
+//
+//// pushMessage imitates a message passing service,
+//// it relays a message to all nodes in the network
+//func (m *mockCluster) pushMessage(message *proto.Message) {
+//	for _, node := range m.nodes {
+//		node.AddMessage(message)
+//	}
+//}
+//
+//// runDoneMonitor monitors the passed done channel for the node
+//// so the cluster is aware of node run loop completion
+//func (m *mockCluster) runDoneMonitor(nodeIndex int) {
+//	// Wait for the done event to happen
+//	//doneEvent := <-m.roundDoneChannels[nodeIndex]
+//	//if doneEvent == repeatSequence {
+//	//	m.resetRoundStarted(nodeIndex)
+//	//}
+//	//
+//	//// Alert the wait group
+//	//m.wg.Done()
+//}
+//
+//// areAllNodesOnRound checks to make sure all nodes
+//// are on the same specified round
+//func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
+//	for _, node := range m.nodes {
+//		if node.state.getRound() != round {
+//			return false
+//		}
+//	}
+//
+//	return true
+//}
+//
+//// resetRoundStarted resets the round started flag
+//// for the specified node
+//func (m *mockCluster) resetRoundStarted(nodeIndex int) {
+//	m.nodes[nodeIndex].state.setRoundStarted(false)
+//}

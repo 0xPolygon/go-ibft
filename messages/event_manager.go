@@ -27,6 +27,13 @@ type SubscribeResult struct {
 	subscriptionChannel chan struct{}
 }
 
+func NewSubscribeResult(id SubscriptionID, ch chan struct{}) *SubscribeResult {
+	return &SubscribeResult{
+		id:                  id,
+		subscriptionChannel: ch,
+	}
+}
+
 func (sr *SubscribeResult) GetCh() chan struct{} {
 	return sr.subscriptionChannel
 }
@@ -35,14 +42,14 @@ func (sr *SubscribeResult) GetID() SubscriptionID {
 	return sr.id
 }
 
-type SubscriptionDetails struct {
+type Subscription struct {
 	MessageType proto.MessageType
 	View        *proto.View
 	NumMessages int
 }
 
 // subscribe registers a new listener for message events
-func (em *eventManager) subscribe(details SubscriptionDetails) *SubscribeResult {
+func (em *eventManager) subscribe(details Subscription) *SubscribeResult {
 	em.subscriptionsLock.Lock()
 	defer em.subscriptionsLock.Unlock()
 

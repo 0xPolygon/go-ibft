@@ -34,7 +34,7 @@ type Messages interface {
 
 	// Messages subscription handlers //
 
-	Subscribe(details messages.SubscriptionDetails) *messages.SubscribeResult
+	Subscribe(details messages.Subscription) *messages.SubscribeResult
 	Unsubscribe(id messages.SubscriptionID)
 }
 
@@ -43,7 +43,7 @@ var (
 	errInvalidBlockProposal = errors.New("invalid block proposal")
 	errInvalidBlockProposed = errors.New("invalid block proposed")
 	errInsertBlock          = errors.New("failed to insert block")
-	errQuitReceived         = errors.New("quit signal received")
+	errTimeoutExpired       = errors.New("round timeout expired")
 
 	roundZeroTimeout = 10 * time.Second
 )
@@ -263,6 +263,10 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			}
 		}
 
+		if errors.Is(err, errTimeoutExpired) {
+			return
+		}
+
 		if err != nil {
 			// There was a critical consensus error (or timeout) during
 			// state execution, move to the round change state
@@ -282,7 +286,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		// Subscribe for PREPREPARE messages
 		messageType = proto.MessageType_PREPREPARE
 		sub         = i.messages.Subscribe(
-			messages.SubscriptionDetails{
+			messages.Subscription{
 				MessageType: messageType,
 				View:        view,
 				NumMessages: 1,
@@ -298,7 +302,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		select {
 		case <-quit:
 			// Stop signal received, exit
-			return errQuitReceived
+			return errTimeoutExpired
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the proposal messages
@@ -349,7 +353,7 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 		// Subscribe to PREPARE messages
 		messageType = proto.MessageType_PREPARE
 		sub         = i.messages.Subscribe(
-			messages.SubscriptionDetails{
+			messages.Subscription{
 				MessageType: messageType,
 				View:        view,
 				NumMessages: int(quorum),
@@ -365,7 +369,7 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 		select {
 		case <-quit:
 			// Stop signal received, exit
-			return errQuitReceived
+			return errTimeoutExpired
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the prepare messages
@@ -409,7 +413,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 		// Subscribe to COMMIT messages
 		messageType = proto.MessageType_COMMIT
 		sub         = i.messages.Subscribe(
-			messages.SubscriptionDetails{
+			messages.Subscription{
 				MessageType: messageType,
 				View:        view,
 				NumMessages: int(quorum),
@@ -425,7 +429,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 		select {
 		case <-quit:
 			// Stop signal received, exit
-			return errQuitReceived
+			return errTimeoutExpired
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the commit messages
@@ -492,7 +496,7 @@ func (i *IBFT) runRoundChange() {
 
 		// Subscribe to ROUND CHANGE messages
 		sub = i.messages.Subscribe(
-			messages.SubscriptionDetails{
+			messages.Subscription{
 				MessageType: proto.MessageType_ROUND_CHANGE,
 				View:        view,
 				NumMessages: int(quorum),

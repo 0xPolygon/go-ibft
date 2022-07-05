@@ -11,7 +11,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 	numSubscriptions := 10
 	subscriptions := make([]*SubscribeResult, numSubscriptions)
-	baseDetails := SubscriptionDetails{
+	baseDetails := Subscription{
 		MessageType: proto.MessageType_PREPARE,
 		View: &proto.View{
 			Height: 0,
@@ -59,7 +59,7 @@ func TestEventManager_SubscribeClose(t *testing.T) {
 
 	numSubscriptions := 10
 	subscriptions := make([]*SubscribeResult, numSubscriptions)
-	baseDetails := SubscriptionDetails{
+	baseDetails := Subscription{
 		MessageType: proto.MessageType_PREPARE,
 		View: &proto.View{
 			Height: 0,

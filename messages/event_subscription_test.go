@@ -9,7 +9,7 @@ import (
 func TestEventSubscription_EventSupported(t *testing.T) {
 	t.Parallel()
 
-	supportedDetails := SubscriptionDetails{
+	supportedDetails := Subscription{
 		MessageType: proto.MessageType_PREPARE,
 		View: &proto.View{
 			Height: 0,
