@@ -746,40 +746,61 @@ func TestRunCommit(t *testing.T) {
 func TestIBFT_IsAcceptableMessage(t *testing.T) {
 	t.Parallel()
 
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
 	testTable := []struct {
 		name          string
 		view          *proto.View
+		currentView   *proto.View
 		invalidSender bool
 		acceptable    bool
 	}{
 		{
 			"invalid sender",
 			nil,
+			baseView,
 			true,
 			false,
 		},
 		{
 			"malformed message",
 			nil,
+			baseView,
 			false,
 			false,
 		},
 		{
-			"height mismatch",
+			"higher height number",
 			&proto.View{
-				Height: 100,
+				Height: baseView.Height + 100,
+				Round:  baseView.Round,
 			},
+			baseView,
 			false,
 			true,
 		},
 		{
 			"higher round number",
 			&proto.View{
-				Height: 0,
-				Round:  1,
+				Height: baseView.Height,
+				Round:  baseView.Round + 1,
 			},
+			baseView,
 			false,
 			true,
+		},
+		{
+			"lower height number",
+			baseView,
+			&proto.View{
+				Height: baseView.Height + 1,
+				Round:  baseView.Round,
+			},
+			false,
+			false,
 		},
 	}
 
@@ -798,6 +819,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 				}
 			)
 			i := NewIBFT(log, backend, transport)
+			i.state.view = testCase.currentView
 
 			message := &proto.Message{
 				View: testCase.view,
