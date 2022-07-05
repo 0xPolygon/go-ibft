@@ -310,13 +310,14 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 					continue
 				}
 
-				validCount += 1
+				validCount++
 				if validCount >= quorum {
 					break
 				}
 			}
 
 			if validCount < quorum {
+				//	quorum not reached, keep polling
 				continue
 			}
 
@@ -353,14 +354,39 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 		case <-quit:
 			return errors.New("round timeout expired")
 		case <-sub.GetCh():
-			//	TODO
-			//	get messages
+			validCount := uint64(0)
 
-			//	validation
-			//		#1:	kec(proposal) == kec(commit)
-			//		#2:	commited seal is ok
+			//	get messages
+			msgs := i.verifiedMessages.GetMessages(view, proto.MessageType_COMMIT)
+			for _, msg := range msgs {
+
+				//	verify hash
+				proposalHash := msg.Payload.(*proto.Message_CommitData).CommitData.ProposalHash
+				if err := i.backend.VerifyProposalHash(i.state.proposal, proposalHash); err != nil {
+					continue
+				}
+
+				//	verify committed seal
+				committedSeal := msg.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+				if !i.backend.IsValidCommittedSeal(proposalHash, committedSeal) {
+					continue
+				}
+
+				validCount++
+				if validCount >= quorum {
+					break
+				}
+			}
+
+			if validCount < quorum {
+				//	quorum not reached, keep polling
+				continue
+			}
 
 			//	move to FIN state and return
+			i.state.name = fin
+
+			return nil
 		}
 	}
 }
