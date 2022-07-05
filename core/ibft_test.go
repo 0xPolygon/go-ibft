@@ -491,78 +491,103 @@ func TestRunNewRound_Validator(t *testing.T) {
 	)
 }
 
-//// TestRunPrepare checks that the node behaves correctly
-//// in prepare state
-//func TestRunPrepare(t *testing.T) {
-//	t.Parallel()
-//
-//	t.Run(
-//		"validator receives quorum of PREPARE messages",
-//		func(t *testing.T) {
-//			t.Parallel()
-//
-//			quitCh := make(chan struct{}, 1)
-//
-//			var (
-//				proposal                         = []byte("block proposal")
-//				proposalHash                     = []byte("proposal hash")
-//				multicastedCommit *proto.Message = nil
-//
-//				log       = mockLogger{}
-//				transport = mockTransport{func(message *proto.Message) {
-//					if message != nil && message.Type == proto.MessageType_COMMIT {
-//						multicastedCommit = message
-//
-//						// Make sure the run loop closes as soon as it's done
-//						// parsing the prepares received event
-//						quitCh <- struct{}{}
-//					}
-//				}}
-//				backend = mockBackend{
-//					buildCommitMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-//						return &proto.Message{
-//							View: view,
-//							Type: proto.MessageType_COMMIT,
-//							Payload: &proto.Message_CommitData{
-//								CommitData: &proto.CommitMessage{
-//									ProposalHash: proposalHash,
-//								},
-//							},
-//						}
-//					},
-//					quorumFn: func(_ uint64) uint64 {
-//						return 1
-//					},
-//				}
-//				messages = mockMessages{
-//					getMessages: func(view *proto.View, messageType proto.MessageType) []*proto.Message {
-//						return generatePrepareMessages(1)
-//					},
-//				}
-//			)
-//			i := NewIBFT(log, backend, transport)
-//			i.state.name = prepare
-//			i.state.roundStarted = true
-//			i.state.proposal = proposal
-//			i.messages = messages
-//
-//			i.runRound(quitCh)
-//
-//			// Make sure the node moves to the commit state
-//			assert.Equal(t, commit, i.state.name)
-//
-//			// Make sure the node stays locked on a block
-//			assert.True(t, i.state.locked)
-//
-//			// Make sure the proposal didn't change
-//			assert.Equal(t, proposal, i.state.proposal)
-//
-//			// Make sure the proper proposal hash was multicasted
-//			assert.True(t, commitHashMatches(proposalHash, multicastedCommit))
-//		},
-//	)
-//}
-//
+// TestRunPrepare checks that the node behaves correctly
+// in prepare state
+func TestRunPrepare(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"validator receives quorum of PREPARE messages",
+		func(t *testing.T) {
+			t.Parallel()
+
+			quitCh := make(chan struct{}, 1)
+
+			var (
+				proposal                         = []byte("block proposal")
+				proposalHash                     = []byte("proposal hash")
+				multicastedCommit *proto.Message = nil
+				notifyCh                         = make(chan struct{}, 1)
+
+				log       = mockLogger{}
+				transport = mockTransport{func(message *proto.Message) {
+					if message != nil && message.Type == proto.MessageType_COMMIT {
+						multicastedCommit = message
+					}
+				}}
+				backend = mockBackend{
+					buildCommitMessageFn: func(_ []byte, view *proto.View) *proto.Message {
+						return &proto.Message{
+							View: view,
+							Type: proto.MessageType_COMMIT,
+							Payload: &proto.Message_CommitData{
+								CommitData: &proto.CommitMessage{
+									ProposalHash: proposalHash,
+								},
+							},
+						}
+					},
+					quorumFn: func(_ uint64) uint64 {
+						return 1
+					},
+					isValidProposalHashFn: func(_ []byte, hash []byte) bool {
+						return bytes.Equal(proposalHash, hash)
+					},
+				}
+				messages = mockMessages{
+					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
+						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
+					},
+					unsubscribeFn: func(_ messages.SubscriptionID) {
+						quitCh <- struct{}{}
+					},
+					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
+						return filterMessages(
+							[]*proto.Message{
+								{
+									View: view,
+									Type: proto.MessageType_PREPARE,
+									Payload: &proto.Message_PrepareData{
+										PrepareData: &proto.PrepareMessage{
+											ProposalHash: proposalHash,
+										},
+									},
+								},
+							},
+							isValid,
+						)
+					},
+				}
+			)
+
+			i := NewIBFT(log, backend, transport)
+			i.state.name = prepare
+			i.state.roundStarted = true
+			i.state.proposal = proposal
+			i.messages = messages
+
+			// Make sure the notification is present
+			notifyCh <- struct{}{}
+
+			i.runRound(quitCh)
+
+			i.wg.Wait()
+
+			// Make sure the node moves to the commit state
+			assert.Equal(t, commit, i.state.name)
+
+			// Make sure the node stays locked on a block
+			assert.True(t, i.state.locked)
+
+			// Make sure the proposal didn't change
+			assert.Equal(t, proposal, i.state.proposal)
+
+			// Make sure the proper proposal hash was multicasted
+			assert.True(t, commitHashMatches(proposalHash, multicastedCommit))
+		},
+	)
+}
+
 //// TestRunCommit makes sure the node
 //// behaves correctly in the commit state
 //func TestRunCommit(t *testing.T) {
