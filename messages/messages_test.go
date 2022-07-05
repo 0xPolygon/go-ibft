@@ -81,9 +81,9 @@ func TestMessages_AddMessage(t *testing.T) {
 	}
 
 	// Make sure that the messages are present
-	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_PREPARE))
-	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_COMMIT))
-	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_ROUND_CHANGE))
+	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_PREPARE))
+	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_COMMIT))
+	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_ROUND_CHANGE))
 }
 
 // TestMessages_AddDuplicates tests that no duplicates
@@ -117,7 +117,7 @@ func TestMessages_AddDuplicates(t *testing.T) {
 	}
 
 	// Check that only 1 message has been added
-	assert.Equal(t, 1, messages.NumMessages(initialView, commonType))
+	assert.Equal(t, 1, messages.numMessages(initialView, commonType))
 }
 
 // TestMessages_Prune tests if pruning of certain messages works
@@ -155,31 +155,22 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	// Prune out the messages from this view
-	messages.PruneByRound(views[0])
-
-	// Make sure the round 1 messages are pruned out
-	assert.Equal(t, 0, messages.NumMessages(views[0], messageType))
-
-	// Make sure the round 2 messages are still present
-	assert.Equal(t, numMessages, messages.NumMessages(views[1], messageType))
-
-	// Make sure the round 3 messages are still present
-	assert.Equal(t, numMessages, messages.NumMessages(views[2], messageType))
-
-	// Prune out the messages from this view
 	messages.PruneByHeight(views[1])
 
+	// Make sure the round 1 messages are pruned out
+	assert.Equal(t, 0, messages.numMessages(views[0], messageType))
+
 	// Make sure the round 2 messages are pruned out
-	assert.Equal(t, 0, messages.NumMessages(views[1], messageType))
+	assert.Equal(t, 0, messages.numMessages(views[1], messageType))
 
 	// Make sure the round 3 messages are pruned out
-	assert.Equal(t, 0, messages.NumMessages(views[2], messageType))
+	assert.Equal(t, 0, messages.numMessages(views[2], messageType))
 }
 
 // TestMessages_GetMessage makes sure
 // that messages are fetched correctly for the
 // corresponding message type
-func TestMessages_GetMessage(t *testing.T) {
+func TestMessages_GetValidMessagesMessage(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -212,6 +203,10 @@ func TestMessages_GetMessage(t *testing.T) {
 		},
 	}
 
+	alwaysInvalidFn := func(_ *proto.Message) bool {
+		return false
+	}
+
 	for _, testCase := range testTable {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
@@ -236,25 +231,25 @@ func TestMessages_GetMessage(t *testing.T) {
 			assert.Equal(
 				t,
 				numMessages,
-				messages.NumMessages(defaultView, testCase.messageType),
+				messages.numMessages(defaultView, testCase.messageType),
 			)
 
 			// Start fetching messages and making sure they're not cleared
 			switch testCase.messageType {
 			case proto.MessageType_PREPREPARE:
-				messages.GetMessages(defaultView, proto.MessageType_PREPREPARE)
+				messages.GetValidMessages(defaultView, proto.MessageType_PREPREPARE, alwaysInvalidFn)
 			case proto.MessageType_PREPARE:
-				messages.GetMessages(defaultView, proto.MessageType_PREPARE)
+				messages.GetValidMessages(defaultView, proto.MessageType_PREPARE, alwaysInvalidFn)
 			case proto.MessageType_COMMIT:
-				messages.GetMessages(defaultView, proto.MessageType_COMMIT)
+				messages.GetValidMessages(defaultView, proto.MessageType_COMMIT, alwaysInvalidFn)
 			case proto.MessageType_ROUND_CHANGE:
-				messages.GetMessages(defaultView, proto.MessageType_ROUND_CHANGE)
+				messages.GetValidMessages(defaultView, proto.MessageType_ROUND_CHANGE, alwaysInvalidFn)
 			}
 
 			assert.Equal(
 				t,
-				numMessages,
-				messages.NumMessages(defaultView, testCase.messageType),
+				0,
+				messages.numMessages(defaultView, testCase.messageType),
 			)
 		})
 	}
@@ -341,5 +336,5 @@ func TestMessages_EventManager(t *testing.T) {
 	}
 
 	// Make sure the number of messages is actually accurate
-	assert.Equal(t, numMessages, messages.NumMessages(baseView, messageType))
+	assert.Equal(t, numMessages, messages.numMessages(baseView, messageType))
 }
