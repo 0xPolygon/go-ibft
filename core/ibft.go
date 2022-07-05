@@ -146,7 +146,7 @@ func (i *IBFT) runSequence(h uint64) {
 			//	move to new round
 			i.moveToNewRoundWithRC(newRound, i.state.getHeight())
 			i.state.setLocked(false)
-		case err := <-i.roundDone:
+		case _ = <-i.roundDone:
 			//	TODO: check error
 
 		}
@@ -184,19 +184,19 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.state.roundStarted = true
 	}
 
-	//	proposer logic
+	//	TODO: proposer logic
 
-	//	state loop
+	//	TODO: state loop
 	for {
 		switch i.state.name {
 		case newRound:
-			err := i.runNewRound(quit)
+			_ = i.runNewRound(quit)
 		case prepare:
-			err := i.runPrepare()
+			_ = i.runPrepare(quit)
 		case commit:
-			err := i.runCommit()
+			_ = i.runCommit()
 		case fin:
-			err := i.runFin()
+			_ = i.runFin()
 		}
 	}
 }
@@ -228,27 +228,36 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 	}
 }
 
-func (i *IBFT) runPrepare() error {
+func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 	var (
-		view     = i.state.getView()
-		quorum   = i.backend.Quorum(view.Height)
-		proposal = i.state.proposal
+		view   = i.state.getView()
+		quorum = i.backend.Quorum(view.Height)
 	)
 
-	// TODO: Q(P+C)
-	if len(i.verifiedMessages.GetMessages(view, proto.MessageType_PREPARE)) < int(quorum) {
-		return errors.New("quorum not reached")
+	sub := i.verifiedMessages.Subscribe(
+		messages.SubscriptionDetails{
+			MessageType: proto.MessageType_PREPARE,
+			View:        view,
+			NumMessages: int(quorum),
+		})
+
+	defer i.verifiedMessages.Unsubscribe(sub.GetID())
+
+	for {
+		select {
+		case <-quit:
+			return errors.New("round timeout expired")
+		case <-sub.GetCh():
+			//	get messages
+
+			//	validation
+			//		TODO: on fail just repeat cycle ?
+
+			//	multicast COMMIT message
+
+			//	move to commit state and return
+		}
 	}
-	// TODO validate these messages
-
-	i.state.name = commit
-	i.state.locked = true
-
-	i.transport.Multicast(
-		i.backend.BuildCommitMessage(proposal, view),
-	)
-
-	return nil
 }
 
 func (i *IBFT) runCommit() error {
