@@ -243,11 +243,9 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case newRound:
 			err = i.runNewRound(quit)
 		case prepare:
-			//	TODO: cannot possibly error here
-			_ = i.runPrepare(quit)
+			err = i.runPrepare(quit)
 		case commit:
-			//	TODO: cannot possibly error here
-			_ = i.runCommit(quit)
+			err = i.runCommit(quit)
 		case fin:
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
@@ -259,7 +257,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		}
 
 		if err != nil {
-			// There was a critical consensus error during
+			// There was a critical consensus error (or timeout) during
 			// state execution, move to the round change state
 			i.roundChange <- i.state.getRound() + 1
 
