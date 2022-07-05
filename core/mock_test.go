@@ -21,7 +21,7 @@ type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
 type quorumDelegate func(blockHeight uint64) uint64
 type insertBlockDelegate func([]byte, [][]byte) error
 type idDelegate func() []byte
-type allowedFaultyDelegate func() uint64
+type maximumFaultyNodesDelegate func() uint64
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -39,7 +39,7 @@ type mockBackend struct {
 	quorumFn                  quorumDelegate
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
-	allowedFaultyFn           allowedFaultyDelegate
+	maximumFaultyNodesFn      maximumFaultyNodesDelegate
 }
 
 func (m mockBackend) ID() []byte {
@@ -115,8 +115,8 @@ func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 }
 
 func (m mockBackend) MaximumFaultyNodes() uint64 {
-	if m.allowedFaultyFn != nil {
-		return m.allowedFaultyFn()
+	if m.maximumFaultyNodesFn != nil {
+		return m.maximumFaultyNodesFn()
 	}
 
 	return 0

@@ -80,7 +80,13 @@ func generateRoundChangeMessages(count uint64) []*proto.Message {
 	roundChanges := make([]*proto.Message, count)
 
 	for index := uint64(0); index < count; index++ {
-		roundChanges[index] = &proto.Message{}
+		roundChanges[index] = &proto.Message{
+			View: &proto.View{
+				Height: 0,
+				Round:  0,
+			},
+			Type: proto.MessageType_ROUND_CHANGE,
+		}
 	}
 
 	return roundChanges
@@ -900,5 +906,133 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 		// Make sure the proper round was emitted
 		assert.Equal(t, uint64(1), capturedRound)
+	})
+}
+
+// TestIBFT_WatchForRoundHop makes sure that the
+// watch round hop routine behaves correctly
+func TestIBFT_WatchForRoundHop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("received F+1 round hop messages", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			wg             sync.WaitGroup
+			capturedRound  uint64 = 0
+			suggestedRound uint64 = 10
+			maxFaultyNodes uint64 = 2
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				maximumFaultyNodesFn: func() uint64 {
+					return maxFaultyNodes
+				},
+			}
+			messages = mockMessages{
+				getMostRoundChangeMessagesFn: func(_ uint64, _ uint64) []*proto.Message {
+					messages := generateRoundChangeMessages(maxFaultyNodes + 1)
+
+					for i := uint64(0); i < maxFaultyNodes; i++ {
+						messages[i].View.Round = suggestedRound
+					}
+
+					return messages
+				},
+			}
+		)
+
+		quitCh := make(chan struct{}, 1)
+
+		i := NewIBFT(log, backend, transport)
+		i.messages = messages
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+
+				quitCh <- struct{}{}
+			}()
+
+			select {
+			case newRound := <-i.roundChange:
+				capturedRound = newRound
+			case <-time.After(5 * time.Second):
+			}
+		}()
+
+		i.watchForRoundHop(quitCh)
+
+		wg.Wait()
+
+		// Make sure the proper round hop number was emitted
+		assert.Equal(t, suggestedRound, capturedRound)
+	})
+
+	t.Run("received a quit signal", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			wg             sync.WaitGroup
+			capturedRound  uint64 = 0
+			suggestedRound uint64 = 10
+			maxFaultyNodes uint64 = 2
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				maximumFaultyNodesFn: func() uint64 {
+					return maxFaultyNodes
+				},
+			}
+			messages = mockMessages{
+				getMostRoundChangeMessagesFn: func(_ uint64, _ uint64) []*proto.Message {
+					messages := generateRoundChangeMessages(maxFaultyNodes)
+
+					for i := uint64(0); i < maxFaultyNodes; i++ {
+						messages[i].View.Round = suggestedRound
+					}
+
+					return messages
+				},
+			}
+		)
+
+		quitCh := make(chan struct{})
+
+		i := NewIBFT(log, backend, transport)
+		i.messages = messages
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+			}()
+
+			select {
+			case newRound := <-i.roundChange:
+				capturedRound = newRound
+			case <-time.After(5 * time.Second):
+			case <-quitCh:
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+			}()
+
+			i.watchForRoundHop(quitCh)
+		}()
+
+		close(quitCh)
+
+		wg.Wait()
+
+		// Make sure the proper round hop number was emitted
+		assert.Equal(t, uint64(0), capturedRound)
 	})
 }

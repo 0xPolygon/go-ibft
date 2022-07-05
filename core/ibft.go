@@ -154,7 +154,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 			)
 
 		//	Signal round change if enough round change messages were received
-		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes()) {
+		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes())+1 {
 			// The round in the Round Change messages should be the highest
 			// round for which there are F+1 RC messages
 			newRound := rcMessages[0].View.Round

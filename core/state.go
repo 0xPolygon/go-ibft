@@ -17,6 +17,7 @@ const (
 
 // TODO make sure all fields are cleared when they should be
 type state struct {
+	// TODO @dbrajovic do we need this to be thread safe in the new flow?
 	sync.RWMutex
 
 	//	current view (block height, round)
@@ -34,13 +35,14 @@ type state struct {
 	name stateName
 }
 
-//	TODO: atomically returning a pointer does not
-//		guarantee the same data (use a POD instead)
 func (s *state) getView() *proto.View {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.view
+	return &proto.View{
+		Height: s.view.Height,
+		Round:  s.view.Round,
+	}
 }
 
 func (s *state) getRound() uint64 {
@@ -132,11 +134,4 @@ func (s *state) setView(view *proto.View) {
 	defer s.Unlock()
 
 	s.view = view
-}
-
-func (s *state) addCommittedSeals(committedSeals [][]byte) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.seals = append(s.seals, committedSeals...)
 }
