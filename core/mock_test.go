@@ -99,7 +99,7 @@ func (m mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
 	return nil, nil
 }
 
-func (m mockBackend) VerifyProposalHash(proposal, hash []byte) error {
+func (m mockBackend) IsValidProposalHash(proposal, hash []byte) bool {
 	if m.verifyProposalHashFn != nil {
 		return m.verifyProposalHashFn(proposal, hash)
 	}
@@ -115,7 +115,7 @@ func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
 	return true
 }
 
-func (m mockBackend) AllowedFaulty() uint64 {
+func (m mockBackend) MaximumFaultyNodes() uint64 {
 	if m.allowedFaultyFn != nil {
 		return m.allowedFaultyFn()
 	}

@@ -29,10 +29,22 @@ type Messages struct {
 	roundChangeMessages heightMessageMap
 }
 
+// Subscribe creates a new message type subscription
 func (ms *Messages) Subscribe(details SubscriptionDetails) *SubscribeResult {
-	return ms.eventManager.subscribe(details)
+	// Create the subscription
+	subscription := ms.eventManager.subscribe(details)
+
+	// Check if any condition is already met
+	numMessages := ms.numMessages(details.View, details.MessageType)
+	if numMessages >= details.NumMessages {
+		// Conditions are already met, alert the event manager
+		ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
+	}
+
+	return subscription
 }
 
+// Unsubscribe cancels a message type subscription
 func (ms *Messages) Unsubscribe(id SubscriptionID) {
 	ms.eventManager.cancelSubscription(id)
 }
@@ -115,8 +127,8 @@ func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	return messages
 }
 
-// NumMessages returns the number of messages received for the specific type
-func (ms *Messages) NumMessages(
+// numMessages returns the number of messages received for the specific type
+func (ms *Messages) numMessages(
 	view *proto.View,
 	messageType proto.MessageType,
 ) int {
@@ -165,34 +177,6 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 	}
 }
 
-// PruneByRound prunes out all old messages from the message queues
-// by the specified round in the view
-func (ms *Messages) PruneByRound(view *proto.View) {
-	ms.Lock()
-	defer ms.Unlock()
-
-	possibleMaps := []proto.MessageType{
-		proto.MessageType_PREPREPARE,
-		proto.MessageType_PREPARE,
-		proto.MessageType_COMMIT,
-		proto.MessageType_ROUND_CHANGE,
-	}
-
-	// Prune out the rounds from all possible message types
-	for _, messageType := range possibleMaps {
-		typeMap := ms.getMessageMap(messageType)
-
-		heightMap, exists := typeMap[view.Height]
-		if exists {
-			// Delete all round maps up until and including the specified
-			// view round
-			for round := uint64(0); round <= view.Round; round++ {
-				delete(heightMap, round)
-			}
-		}
-	}
-}
-
 // getProtoMessages fetches the underlying proto messages for the specified view
 // and message type
 func (ms *Messages) getProtoMessages(
@@ -210,17 +194,37 @@ func (ms *Messages) getProtoMessages(
 	return roundMsgMap[view.Round]
 }
 
-// GetMessages fetches all messages of a specific type for the specified view
-func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
+// GetValidMessages fetches all messages of a specific type for the specified view,
+// that pass the validity check; invalid messages are pruned out
+func (ms *Messages) GetValidMessages(
+	view *proto.View,
+	messageType proto.MessageType,
+	isValid func(message *proto.Message) bool,
+) []*proto.Message {
 	ms.Lock()
 	defer ms.Unlock()
 
 	result := make([]*proto.Message, 0)
 
-	if messages := ms.getProtoMessages(view, messageType); messages != nil {
-		for _, message := range messages {
+	invalidMessages := make([]string, 0)
+	messages := ms.getProtoMessages(view, messageType)
+	if messages != nil {
+		for key, message := range messages {
+			if !isValid(message) {
+				invalidMessages = append(invalidMessages, key)
+
+				continue
+			}
+
 			result = append(result, message)
 		}
+	}
+
+	// Prune out invalid messages
+	// TODO @dusan there shouldn't be any
+	// danger in doing this?
+	for _, key := range invalidMessages {
+		delete(messages, key)
 	}
 
 	return result
@@ -281,31 +285,33 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto
 	return roundChangeMessages
 }
 
-// GetProposal extracts the valid proposal for the specified view
-func (ms *Messages) GetProposal(view *proto.View) []byte {
-	preprepares := ms.GetMessages(view, proto.MessageType_PREPREPARE)
-	if len(preprepares) < 1 {
-		return nil
-	}
-
-	msg := preprepares[0]
-
-	return msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
-}
-
-// GetCommittedSeals extracts the valid committed for the specified view
-func (ms *Messages) GetCommittedSeals(view *proto.View) [][]byte {
-	commitMessages := ms.GetMessages(view, proto.MessageType_COMMIT)
-	if len(commitMessages) < 1 {
-		return nil
-	}
-
+// ExtractCommittedSeals extracts the committed seals from the passed in messages
+func ExtractCommittedSeals(commitMessages []*proto.Message) [][]byte {
 	committedSeals := make([][]byte, len(commitMessages))
 
 	for index, commitMessage := range commitMessages {
-		committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
-		committedSeals[index] = committedSeal
+		committedSeals[index] = ExtractCommittedSeal(commitMessage)
 	}
 
 	return committedSeals
+}
+
+// ExtractCommittedSeal extracts the committed seal from the passed in message
+func ExtractCommittedSeal(commitMessage *proto.Message) []byte {
+	return commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+}
+
+// ExtractCommitHash extracts the commit proposal hash from the passed in message
+func ExtractCommitHash(commitMessage *proto.Message) []byte {
+	return commitMessage.Payload.(*proto.Message_CommitData).CommitData.ProposalHash
+}
+
+// ExtractProposal extracts the proposal from the passed in message
+func ExtractProposal(proposalMessage *proto.Message) []byte {
+	return proposalMessage.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+}
+
+// ExtractPrepareHash extracts the prepare proposal hash from the passed in message
+func ExtractPrepareHash(prepareMessage *proto.Message) []byte {
+	return prepareMessage.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
 }

@@ -18,15 +18,21 @@ type Logger interface {
 }
 
 type Messages interface {
-	AddMessage(message *proto.Message)
-	NumMessages(view *proto.View, messageType proto.MessageType) int
-	PruneByHeight(view *proto.View)
-	PruneByRound(view *proto.View)
+	// Messages modifiers //
 
-	GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message
-	GetProposal(view *proto.View) []byte
-	GetCommittedSeals(view *proto.View) [][]byte
+	AddMessage(message *proto.Message)
+	PruneByHeight(view *proto.View)
+
+	// Messages fetchers //
+
+	GetValidMessages(
+		view *proto.View,
+		messageType proto.MessageType,
+		isValid func(*proto.Message) bool,
+	) []*proto.Message
 	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
+
+	// Messages subscription handlers //
 
 	Subscribe(details messages.SubscriptionDetails) *messages.SubscribeResult
 	Unsubscribe(id messages.SubscriptionID)
@@ -87,6 +93,7 @@ func NewIBFT(
 		log:       log,
 		backend:   backend,
 		transport: transport,
+		messages:  messages.NewMessages(),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
@@ -143,7 +150,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 			)
 
 		//	Signal round change if enough round change messages were received
-		if len(rcMessages) >= int(i.backend.AllowedFaulty()) {
+		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes()) {
 			// The round in the Round Change messages should be the highest
 			// round for which there are F+1 RC messages
 			newRound := rcMessages[0].View.Round
@@ -297,13 +304,15 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 			// grab the proposal messages
 			var proposal []byte
 
-			msgs := i.messages.GetMessages(view, messageType)
-			for _, msg := range msgs {
-				if !i.backend.IsProposer(msg.From, view.Height, view.Round) {
-					continue
-				}
+			isValidFn := func(message *proto.Message) bool {
+				// Verify that the message is indeed from the proposer for this view
+				return i.backend.IsProposer(message.From, view.Height, view.Round)
+			}
 
-				proposal = msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+			preprepareMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
+			for _, message := range preprepareMessages {
+				// Make sure that the proposer's PREPREPARE proposal is valid
+				proposal = messages.ExtractProposal(message)
 
 				if err := i.validateProposal(proposal); err != nil {
 					return err
@@ -360,22 +369,17 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the prepare messages
-			validCount := uint64(0)
-
-			msgs := i.messages.GetMessages(view, messageType)
-			for _, msg := range msgs {
-				proposalHash := msg.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
-				if err := i.backend.VerifyProposalHash(i.state.proposal, proposalHash); err != nil {
-					continue
-				}
-
-				validCount++
-				if validCount >= quorum {
-					break
-				}
+			isValidFn := func(message *proto.Message) bool {
+				// Verify that the proposal hash is valid
+				return i.backend.IsValidProposalHash(
+					i.state.proposal,
+					messages.ExtractPrepareHash(message),
+				)
 			}
 
-			if validCount < quorum {
+			prepareMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
+
+			if uint64(len(prepareMessages)) < quorum {
 				//	quorum not reached, keep polling
 				continue
 			}
@@ -425,33 +429,31 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the commit messages
-			validCount := uint64(0)
+			isValidFn := func(message *proto.Message) bool {
+				//	Verify that the proposal hash is valid
+				proposalHash := messages.ExtractCommitHash(message)
 
-			msgs := i.messages.GetMessages(view, messageType)
-			for _, msg := range msgs {
-
-				//	verify hash
-				proposalHash := msg.Payload.(*proto.Message_CommitData).CommitData.ProposalHash
-				if err := i.backend.VerifyProposalHash(i.state.proposal, proposalHash); err != nil {
-					continue
+				if !i.backend.IsValidProposalHash(
+					i.state.proposal,
+					messages.ExtractCommitHash(message),
+				) {
+					return false
 				}
 
-				//	verify committed seal
-				committedSeal := msg.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
-				if !i.backend.IsValidCommittedSeal(proposalHash, committedSeal) {
-					continue
-				}
-
-				validCount++
-				if validCount >= quorum {
-					break
-				}
+				//	Verify that the committed seal is valid
+				committedSeal := messages.ExtractCommittedSeal(message)
+				return i.backend.IsValidCommittedSeal(proposalHash, committedSeal)
 			}
 
-			if validCount < quorum {
+			commitMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
+
+			if uint64(len(commitMessages)) < quorum {
 				//	quorum not reached, keep polling
 				continue
 			}
+
+			// Set the committed seals
+			i.state.seals = messages.ExtractCommittedSeals(commitMessages)
 
 			//	Move to the fin state
 			i.state.name = fin
