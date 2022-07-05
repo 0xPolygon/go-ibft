@@ -173,6 +173,7 @@ func (i *IBFT) runSequence(h uint64) {
 			i.moveToNewRoundWithRC(newRound, i.state.getHeight())
 			i.state.setLocked(false)
 		case _ = <-i.roundDone:
+			close(quitCh)
 			//	TODO: check error
 
 		}
