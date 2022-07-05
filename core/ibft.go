@@ -158,22 +158,6 @@ func (i *IBFT) runSequence(h uint64) {
 	}
 }
 
-// newRoundTimer instantiates a new exponential round timer
-func (i *IBFT) newRoundTimer(round uint64) <-chan time.Time {
-	var (
-		duration    = int(roundZeroTimeout)
-		roundFactor = int(math.Pow(float64(2), float64(round)))
-	)
-
-	i.roundTimer = time.NewTimer(time.Duration(duration * roundFactor))
-
-	return i.roundTimer.C
-}
-
-func (i *IBFT) stopRoundTimeout() {
-	i.roundTimer.Stop()
-}
-
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	i.wg.Add(1)
 	defer i.wg.Done()
