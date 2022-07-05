@@ -636,7 +636,7 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 
 	// Make sure the message is in accordance with
 	// the current state height, or greater
-	if i.state.getHeight() >= message.View.Height {
+	if i.state.getHeight() > message.View.Height {
 		return false
 	}
 

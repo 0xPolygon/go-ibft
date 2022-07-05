@@ -859,236 +859,70 @@ func TestRunPrepare(t *testing.T) {
 //		},
 //	)
 //}
-//
-//// TestIBFT_IsAcceptableMessage makes sure invalid messages
-//// are properly handled
-//func TestIBFT_IsAcceptableMessage(t *testing.T) {
-//	t.Parallel()
-//
-//	testTable := []struct {
-//		name          string
-//		view          *proto.View
-//		invalidSender bool
-//		acceptable    bool
-//	}{
-//		{
-//			"invalid sender",
-//			nil,
-//			true,
-//			false,
-//		},
-//		{
-//			"malformed message",
-//			nil,
-//			false,
-//			false,
-//		},
-//		{
-//			"height mismatch",
-//			&proto.View{
-//				Height: 100,
-//			},
-//			false,
-//			false,
-//		},
-//		{
-//			"higher round number",
-//			&proto.View{
-//				Height: 0,
-//				Round:  1,
-//			},
-//			false,
-//			true,
-//		},
-//	}
-//
-//	for _, testCase := range testTable {
-//		testCase := testCase
-//		t.Run(testCase.name, func(t *testing.T) {
-//			t.Parallel()
-//
-//			var (
-//				log       = mockLogger{}
-//				transport = mockTransport{}
-//				backend   = mockBackend{
-//					isValidSenderFn: func(message *proto.Message) bool {
-//						return !testCase.invalidSender
-//					},
-//				}
-//			)
-//			i := NewIBFT(log, backend, transport)
-//
-//			message := &proto.Message{
-//				View: testCase.view,
-//			}
-//
-//			assert.Equal(t, testCase.acceptable, i.isAcceptableMessage(message))
-//		})
-//	}
-//}
-//
-//// TestIBFT_CanVerifyMessage checks if certain message
-//// types can be verified based on the current state
-//func TestIBFT_CanVerifyMessage(t *testing.T) {
-//	t.Parallel()
-//
-//	testTable := []struct {
-//		name         string
-//		messageType  proto.MessageType
-//		currentState stateName
-//		verifiable   bool
-//	}{
-//		{
-//			"verifiable round change message",
-//			proto.MessageType_ROUND_CHANGE,
-//			newRound,
-//			true,
-//		},
-//		{
-//			"unverifiable commit message",
-//			proto.MessageType_COMMIT,
-//			newRound,
-//			false,
-//		},
-//		{
-//			"unverifiable prepare message",
-//			proto.MessageType_PREPARE,
-//			newRound,
-//			false,
-//		},
-//		{
-//			"verifiable preprepare message",
-//			proto.MessageType_PREPREPARE,
-//			newRound,
-//			true,
-//		},
-//		{
-//			"verifiable commit message",
-//			proto.MessageType_COMMIT,
-//			prepare,
-//			true,
-//		},
-//		{
-//			"verifiable prepare message",
-//			proto.MessageType_PREPARE,
-//			prepare,
-//			true,
-//		},
-//	}
-//
-//	for _, testCase := range testTable {
-//		testCase := testCase
-//		t.Run(testCase.name, func(t *testing.T) {
-//			t.Parallel()
-//
-//			var (
-//				log       = mockLogger{}
-//				transport = mockTransport{}
-//				backend   = mockBackend{}
-//			)
-//			i := NewIBFT(log, backend, transport)
-//			i.state.name = testCase.currentState
-//
-//			message := &proto.Message{
-//				Type: testCase.messageType,
-//			}
-//
-//			assert.Equal(t, testCase.verifiable, i.canVerifyMessage(message))
-//		})
-//	}
-//}
-//
-//func TestIBFT_AddMessage(t *testing.T) {
-//	t.Parallel()
-//
-//	baseView := &proto.View{
-//		Height: 0,
-//		Round:  0,
-//	}
-//
-//	testTable := []struct {
-//		name          string
-//		message       *proto.Message
-//		backend       Backend
-//		currentView   *proto.View
-//		shouldBeAdded bool
-//	}{
-//		{
-//			"malformed message",
-//			nil,
-//			mockBackend{},
-//			baseView,
-//			false,
-//		},
-//		{
-//			"invalid message",
-//			&proto.Message{},
-//			mockBackend{
-//				isValidSenderFn: func(message *proto.Message) bool {
-//					return false
-//				},
-//			},
-//			baseView,
-//			false,
-//		},
-//		{
-//			"valid message",
-//			&proto.Message{
-//				View: baseView,
-//			},
-//			mockBackend{
-//				isValidSenderFn: func(message *proto.Message) bool {
-//					return true
-//				},
-//			},
-//			baseView,
-//			true,
-//		},
-//	}
-//
-//	for _, testCase := range testTable {
-//		testCase := testCase
-//
-//		t.Run(testCase.name, func(t *testing.T) {
-//			t.Parallel()
-//
-//			var (
-//				wg              sync.WaitGroup
-//				receivedMessage *proto.Message = nil
-//				log                            = mockLogger{}
-//				transport                      = mockTransport{}
-//			)
-//
-//			i := NewIBFT(log, testCase.backend, transport)
-//
-//			// If the message should be added,
-//			// make sure the event handler is alerted
-//			if testCase.shouldBeAdded {
-//				wg.Add(1)
-//				go func() {
-//					defer wg.Done()
-//
-//					select {
-//					case message := <-i.newMessageCh:
-//						receivedMessage = message
-//					case <-time.After(5 * time.Second):
-//						return
-//					}
-//				}()
-//			}
-//
-//			// Add the message
-//			i.AddMessage(testCase.message)
-//
-//			wg.Wait()
-//
-//			if testCase.shouldBeAdded {
-//				// Make sure the correct message was received
-//				assert.Equal(t, testCase.message, receivedMessage)
-//			} else {
-//				// Make sure no message was sent out
-//				assert.Nil(t, receivedMessage)
-//			}
-//		})
-//	}
-//}
+
+// TestIBFT_IsAcceptableMessage makes sure invalid messages
+// are properly handled
+func TestIBFT_IsAcceptableMessage(t *testing.T) {
+	t.Parallel()
+
+	testTable := []struct {
+		name          string
+		view          *proto.View
+		invalidSender bool
+		acceptable    bool
+	}{
+		{
+			"invalid sender",
+			nil,
+			true,
+			false,
+		},
+		{
+			"malformed message",
+			nil,
+			false,
+			false,
+		},
+		{
+			"height mismatch",
+			&proto.View{
+				Height: 100,
+			},
+			false,
+			true,
+		},
+		{
+			"higher round number",
+			&proto.View{
+				Height: 0,
+				Round:  1,
+			},
+			false,
+			true,
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				log       = mockLogger{}
+				transport = mockTransport{}
+				backend   = mockBackend{
+					isValidSenderFn: func(message *proto.Message) bool {
+						return !testCase.invalidSender
+					},
+				}
+			)
+			i := NewIBFT(log, backend, transport)
+
+			message := &proto.Message{
+				View: testCase.view,
+			}
+
+			assert.Equal(t, testCase.acceptable, i.isAcceptableMessage(message))
+		})
+	}
+}
