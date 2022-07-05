@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"fmt"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"github.com/google/uuid"
 	"sync"
@@ -50,6 +51,8 @@ type Subscription struct {
 
 // subscribe registers a new listener for message events
 func (em *eventManager) subscribe(details Subscription) *SubscribeResult {
+	fmt.Println("CALLED EVENT MANAGER")
+
 	em.subscriptionsLock.Lock()
 	defer em.subscriptionsLock.Unlock()
 

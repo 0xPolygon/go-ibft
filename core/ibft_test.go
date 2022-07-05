@@ -124,6 +124,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
+			quitCh := make(chan struct{}, 1)
+
 			var (
 				newProposal                        = []byte("new block")
 				multicastedProposal *proto.Message = nil
@@ -154,18 +156,23 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						}
 					},
 				}
+				messages = mockMessages{
+					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
+						quitCh <- struct{}{}
+
+						return messages.NewSubscribeResult(messages.SubscriptionID(1), make(chan struct{}))
+					},
+				}
 			)
 
 			i := NewIBFT(log, backend, transport)
-
-			quitCh := make(chan struct{}, 1)
-			quitCh <- struct{}{}
+			i.messages = messages
 
 			i.runRound(quitCh)
 
 			i.wg.Wait()
 
-			// Make sure the node is in preprepare state
+			// Make sure the node is in prepare state
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the accepted proposal is the one proposed to other nodes
@@ -182,6 +189,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			t.Parallel()
 
 			var (
+				wg            sync.WaitGroup
 				capturedRound uint64 = 0
 				quitCh               = make(chan struct{}, 1)
 
@@ -208,7 +216,13 @@ func TestRunNewRound_Proposer(t *testing.T) {
 
 			i := NewIBFT(log, backend, transport)
 
+			wg.Add(1)
 			go func(i *IBFT) {
+				defer func() {
+					wg.Done()
+
+					quitCh <- struct{}{}
+				}()
 				select {
 				case nextRound := <-i.roundChange:
 					capturedRound = nextRound
@@ -220,6 +234,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.runRound(quitCh)
 
 			i.wg.Wait()
+			wg.Wait()
 
 			// Make sure the proposal is not accepted
 			assert.Equal(t, []byte(nil), i.state.proposal)
@@ -233,6 +248,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		"(locked) proposer builds proposal",
 		func(t *testing.T) {
 			t.Parallel()
+
+			quitCh := make(chan struct{}, 1)
 
 			var (
 				multicastedPreprepare *proto.Message = nil
@@ -278,14 +295,19 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						}
 					},
 				}
+				messages = mockMessages{
+					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
+						quitCh <- struct{}{}
+
+						return messages.NewSubscribeResult(messages.SubscriptionID(1), make(chan struct{}))
+					},
+				}
 			)
 
 			i := NewIBFT(log, backend, transport)
+			i.messages = messages
 			i.state.locked = true
 			i.state.proposal = previousProposal
-
-			quitCh := make(chan struct{}, 1)
-			quitCh <- struct{}{}
 
 			i.runRound(quitCh)
 
@@ -414,6 +436,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			quitCh := make(chan struct{}, 1)
 
 			var (
+				wg            sync.WaitGroup
 				capturedRound uint64 = 0
 				proposer             = []byte("proposer")
 				notifyCh             = make(chan struct{}, 1)
@@ -447,9 +470,6 @@ func TestRunNewRound_Validator(t *testing.T) {
 					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
 						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
 					},
-					unsubscribeFn: func(_ messages.SubscriptionID) {
-						quitCh <- struct{}{}
-					},
 					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
 						return filterMessages(
 							[]*proto.Message{
@@ -473,7 +493,14 @@ func TestRunNewRound_Validator(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			i.messages = messages
 
+			wg.Add(1)
 			go func(i *IBFT) {
+				defer func() {
+					wg.Done()
+
+					quitCh <- struct{}{}
+				}()
+
 				select {
 				case newRound := <-i.roundChange:
 					capturedRound = newRound
@@ -488,6 +515,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			i.runRound(quitCh)
 
 			i.wg.Wait()
+			wg.Wait()
 
 			// Make sure the proposal is not accepted
 			assert.Equal(t, []byte(nil), i.state.proposal)
@@ -571,7 +599,7 @@ func TestRunPrepare(t *testing.T) {
 			i.state.name = prepare
 			i.state.roundStarted = true
 			i.state.proposal = proposal
-			i.messages = messages
+			i.messages = &messages
 
 			// Make sure the notification is present
 			notifyCh <- struct{}{}
@@ -1003,7 +1031,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 		quitCh := make(chan struct{})
 
 		i := NewIBFT(log, backend, transport)
-		i.messages = messages
+		i.messages = &messages
 
 		wg.Add(1)
 		go func() {
@@ -1034,5 +1062,82 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 
 		// Make sure the proper round hop number was emitted
 		assert.Equal(t, uint64(0), capturedRound)
+	})
+}
+
+// TestIBFT_MoveToNewRound makes sure the state is modified
+// correctly during round moves
+func TestIBFT_MoveToNewRound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("move to new round", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			newRound uint64 = 1
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		i.moveToNewRound(newRound)
+
+		// Make sure the view has changed
+		assert.Equal(t, newRound, i.state.getRound())
+
+		// Make sure the state is unlocked
+		assert.False(t, i.state.locked)
+
+		// Make sure the proposal is not present
+		assert.Nil(t, i.state.proposal)
+
+		// Make sure the state is correct
+		assert.Equal(t, roundChange, i.state.name)
+	})
+
+	t.Run("move to new round with RC", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			newRound           uint64         = 1
+			multicastedMessage *proto.Message = nil
+
+			log       = mockLogger{}
+			transport = mockTransport{
+				multicastFn: func(message *proto.Message) {
+					if message != nil && message.Type == proto.MessageType_ROUND_CHANGE {
+						multicastedMessage = message
+					}
+				},
+			}
+			backend = mockBackend{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		i.moveToNewRoundWithRC(newRound)
+
+		// Make sure the view has changed
+		assert.Equal(t, newRound, i.state.getRound())
+
+		// Make sure the state is unlocked
+		assert.False(t, i.state.locked)
+
+		// Make sure the proposal is not present
+		assert.Nil(t, i.state.proposal)
+
+		// Make sure the state is correct
+		assert.Equal(t, roundChange, i.state.name)
+
+		if multicastedMessage == nil {
+			t.Fatalf("message not multicasted")
+		}
+
+		// Make sure the multicasted message is correct
+		assert.Equal(t, newRound, multicastedMessage.View.Round)
+		assert.Equal(t, uint64(0), multicastedMessage.View.Height)
 	})
 }

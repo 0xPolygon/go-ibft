@@ -202,7 +202,7 @@ func (i *IBFT) runSequence(h uint64) {
 			i.wg.Wait()
 
 			//	Move to the new round
-			i.moveToNewRoundWithRC(newRound, i.state.getHeight())
+			i.moveToNewRoundWithRC(newRound)
 			i.state.setLocked(false)
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
@@ -521,9 +521,9 @@ func (i *IBFT) runRoundChange() {
 }
 
 // moveToNewRound moves the state to the new round
-func (i *IBFT) moveToNewRound(round, height uint64) {
+func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setView(&proto.View{
-		Height: height,
+		Height: i.state.getHeight(),
 		Round:  round,
 	})
 
@@ -531,22 +531,22 @@ func (i *IBFT) moveToNewRound(round, height uint64) {
 	i.state.setProposal(nil)
 	i.state.setStateName(roundChange)
 
-	i.log.Info("moved to new round", round, height)
+	i.log.Info("moved to new round", round)
 }
 
 // moveToNewRoundWithRC moves the state to the new round change
 // and multicasts an appropriate Round Change message
-func (i *IBFT) moveToNewRoundWithRC(round, height uint64) {
-	i.moveToNewRound(round, height)
+func (i *IBFT) moveToNewRoundWithRC(round uint64) {
+	i.moveToNewRound(round)
 
 	i.transport.Multicast(
 		i.backend.BuildRoundChangeMessage(
-			height,
+			i.state.getHeight(),
 			round,
 		),
 	)
 
-	i.log.Info(fmt.Sprintf("multicasted RC round=%d height=%d", round, height))
+	i.log.Info(fmt.Sprintf("multicasted RC round=%d height=%d", round, i.state.getHeight()))
 }
 
 // buildProposal builds a new proposal
