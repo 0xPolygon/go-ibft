@@ -178,6 +178,7 @@ func (i *IBFT) runSequence(h uint64) {
 
 		}
 
+		//	TODO
 		/*	ROUND CHANGE state	*/
 
 		//	this is where we wait on quorum RC messages
@@ -199,9 +200,15 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 	//	TODO: state loop
 	for {
+		var err error
+
 		switch i.state.name {
 		case newRound:
-			_ = i.runNewRound(quit)
+			if err = i.runNewRound(quit); err != nil {
+				i.roundChange <- i.state.getRound() + 1
+
+				return
+			}
 		case prepare:
 			_ = i.runPrepare(quit)
 		case commit:
@@ -209,14 +216,16 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case fin:
 			_ = i.runFin()
 		}
+
 	}
 }
 
 func (i *IBFT) runNewRound(quit <-chan struct{}) error {
+	view := i.state.getView()
 	sub := i.verifiedMessages.Subscribe(
 		messages.SubscriptionDetails{
 			MessageType: proto.MessageType_PREPREPARE,
-			View:        i.state.getView(),
+			View:        view,
 			NumMessages: 1,
 		})
 
@@ -227,17 +236,34 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		case <-quit:
 			return errors.New("round timeout expired")
 		case <-sub.GetCh():
-			//	TODO
+			var proposal []byte
 
-			//	get the message
+			msgs := i.verifiedMessages.GetMessages(view, proto.MessageType_PREPREPARE)
+			for _, msg := range msgs {
+				if !i.backend.IsProposer(msg.From, view.Height, view.Round) {
+					continue
+				}
 
-			// 	validation
-			//		#1:	is valid block
-			//		#2:	locked ??
+				proposal = msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+
+				if err := i.validateProposal(proposal); err != nil {
+					return err
+				}
+
+				break
+			}
+
+			i.acceptProposal(proposal)
 
 			//	multicast PREPARE message
+			i.transport.Multicast(
+				i.backend.BuildPrepareMessage(proposal, i.state.getView()),
+			)
 
 			//	set state to PREPARE and return
+			i.state.name = prepare
+
+			return nil
 		}
 	}
 }
