@@ -238,7 +238,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	//	TODO: is if needed  (for tests)?
 	if !i.state.roundStarted {
 		// Round is not yet started, kick the round off
-		i.state.name = newRound
+		i.state.setStateName(newRound)
 		i.state.roundStarted = true
 
 		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
@@ -365,7 +365,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 			)
 
 			// Move to the prepare state
-			i.state.name = prepare
+			i.state.setStateName(prepare)
 
 			return nil
 		}
@@ -428,7 +428,7 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 			i.state.locked = true
 
 			// Move to the commit state
-			i.state.name = commit
+			i.state.setStateName(commit)
 
 			return nil
 		}
@@ -494,7 +494,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 			i.state.seals = messages.ExtractCommittedSeals(commitMessages)
 
 			//	Move to the fin state
-			i.state.name = fin
+			i.state.setStateName(fin)
 
 			return nil
 		}
