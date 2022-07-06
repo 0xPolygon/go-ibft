@@ -75,7 +75,10 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 
 	ms.eventManager.signalEvent(
 		message.Type,
-		message.View, // TODO ptr?
+		&proto.View{
+			Height: message.View.Height,
+			Round:  message.View.Round,
+		},
 		len(messages),
 	)
 }
@@ -248,8 +251,10 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto
 			continue
 		}
 
-		if len(msgs) > bestRoundMessagesCount {
+		size := len(msgs)
+		if size > bestRoundMessagesCount {
 			bestRound = round
+			bestRoundMessagesCount = size
 		}
 	}
 
