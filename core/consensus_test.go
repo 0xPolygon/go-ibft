@@ -246,12 +246,14 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	}
 }
 
-func TestDummy(t *testing.T) {
-	for i := 0; i < 10000; i++ {
-		println("test run #", i)
-		TestConsensus_InvalidBlock(t)
-	}
-}
+//func TestDummy(t *testing.T) {
+//	for i := 0; i < 30000; i++ {
+//		fmt.Printf("test run #%d\n", i)
+//		TestConsensus_InvalidBlock(t)
+//	}
+//
+//	fmt.Println("🎉Yeah boy🎉")
+//}
 
 // TestConsensus_InvalidBlock tests the following scenario:
 // N = 4

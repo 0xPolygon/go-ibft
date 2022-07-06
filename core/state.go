@@ -118,13 +118,6 @@ func (s *state) setLocked(locked bool) {
 	s.locked = locked
 }
 
-func (s *state) setRound(round uint64) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.view.Round = round
-}
-
 func (s *state) setStateName(name stateName) {
 	s.Lock()
 	defer s.Unlock()

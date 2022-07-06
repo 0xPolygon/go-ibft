@@ -337,14 +337,14 @@ func (m *mockCluster) runSequence(height uint64) {
 	for _, node := range m.nodes {
 		m.wg.Add(1)
 
-		go func(node *IBFT, height uint64, wg *sync.WaitGroup) {
+		go func(node *IBFT, height uint64) {
 			defer func() {
-				wg.Done()
+				m.wg.Done()
 			}()
 
 			// Start the main run loop for the node
 			node.runSequence(height)
-		}(node, height, &m.wg)
+		}(node, height)
 	}
 }
 

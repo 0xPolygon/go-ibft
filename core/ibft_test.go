@@ -168,6 +168,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			i.messages = messages
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -231,6 +232,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 			}(i)
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -309,6 +311,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.state.locked = true
 			i.state.proposal = previousProposal
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -413,6 +416,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			// Make sure the notification is sent out
 			notifyCh <- struct{}{}
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -512,6 +516,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			// Make sure the notification is sent out
 			notifyCh <- struct{}{}
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -604,6 +609,7 @@ func TestRunPrepare(t *testing.T) {
 			// Make sure the notification is present
 			notifyCh <- struct{}{}
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -706,6 +712,7 @@ func TestRunCommit(t *testing.T) {
 			// Make sure the notification is ready
 			notifyCh <- struct{}{}
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -766,6 +773,7 @@ func TestRunCommit(t *testing.T) {
 
 			quitCh := make(chan struct{}, 1)
 
+			i.wg.Add(1)
 			i.runRound(quitCh)
 
 			i.wg.Wait()
@@ -887,6 +895,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 		wg.Add(1)
 		go func() {
+			i.wg.Add(1)
 			i.startRoundTimer(0, roundZeroTimeout, quitCh)
 
 			wg.Done()
@@ -928,6 +937,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 			}
 		}()
 
+		i.wg.Add(1)
 		i.startRoundTimer(0, 0*time.Second, quitCh)
 
 		wg.Wait()
@@ -991,6 +1001,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}
 		}()
 
+		i.wg.Add(1)
 		i.watchForRoundHop(quitCh)
 
 		wg.Wait()
@@ -1053,6 +1064,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 				wg.Done()
 			}()
 
+			i.wg.Add(1)
 			i.watchForRoundHop(quitCh)
 		}()
 

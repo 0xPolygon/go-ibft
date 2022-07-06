@@ -117,6 +117,8 @@ func (i *IBFT) startRoundTimer(
 	baseTimeout time.Duration,
 	quit <-chan struct{},
 ) {
+	defer i.wg.Done()
+
 	var (
 		duration     = int(baseTimeout)
 		roundFactor  = int(math.Pow(float64(2), float64(round)))
@@ -144,8 +146,9 @@ func (i *IBFT) startRoundTimer(
 // at any point in time to trigger a round hop to the highest round
 // which has F+1 Round Change messages
 func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
-	view := i.state.getView()
+	defer i.wg.Done()
 
+	view := i.state.getView()
 	for {
 		// Get the messages from the message queue
 		rcMessages := i.messages.
@@ -158,10 +161,14 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes())+1 {
 			// The round in the Round Change messages should be the highest
 			// round for which there are F+1 RC messages
-			i.log.Info("round hop detected, alerting of change")
-
 			newRound := rcMessages[0].View.Round
+
+			i.log.Info(fmt.Sprintf("round hop detected, alerting of change, current=%d new=%d", view.Round, newRound))
+			i.log.Info(fmt.Sprintf("RH Messages are %v", rcMessages))
+
 			i.signalRoundChange(newRound, quit)
+
+			i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
 
 			return
 		}
@@ -169,6 +176,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		select {
 		case <-quit:
 			// Quit signal received, teardown the worker
+			i.log.Info(fmt.Sprintf("Quitting round hop! Current=%d", view.Round))
 			return
 		default:
 		}
@@ -194,6 +202,8 @@ func (i *IBFT) runSequence(h uint64) {
 	i.log.Info("sequence started")
 
 	for {
+		i.wg.Add(3)
+
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
 
@@ -224,6 +234,7 @@ func (i *IBFT) runSequence(h uint64) {
 			i.log.Info("round done received")
 
 			close(quitCh)
+			i.wg.Wait()
 
 			return
 		}
@@ -239,7 +250,6 @@ func (i *IBFT) runSequence(h uint64) {
 // runRound runs the state machine loop for the current round
 func (i *IBFT) runRound(quit <-chan struct{}) {
 	// Register this worker thread with the barrier
-	i.wg.Add(1)
 	defer i.wg.Done()
 
 	//	TODO: is if needed  (for tests)?
@@ -295,6 +305,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 				return
 			}
+			//case roundChange:
+			//	return
 		}
 
 		if errors.Is(err, errTimeoutExpired) {
