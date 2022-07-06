@@ -134,7 +134,7 @@ func (i *IBFT) startRoundTimer(
 		// Timer expired, alert the round change channel to move
 		// to the next round
 		i.log.Info("round timer expired, alerting of change")
-		i.roundChange <- round + 1
+		i.signalRoundChange(round+1, quit)
 	}
 
 	return
@@ -161,7 +161,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 			i.log.Info("round hop detected, alerting of change")
 
 			newRound := rcMessages[0].View.Round
-			i.roundChange <- newRound
+			i.signalRoundChange(newRound, quit)
 
 			return
 		}
@@ -172,6 +172,13 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 			return
 		default:
 		}
+	}
+}
+
+func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
+	select {
+	case i.roundChange <- round:
+	case <-quit:
 	}
 }
 
@@ -258,7 +265,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			// Proposal is unable to be submitted, move to the round change state
 			i.log.Info("unable to propose block, alerting of change")
 
-			i.roundChange <- i.state.getRound() + 1
+			i.signalRoundChange(i.state.getRound()+1, quit)
 
 			return
 		}
@@ -301,7 +308,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			// state execution, move to the round change state
 			i.log.Info(fmt.Sprintf("error during state processing: %v", err))
 
-			i.roundChange <- i.state.getRound() + 1
+			i.signalRoundChange(i.state.getRound()+1, quit)
 
 			return
 		}
