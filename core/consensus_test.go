@@ -264,6 +264,7 @@ func TestDummy(t *testing.T) {
 // - Node 1 proposes a valid block B'
 // - All nodes go through the consensus states to insert the valid block B'
 func TestConsensus_InvalidBlock(t *testing.T) {
+	//t.SkipNow()
 	var multicastFn func(message *proto.Message)
 
 	proposals := [][]byte{

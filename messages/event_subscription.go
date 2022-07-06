@@ -23,7 +23,8 @@ type eventSubscription struct {
 // close stops the event subscription
 func (es *eventSubscription) close() {
 	close(es.doneCh)
-	close(es.outputCh)
+	//	TODO: fix panic
+	//close(es.outputCh)
 }
 
 // runLoop is the main loop that listens for notifications and handles the event / close signals
