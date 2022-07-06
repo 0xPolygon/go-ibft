@@ -247,7 +247,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 }
 
 func TestDummy(t *testing.T) {
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 5000; i++ {
 		println("test run #", i)
 		TestConsensus_InvalidBlock(t)
 	}
