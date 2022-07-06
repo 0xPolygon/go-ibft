@@ -424,6 +424,8 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 				i.backend.BuildCommitMessage(i.state.proposal, view),
 			)
 
+			i.log.Info("multicasted commit")
+
 			// Make sure the node is locked
 			i.state.locked = true
 
