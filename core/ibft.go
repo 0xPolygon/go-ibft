@@ -110,15 +110,6 @@ func NewIBFT(
 	}
 }
 
-func (i *IBFT) signalRoundChange(round uint64) {
-	select {
-	case i.roundChange <- round:
-	default:
-		//	if we can't signal this, it means
-		//	it has already been signaled
-	}
-}
-
 // startRoundTimer starts the exponential round timer, based on the
 // passed in round number
 func (i *IBFT) startRoundTimer(
@@ -143,7 +134,7 @@ func (i *IBFT) startRoundTimer(
 		// Timer expired, alert the round change channel to move
 		// to the next round
 		i.log.Info("round timer expired, alerting of change")
-		i.signalRoundChange(round + 1)
+		i.roundChange <- round + 1
 	}
 
 	return
@@ -167,11 +158,10 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes())+1 {
 			// The round in the Round Change messages should be the highest
 			// round for which there are F+1 RC messages
+			i.log.Info("round hop detected, alerting of change")
 
 			newRound := rcMessages[0].View.Round
-
-			i.log.Info(fmt.Sprintf("round hop detected, alerting of change: new round=%d", newRound))
-			i.signalRoundChange(newRound)
+			i.roundChange <- newRound
 
 			return
 		}
@@ -311,7 +301,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			// state execution, move to the round change state
 			i.log.Info(fmt.Sprintf("error during state processing: %v", err))
 
-			i.signalRoundChange(i.state.getRound() + 1)
+			i.roundChange <- i.state.getRound() + 1
 
 			return
 		}
@@ -433,8 +423,6 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 			i.transport.Multicast(
 				i.backend.BuildCommitMessage(i.state.proposal, view),
 			)
-
-			i.log.Info("multicasted commit")
 
 			// Make sure the node is locked
 			i.state.locked = true
