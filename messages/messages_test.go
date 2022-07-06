@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"fmt"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
 	"strconv"
@@ -252,6 +253,13 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 				messages.numMessages(defaultView, testCase.messageType),
 			)
 		})
+	}
+}
+
+func TestDummy(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		fmt.Printf("test run #%d\n", i)
+		TestMessages_GetMostRoundChangeMessages(t)
 	}
 }
 

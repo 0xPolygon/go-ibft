@@ -233,8 +233,8 @@ func (ms *Messages) GetValidMessages(
 // GetMostRoundChangeMessages fetches most round change messages
 // for the minimum round and above
 func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
-	ms.Lock()
-	defer ms.Unlock()
+	ms.RLock()
+	defer ms.RUnlock()
 
 	roundMessageMap := ms.getMessageMap(proto.MessageType_ROUND_CHANGE)[height]
 

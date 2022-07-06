@@ -247,9 +247,10 @@ func TestConsensus_ValidFlow(t *testing.T) {
 }
 
 //func TestDummy(t *testing.T) {
-//	for i := 0; i < 30000; i++ {
+//	for i := 0; i < 100000; i++ {
 //		fmt.Printf("test run #%d\n", i)
 //		TestConsensus_InvalidBlock(t)
+//		TestConsensus_ValidFlow(t)
 //	}
 //
 //	fmt.Println("🎉Yeah boy🎉")

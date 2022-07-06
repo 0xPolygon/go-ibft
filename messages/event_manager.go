@@ -56,7 +56,7 @@ func (em *eventManager) subscribe(details Subscription) *SubscribeResult {
 	id := uuid.New().ID()
 	subscription := &eventSubscription{
 		details:  details,
-		outputCh: make(chan struct{}),
+		outputCh: make(chan struct{}, 1),
 		doneCh:   make(chan struct{}),
 		notifyCh: make(chan struct{}, 1),
 	}

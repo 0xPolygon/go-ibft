@@ -20,9 +20,9 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 
 	subscription := &eventSubscription{
 		details:  supportedDetails,
-		outputCh: make(chan struct{}),
-		doneCh:   make(chan struct{}),
+		outputCh: make(chan struct{}, 1),
 		notifyCh: make(chan struct{}, 1),
+		doneCh:   make(chan struct{}),
 	}
 
 	defer subscription.close()

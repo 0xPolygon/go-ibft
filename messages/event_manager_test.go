@@ -3,20 +3,11 @@ package messages
 import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
-	"sync"
 	"testing"
 )
 
-//func TestDummy(t *testing.T) {
-//	for i := 0; i < 1000; i++ {
-//		TestEventManager_SubscribeCancel(t)
-//	}
-//}
-
 func TestEventManager_SubscribeCancel(t *testing.T) {
-	//t.Parallel()
-	// TODO fix panic
-	t.SkipNow()
+	t.Parallel()
 
 	numSubscriptions := 10
 	subscriptions := make([]*SubscribeResult, numSubscriptions)
@@ -50,6 +41,9 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 	}
 
 	quitCh := make(chan struct{}, 1)
+	defer func() {
+		quitCh <- struct{}{}
+	}()
 
 	go func() {
 		for {
@@ -64,25 +58,8 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 	}()
 
 	// Cancel them concurrently
-	var wg sync.WaitGroup
 	for _, subscription := range subscriptions {
-		wg.Add(1)
-		go func(subscription *SubscribeResult) {
-			defer wg.Done()
-
-			em.cancelSubscription(subscription.GetID())
-		}(subscription)
-	}
-
-	wg.Wait()
-
-	quitCh <- struct{}{}
-
-	for indx, subscription := range subscriptions {
-		// Check that the appropriate channel is closed
-		if _, more := <-subscription.subscriptionChannel; more {
-			t.Fatalf("Subscription channel not closed for index %d", indx)
-		}
+		em.cancelSubscription(subscription.GetID())
 	}
 
 	// Check that the number is up-to-date
@@ -90,9 +67,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 }
 
 func TestEventManager_SubscribeClose(t *testing.T) {
-	//t.Parallel()
-	// TODO unskip
-	t.SkipNow()
+	t.Parallel()
 
 	numSubscriptions := 10
 	subscriptions := make([]*SubscribeResult, numSubscriptions)
