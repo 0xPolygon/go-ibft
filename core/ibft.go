@@ -144,9 +144,9 @@ func (i *IBFT) startRoundTimer(
 // at any point in time to trigger a round hop to the highest round
 // which has F+1 Round Change messages
 func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
-	for {
-		view := i.state.getView()
+	view := i.state.getView()
 
+	for {
 		// Get the messages from the message queue
 		rcMessages := i.messages.
 			GetMostRoundChangeMessages(

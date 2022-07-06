@@ -236,53 +236,34 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto
 	ms.Lock()
 	defer ms.Unlock()
 
-	type maxData struct {
-		maxRound        uint64
-		maxMessagesSize int
-
-		found bool
-	}
+	roundMessageMap := ms.getMessageMap(proto.MessageType_ROUND_CHANGE)[height]
 
 	var (
-		data = maxData{
-			maxRound:        0,
-			maxMessagesSize: 0,
-			found:           false,
-		}
-
-		heightMsgMap = ms.getMessageMap(proto.MessageType_ROUND_CHANGE)
+		bestRound              = uint64(0)
+		bestRoundMessagesCount = 0
 	)
 
-	// Find the view with the max round change messages
-	roundMessageMap := heightMsgMap[height]
-
-	for roundIndex, roundMessages := range roundMessageMap {
-		if roundIndex < minRound {
+	for round, msgs := range roundMessageMap {
+		if round < minRound {
 			continue
 		}
 
-		if len(roundMessages) > data.maxMessagesSize || !data.found {
-			data.maxRound = roundIndex
-
-			data.maxMessagesSize = len(roundMessages)
-			data.found = true
+		if len(msgs) > bestRoundMessagesCount {
+			bestRound = round
 		}
 	}
 
-	roundChangeMessages := make([]*proto.Message, 0)
-
-	if data.found {
-		if messages := ms.getProtoMessages(&proto.View{
-			Height: height,
-			Round:  data.maxRound,
-		}, proto.MessageType_ROUND_CHANGE); messages != nil {
-			for _, message := range messages {
-				roundChangeMessages = append(roundChangeMessages, message)
-			}
-		}
+	if bestRound == 0 {
+		//	no messages found
+		return nil
 	}
 
-	return roundChangeMessages
+	messages := make([]*proto.Message, 0, bestRoundMessagesCount)
+	for _, msg := range roundMessageMap[bestRound] {
+		messages = append(messages, msg)
+	}
+
+	return messages
 }
 
 // ExtractCommittedSeals extracts the committed seals from the passed in messages
