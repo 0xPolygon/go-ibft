@@ -267,7 +267,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
 		var err error
 
-		i.log.Info(fmt.Sprintf("current state %v", i.state.name))
+		i.log.Info(fmt.Sprintf("current state %v", i.state.name.String()))
 		switch i.state.name {
 		case newRound:
 			err = i.runNewRound(quit)

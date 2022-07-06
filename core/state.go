@@ -15,6 +15,23 @@ const (
 	fin
 )
 
+func (s stateName) String() (str string) {
+	switch s {
+	case newRound:
+		str = "new round"
+	case prepare:
+		str = "prepare"
+	case commit:
+		str = "commit"
+	case roundChange:
+		str = "round change"
+	case fin:
+		str = "fin"
+	}
+
+	return
+}
+
 // TODO make sure all fields are cleared when they should be
 type state struct {
 	// TODO @dbrajovic do we need this to be thread safe in the new flow?
