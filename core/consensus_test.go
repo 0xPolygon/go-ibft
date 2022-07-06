@@ -438,13 +438,6 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	}
 }
 
-////func TestDummy(t *testing.T) {
-////	for i := 0; i < 500; i++ {
-////		TestConsensus_InvalidBlock(t)
-////		fmt.Printf("\nNEW ROUND %d\n", i+1)
-////	}
-////}
-//
 //// TestConsensus_Persistence verifies the persistence problem
 //// outlined in the following analysis paper:
 //// https://arxiv.org/pdf/1901.07160.pdf
