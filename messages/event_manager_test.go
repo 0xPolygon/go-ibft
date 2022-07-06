@@ -66,17 +66,15 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 	for _, subscription := range subscriptions {
 		wg.Add(1)
 		go func(subscription *SubscribeResult) {
-			defer func() {
-				wg.Done()
-
-				quitCh <- struct{}{}
-			}()
+			defer wg.Done()
 
 			em.cancelSubscription(subscription.GetID())
 		}(subscription)
 	}
 
 	wg.Wait()
+
+	quitCh <- struct{}{}
 
 	for indx, subscription := range subscriptions {
 		// Check that the appropriate channel is closed
