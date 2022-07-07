@@ -180,6 +180,9 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	}
 }
 
+//	signalRoundChange notifies the sequence routine (runSequence) that it
+//	should move to a new round. The quit channel is used to abort this call
+//	if another routine has already signaled a round change request.
 func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
 	select {
 	case i.roundChange <- round:
