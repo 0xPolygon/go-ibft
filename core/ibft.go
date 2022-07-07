@@ -146,29 +146,6 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	view := i.state.getView()
 
 	for {
-		// Get the messages from the message queue
-		rcMessages := i.messages.
-			GetMostRoundChangeMessages(
-				view.Round+1,
-				view.Height,
-			)
-
-		//	Signal round change if enough round change messages were received
-		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes())+1 {
-			// The round in the Round Change messages should be the highest
-			// round for which there are F+1 RC messages
-			newRound := rcMessages[0].View.Round
-
-			i.log.Info(fmt.Sprintf("round hop detected, alerting of change, current=%d new=%d", view.Round, newRound))
-			i.log.Info(fmt.Sprintf("RH Messages are %v", rcMessages))
-
-			i.signalRoundChange(newRound, quit)
-
-			i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
-
-			return
-		}
-
 		select {
 		case <-quit:
 			// Quit signal received, teardown the worker
@@ -176,8 +153,44 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 
 			return
 		default:
+			//	quorum on round change messages reached, teardown the worker
+			if i.doRoundHop(view, quit) {
+				i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
+
+				return
+			}
 		}
 	}
+}
+
+//	doRoundHop signals a round change if a quorum on round change messages was received
+func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
+	var (
+		round     = view.Round
+		height    = view.Height
+		hopQuorum = i.backend.MaximumFaultyNodes() + 1
+	)
+
+	// Get round change messages with the highest count from a future round
+	rcMessages := i.messages.GetMostRoundChangeMessages(round+1, height)
+
+	//	Signal round hop if quorum is reached
+	if len(rcMessages) >= int(hopQuorum) {
+		// The round in the Round Change messages should be the highest
+		// round for which there are F+1 RC messages
+		newRound := rcMessages[0].View.Round
+
+		i.log.Info(fmt.Sprintf("round hop detected, alerting of change, current=%d new=%d", view.Round, newRound))
+
+		//	TODO: remove log
+		//i.log.Info(fmt.Sprintf("RH Messages are %v", rcMessages))
+
+		i.signalRoundChange(newRound, quit)
+
+		return true
+	}
+
+	return false
 }
 
 //	signalRoundChange notifies the sequence routine (runSequence) that it
