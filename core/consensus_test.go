@@ -100,6 +100,8 @@ func buildBasicRoundChangeMessage(
 // - Node 0 proposes a valid block B
 // - All nodes go through the consensus states to insert the valid block B
 func TestConsensus_ValidFlow(t *testing.T) {
+	t.Parallel()
+
 	var multicastFn func(message *proto.Message)
 
 	proposal := []byte("proposal")
@@ -246,16 +248,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	}
 }
 
-//func TestDummy(t *testing.T) {
-//	for i := 0; i < 100000; i++ {
-//		fmt.Printf("test run #%d\n", i)
-//		TestConsensus_InvalidBlock(t)
-//		TestConsensus_ValidFlow(t)
-//	}
-//
-//	fmt.Println("🎉Yeah boy🎉")
-//}
-
 // TestConsensus_InvalidBlock tests the following scenario:
 // N = 4
 //
@@ -267,7 +259,8 @@ func TestConsensus_ValidFlow(t *testing.T) {
 // - Node 1 proposes a valid block B'
 // - All nodes go through the consensus states to insert the valid block B'
 func TestConsensus_InvalidBlock(t *testing.T) {
-	//t.SkipNow()
+	t.Parallel()
+
 	var multicastFn func(message *proto.Message)
 
 	proposals := [][]byte{
@@ -441,17 +434,3 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		assert.True(t, bytes.Equal(block, proposals[1]))
 	}
 }
-
-//// TestConsensus_Persistence verifies the persistence problem
-//// outlined in the following analysis paper:
-//// https://arxiv.org/pdf/1901.07160.pdf
-//func TestConsensus_Persistence(t *testing.T) {
-//	// TODO implement
-//}
-//
-//// TestConsensus_Liveness verifies the liveness problem
-//// outlined in the following analysis paper:
-//// https://arxiv.org/pdf/1901.07160.pdf
-//func TestConsensus_Liveness(t *testing.T) {
-//	// TODO implement
-//}
