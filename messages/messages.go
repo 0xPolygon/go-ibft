@@ -18,9 +18,11 @@ type protoMessages map[string]*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
-	sync.RWMutex
-
+	// manager for incoming message events
 	eventManager *eventManager
+
+	// mutex map that protects different message type queues
+	muxMap map[proto.MessageType]*sync.RWMutex
 
 	// message maps for different message types
 	preprepareMessages,
@@ -58,13 +60,21 @@ func NewMessages() *Messages {
 		roundChangeMessages: make(heightMessageMap),
 
 		eventManager: newEventManager(),
+
+		muxMap: map[proto.MessageType]*sync.RWMutex{
+			proto.MessageType_PREPREPARE:   {},
+			proto.MessageType_PREPARE:      {},
+			proto.MessageType_COMMIT:       {},
+			proto.MessageType_ROUND_CHANGE: {},
+		},
 	}
 }
 
 // AddMessage adds a new message to the message queue
 func (ms *Messages) AddMessage(message *proto.Message) {
-	ms.Lock()
-	defer ms.Unlock()
+	mux := ms.muxMap[message.Type]
+	mux.Lock()
+	defer mux.Unlock()
 
 	// Get the corresponding height map
 	heightMsgMap := ms.getMessageMap(message.Type)
@@ -135,8 +145,9 @@ func (ms *Messages) numMessages(
 	view *proto.View,
 	messageType proto.MessageType,
 ) int {
-	ms.RLock()
-	defer ms.RUnlock()
+	mux := ms.muxMap[messageType]
+	mux.RLock()
+	defer mux.RUnlock()
 
 	heightMsgMap := ms.getMessageMap(messageType)
 
@@ -158,9 +169,6 @@ func (ms *Messages) numMessages(
 // PruneByHeight prunes out all old messages from the message queues
 // by the specified height in the view
 func (ms *Messages) PruneByHeight(view *proto.View) {
-	ms.Lock()
-	defer ms.Unlock()
-
 	possibleMaps := []proto.MessageType{
 		proto.MessageType_PREPREPARE,
 		proto.MessageType_PREPARE,
@@ -170,6 +178,9 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 
 	// Prune out the views from all possible message types
 	for _, messageType := range possibleMaps {
+		mux := ms.muxMap[messageType]
+		mux.Lock()
+
 		messageMap := ms.getMessageMap(messageType)
 
 		// Delete all height maps up until and including the specified
@@ -177,6 +188,8 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 		for height := uint64(0); height <= view.Height; height++ {
 			delete(messageMap, height)
 		}
+
+		mux.Unlock()
 	}
 }
 
@@ -204,8 +217,9 @@ func (ms *Messages) GetValidMessages(
 	messageType proto.MessageType,
 	isValid func(message *proto.Message) bool,
 ) []*proto.Message {
-	ms.Lock()
-	defer ms.Unlock()
+	mux := ms.muxMap[messageType]
+	mux.Lock()
+	defer mux.Unlock()
 
 	result := make([]*proto.Message, 0)
 
@@ -223,8 +237,6 @@ func (ms *Messages) GetValidMessages(
 	}
 
 	// Prune out invalid messages
-	// TODO @dusan there shouldn't be any
-	// danger in doing this?
 	for _, key := range invalidMessages {
 		delete(messages, key)
 	}
@@ -235,10 +247,13 @@ func (ms *Messages) GetValidMessages(
 // GetMostRoundChangeMessages fetches most round change messages
 // for the minimum round and above
 func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
-	ms.RLock()
-	defer ms.RUnlock()
+	messageType := proto.MessageType_ROUND_CHANGE
 
-	roundMessageMap := ms.getMessageMap(proto.MessageType_ROUND_CHANGE)[height]
+	mux := ms.muxMap[messageType]
+	mux.RLock()
+	defer mux.RUnlock()
+
+	roundMessageMap := ms.getMessageMap(messageType)[height]
 
 	var (
 		bestRound              = uint64(0)

@@ -245,7 +245,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	// Register this worker thread with the barrier
 	defer i.wg.Done()
 
-	//	TODO: is if needed  (for tests)?
 	if !i.state.isRoundStarted() {
 		// Round is not yet started, kick the round off
 		i.state.setStateName(newRound)
@@ -676,7 +675,6 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 	}
 
 	// Invalid messages are discarded
-	// TODO move to specific format checker method
 	if message.View == nil {
 		return false
 	}
