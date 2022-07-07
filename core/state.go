@@ -15,7 +15,23 @@ const (
 	fin
 )
 
-// TODO make sure all fields are cleared when they should be
+func (s stateName) String() (str string) {
+	switch s {
+	case newRound:
+		str = "new round"
+	case prepare:
+		str = "prepare"
+	case commit:
+		str = "commit"
+	case roundChange:
+		str = "round change"
+	case fin:
+		str = "fin"
+	}
+
+	return
+}
+
 type state struct {
 	sync.RWMutex
 
@@ -34,13 +50,30 @@ type state struct {
 	name stateName
 }
 
-//	TODO: atomically returning a pointer does not
-//		guarantee the same data (use a POD instead)
 func (s *state) getView() *proto.View {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.view
+	return &proto.View{
+		Height: s.view.Height,
+		Round:  s.view.Round,
+	}
+}
+
+func (s *state) clear(height uint64) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.proposal = nil
+	s.seals = nil
+	s.roundStarted = false
+	s.locked = false
+	s.name = newRound
+
+	s.view = &proto.View{
+		Height: height,
+		Round:  0,
+	}
 }
 
 func (s *state) getRound() uint64 {
@@ -99,13 +132,6 @@ func (s *state) setLocked(locked bool) {
 	s.locked = locked
 }
 
-func (s *state) setRound(round uint64) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.view.Round = round
-}
-
 func (s *state) setStateName(name stateName) {
 	s.Lock()
 	defer s.Unlock()
@@ -134,9 +160,9 @@ func (s *state) setView(view *proto.View) {
 	s.view = view
 }
 
-func (s *state) addCommittedSeals(committedSeals [][]byte) {
+func (s *state) setCommittedSeals(seals [][]byte) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.seals = append(s.seals, committedSeals...)
+	s.seals = seals
 }

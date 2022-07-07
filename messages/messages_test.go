@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // generateRandomMessages generates random messages for the
@@ -64,6 +65,7 @@ func TestMessages_AddMessage(t *testing.T) {
 	}
 
 	messages := NewMessages()
+	defer messages.Close()
 
 	// Append random message types
 	randomMessages := generateRandomMessages(
@@ -79,9 +81,9 @@ func TestMessages_AddMessage(t *testing.T) {
 	}
 
 	// Make sure that the messages are present
-	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_PREPARE))
-	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_COMMIT))
-	assert.Equal(t, numMessages, messages.NumMessages(initialView, proto.MessageType_ROUND_CHANGE))
+	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_PREPARE))
+	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_COMMIT))
+	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_ROUND_CHANGE))
 }
 
 // TestMessages_AddDuplicates tests that no duplicates
@@ -100,6 +102,7 @@ func TestMessages_AddDuplicates(t *testing.T) {
 	}
 
 	messages := NewMessages()
+	defer messages.Close()
 
 	// Append random message types
 	randomMessages := generateRandomMessages(
@@ -114,7 +117,7 @@ func TestMessages_AddDuplicates(t *testing.T) {
 	}
 
 	// Check that only 1 message has been added
-	assert.Equal(t, 1, messages.NumMessages(initialView, commonType))
+	assert.Equal(t, 1, messages.numMessages(initialView, commonType))
 }
 
 // TestMessages_Prune tests if pruning of certain messages works
@@ -124,6 +127,10 @@ func TestMessages_Prune(t *testing.T) {
 	numMessages := 5
 	messageType := proto.MessageType_PREPARE
 	messages := NewMessages()
+
+	t.Cleanup(func() {
+		messages.Close()
+	})
 
 	views := make([]*proto.View, 0)
 	for index := uint64(1); index <= 3; index++ {
@@ -151,31 +158,22 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	// Prune out the messages from this view
-	messages.PruneByRound(views[0])
-
-	// Make sure the round 1 messages are pruned out
-	assert.Equal(t, 0, messages.NumMessages(views[0], messageType))
-
-	// Make sure the round 2 messages are still present
-	assert.Equal(t, numMessages, messages.NumMessages(views[1], messageType))
-
-	// Make sure the round 3 messages are still present
-	assert.Equal(t, numMessages, messages.NumMessages(views[2], messageType))
-
-	// Prune out the messages from this view
 	messages.PruneByHeight(views[1])
 
+	// Make sure the round 1 messages are pruned out
+	assert.Equal(t, 0, messages.numMessages(views[0], messageType))
+
 	// Make sure the round 2 messages are pruned out
-	assert.Equal(t, 0, messages.NumMessages(views[1], messageType))
+	assert.Equal(t, 0, messages.numMessages(views[1], messageType))
 
 	// Make sure the round 3 messages are pruned out
-	assert.Equal(t, 0, messages.NumMessages(views[2], messageType))
+	assert.Equal(t, 0, messages.numMessages(views[2], messageType))
 }
 
 // TestMessages_GetMessage makes sure
 // that messages are fetched correctly for the
 // corresponding message type
-func TestMessages_GetMessage(t *testing.T) {
+func TestMessages_GetValidMessagesMessage(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -208,12 +206,17 @@ func TestMessages_GetMessage(t *testing.T) {
 		},
 	}
 
+	alwaysInvalidFn := func(_ *proto.Message) bool {
+		return false
+	}
+
 	for _, testCase := range testTable {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			// Add the initial message set
 			messages := NewMessages()
+			defer messages.Close()
 
 			// Generate random messages
 			randomMessages := generateRandomMessages(
@@ -231,25 +234,25 @@ func TestMessages_GetMessage(t *testing.T) {
 			assert.Equal(
 				t,
 				numMessages,
-				messages.NumMessages(defaultView, testCase.messageType),
+				messages.numMessages(defaultView, testCase.messageType),
 			)
 
 			// Start fetching messages and making sure they're not cleared
 			switch testCase.messageType {
 			case proto.MessageType_PREPREPARE:
-				messages.GetMessages(defaultView, proto.MessageType_PREPREPARE)
+				messages.GetValidMessages(defaultView, proto.MessageType_PREPREPARE, alwaysInvalidFn)
 			case proto.MessageType_PREPARE:
-				messages.GetMessages(defaultView, proto.MessageType_PREPARE)
+				messages.GetValidMessages(defaultView, proto.MessageType_PREPARE, alwaysInvalidFn)
 			case proto.MessageType_COMMIT:
-				messages.GetMessages(defaultView, proto.MessageType_COMMIT)
+				messages.GetValidMessages(defaultView, proto.MessageType_COMMIT, alwaysInvalidFn)
 			case proto.MessageType_ROUND_CHANGE:
-				messages.GetMessages(defaultView, proto.MessageType_ROUND_CHANGE)
+				messages.GetValidMessages(defaultView, proto.MessageType_ROUND_CHANGE, alwaysInvalidFn)
 			}
 
 			assert.Equal(
 				t,
-				numMessages,
-				messages.NumMessages(defaultView, testCase.messageType),
+				0,
+				messages.numMessages(defaultView, testCase.messageType),
 			)
 		})
 	}
@@ -262,6 +265,8 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	t.Parallel()
 
 	messages := NewMessages()
+	defer messages.Close()
+
 	mostMessageCount := 3
 	mostMessagesRound := uint64(2)
 
@@ -295,4 +300,44 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	}
 
 	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].View.Round)
+}
+
+// TestMessages_EventManager checks that the event manager
+// behaves correctly when new messages appear
+func TestMessages_EventManager(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	numMessages := 10
+	messageType := proto.MessageType_PREPARE
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	// Create the subscription
+	subscription := messages.Subscribe(Subscription{
+		MessageType: messageType,
+		View:        baseView,
+		NumMessages: numMessages,
+	})
+
+	defer messages.Unsubscribe(subscription.GetID())
+
+	// Push random messages
+	randomMessages := generateRandomMessages(numMessages, baseView, messageType)
+	for _, message := range randomMessages {
+		messages.AddMessage(message)
+	}
+
+	// Wait for the subscription event to happen
+	select {
+	case <-subscription.GetCh():
+	case <-time.After(5 * time.Second):
+	}
+
+	// Make sure the number of messages is actually accurate
+	assert.Equal(t, numMessages, messages.numMessages(baseView, messageType))
 }
