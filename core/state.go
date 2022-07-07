@@ -34,7 +34,6 @@ func (s stateName) String() (str string) {
 
 // TODO make sure all fields are cleared when they should be
 type state struct {
-	// TODO @dbrajovic do we need this to be thread safe in the new flow?
 	sync.RWMutex
 
 	//	current view (block height, round)
@@ -59,6 +58,22 @@ func (s *state) getView() *proto.View {
 	return &proto.View{
 		Height: s.view.Height,
 		Round:  s.view.Round,
+	}
+}
+
+func (s *state) clear(height uint64) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.proposal = nil
+	s.seals = nil
+	s.roundStarted = false
+	s.locked = false
+	s.name = newRound
+
+	s.view = &proto.View{
+		Height: height,
+		Round:  0,
 	}
 }
 
@@ -144,4 +159,11 @@ func (s *state) setView(view *proto.View) {
 	defer s.Unlock()
 
 	s.view = view
+}
+
+func (s *state) setCommittedSeals(seals [][]byte) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.seals = seals
 }

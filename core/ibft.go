@@ -192,12 +192,8 @@ func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
 
 // runSequence runs the consensus cycle for the specified block height
 func (i *IBFT) runSequence(h uint64) {
-	// TODO do state clear here
 	// Set the starting state data
-	i.state.setView(&proto.View{
-		Height: h,
-		Round:  0,
-	})
+	i.state.clear(h)
 
 	i.log.Info("sequence started")
 
@@ -253,10 +249,10 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	defer i.wg.Done()
 
 	//	TODO: is if needed  (for tests)?
-	if !i.state.roundStarted {
+	if !i.state.isRoundStarted() {
 		// Round is not yet started, kick the round off
 		i.state.setStateName(newRound)
-		i.state.roundStarted = true
+		i.state.setRoundStarted(true)
 
 		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
 	}
@@ -284,8 +280,8 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 	for {
 		var err error
 
-		i.log.Info(fmt.Sprintf("current state %v", i.state.name.String()))
-		switch i.state.name {
+		i.log.Info(fmt.Sprintf("current state %s", i.state.getStateName()))
+		switch i.state.getStateName() {
 		case newRound:
 			err = i.runNewRound(quit)
 		case prepare:
@@ -426,7 +422,7 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 			isValidFn := func(message *proto.Message) bool {
 				// Verify that the proposal hash is valid
 				return i.backend.IsValidProposalHash(
-					i.state.proposal,
+					i.state.getProposal(),
 					messages.ExtractPrepareHash(message),
 				)
 			}
@@ -440,11 +436,11 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 
 			// Multicast the COMMIT message
 			i.transport.Multicast(
-				i.backend.BuildCommitMessage(i.state.proposal, view),
+				i.backend.BuildCommitMessage(i.state.getProposal(), view),
 			)
 
 			// Make sure the node is locked
-			i.state.locked = true
+			i.state.setLocked(true)
 
 			// Move to the commit state
 			i.state.setStateName(commit)
@@ -491,7 +487,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 				proposalHash := messages.ExtractCommitHash(message)
 
 				if !i.backend.IsValidProposalHash(
-					i.state.proposal,
+					i.state.getProposal(),
 					messages.ExtractCommitHash(message),
 				) {
 					return false
@@ -510,7 +506,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 			}
 
 			// Set the committed seals
-			i.state.seals = messages.ExtractCommittedSeals(commitMessages)
+			i.state.setCommittedSeals(messages.ExtractCommittedSeals(commitMessages))
 
 			//	Move to the fin state
 			i.state.setStateName(fin)
