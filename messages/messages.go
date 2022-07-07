@@ -18,13 +18,37 @@ type protoMessages map[string]*proto.Message
 
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
-	sync.RWMutex
+	// manager for incoming message events
+	eventManager *eventManager
+
+	// mutex map that protects different message type queues
+	muxMap map[proto.MessageType]*sync.RWMutex
 
 	// message maps for different message types
 	preprepareMessages,
 	prepareMessages,
 	commitMessages,
 	roundChangeMessages heightMessageMap
+}
+
+// Subscribe creates a new message type subscription
+func (ms *Messages) Subscribe(details Subscription) *SubscribeResult {
+	// Create the subscription
+	subscription := ms.eventManager.subscribe(details)
+
+	// Check if any condition is already met
+	numMessages := ms.numMessages(details.View, details.MessageType)
+	if numMessages >= details.NumMessages {
+		// Conditions are already met, alert the event manager
+		ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
+	}
+
+	return subscription
+}
+
+// Unsubscribe cancels a message type subscription
+func (ms *Messages) Unsubscribe(id SubscriptionID) {
+	ms.eventManager.cancelSubscription(id)
 }
 
 // NewMessages returns a new Messages wrapper
@@ -34,13 +58,23 @@ func NewMessages() *Messages {
 		prepareMessages:     make(heightMessageMap),
 		commitMessages:      make(heightMessageMap),
 		roundChangeMessages: make(heightMessageMap),
+
+		eventManager: newEventManager(),
+
+		muxMap: map[proto.MessageType]*sync.RWMutex{
+			proto.MessageType_PREPREPARE:   {},
+			proto.MessageType_PREPARE:      {},
+			proto.MessageType_COMMIT:       {},
+			proto.MessageType_ROUND_CHANGE: {},
+		},
 	}
 }
 
 // AddMessage adds a new message to the message queue
 func (ms *Messages) AddMessage(message *proto.Message) {
-	ms.Lock()
-	defer ms.Unlock()
+	mux := ms.muxMap[message.Type]
+	mux.Lock()
+	defer mux.Unlock()
 
 	// Get the corresponding height map
 	heightMsgMap := ms.getMessageMap(message.Type)
@@ -48,6 +82,19 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
 	messages[string(message.From)] = message
+
+	ms.eventManager.signalEvent(
+		message.Type,
+		&proto.View{
+			Height: message.View.Height,
+			Round:  message.View.Round,
+		},
+		len(messages),
+	)
+}
+
+func (ms *Messages) Close() {
+	ms.eventManager.close()
 }
 
 // getMessageMap fetches the corresponding message map by type
@@ -93,13 +140,14 @@ func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
 	return messages
 }
 
-// NumMessages returns the number of messages received for the specific type
-func (ms *Messages) NumMessages(
+// numMessages returns the number of messages received for the specific type
+func (ms *Messages) numMessages(
 	view *proto.View,
 	messageType proto.MessageType,
 ) int {
-	ms.RLock()
-	defer ms.RUnlock()
+	mux := ms.muxMap[messageType]
+	mux.RLock()
+	defer mux.RUnlock()
 
 	heightMsgMap := ms.getMessageMap(messageType)
 
@@ -121,9 +169,6 @@ func (ms *Messages) NumMessages(
 // PruneByHeight prunes out all old messages from the message queues
 // by the specified height in the view
 func (ms *Messages) PruneByHeight(view *proto.View) {
-	ms.Lock()
-	defer ms.Unlock()
-
 	possibleMaps := []proto.MessageType{
 		proto.MessageType_PREPREPARE,
 		proto.MessageType_PREPARE,
@@ -133,6 +178,9 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 
 	// Prune out the views from all possible message types
 	for _, messageType := range possibleMaps {
+		mux := ms.muxMap[messageType]
+		mux.Lock()
+
 		messageMap := ms.getMessageMap(messageType)
 
 		// Delete all height maps up until and including the specified
@@ -140,34 +188,8 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 		for height := uint64(0); height <= view.Height; height++ {
 			delete(messageMap, height)
 		}
-	}
-}
 
-// PruneByRound prunes out all old messages from the message queues
-// by the specified round in the view
-func (ms *Messages) PruneByRound(view *proto.View) {
-	ms.Lock()
-	defer ms.Unlock()
-
-	possibleMaps := []proto.MessageType{
-		proto.MessageType_PREPREPARE,
-		proto.MessageType_PREPARE,
-		proto.MessageType_COMMIT,
-		proto.MessageType_ROUND_CHANGE,
-	}
-
-	// Prune out the rounds from all possible message types
-	for _, messageType := range possibleMaps {
-		typeMap := ms.getMessageMap(messageType)
-
-		heightMap, exists := typeMap[view.Height]
-		if exists {
-			// Delete all round maps up until and including the specified
-			// view round
-			for round := uint64(0); round <= view.Round; round++ {
-				delete(heightMap, round)
-			}
-		}
+		mux.Unlock()
 	}
 }
 
@@ -188,17 +210,35 @@ func (ms *Messages) getProtoMessages(
 	return roundMsgMap[view.Round]
 }
 
-// GetMessages fetches all messages of a specific type for the specified view
-func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType) []*proto.Message {
-	ms.Lock()
-	defer ms.Unlock()
+// GetValidMessages fetches all messages of a specific type for the specified view,
+// that pass the validity check; invalid messages are pruned out
+func (ms *Messages) GetValidMessages(
+	view *proto.View,
+	messageType proto.MessageType,
+	isValid func(message *proto.Message) bool,
+) []*proto.Message {
+	mux := ms.muxMap[messageType]
+	mux.Lock()
+	defer mux.Unlock()
 
 	result := make([]*proto.Message, 0)
 
-	if messages := ms.getProtoMessages(view, messageType); messages != nil {
-		for _, message := range messages {
-			result = append(result, message)
+	invalidMessages := make([]string, 0)
+	messages := ms.getProtoMessages(view, messageType)
+
+	for key, message := range messages {
+		if !isValid(message) {
+			invalidMessages = append(invalidMessages, key)
+
+			continue
 		}
+
+		result = append(result, message)
+	}
+
+	// Prune out invalid messages
+	for _, key := range invalidMessages {
+		delete(messages, key)
 	}
 
 	return result
@@ -207,83 +247,79 @@ func (ms *Messages) GetMessages(view *proto.View, messageType proto.MessageType)
 // GetMostRoundChangeMessages fetches most round change messages
 // for the minimum round and above
 func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
-	ms.Lock()
-	defer ms.Unlock()
+	messageType := proto.MessageType_ROUND_CHANGE
 
-	type maxData struct {
-		maxRound        uint64
-		maxMessagesSize int
+	mux := ms.muxMap[messageType]
+	mux.RLock()
+	defer mux.RUnlock()
 
-		found bool
-	}
+	roundMessageMap := ms.getMessageMap(messageType)[height]
 
 	var (
-		data = maxData{
-			maxRound:        0,
-			maxMessagesSize: 0,
-			found:           false,
-		}
-
-		heightMsgMap = ms.getMessageMap(proto.MessageType_ROUND_CHANGE)
+		bestRound              = uint64(0)
+		bestRoundMessagesCount = 0
 	)
 
-	// Find the view with the max round change messages
-	roundMessageMap := heightMsgMap[height]
-
-	for roundIndex, roundMessages := range roundMessageMap {
-		if roundIndex < minRound {
+	for round, msgs := range roundMessageMap {
+		if round < minRound {
 			continue
 		}
 
-		if len(roundMessages) > data.maxMessagesSize || !data.found {
-			data.maxRound = roundIndex
-
-			data.maxMessagesSize = len(roundMessages)
-			data.found = true
+		size := len(msgs)
+		if size > bestRoundMessagesCount {
+			bestRound = round
+			bestRoundMessagesCount = size
 		}
 	}
 
-	roundChangeMessages := make([]*proto.Message, 0)
-
-	if data.found {
-		if messages := ms.getProtoMessages(&proto.View{
-			Height: height,
-			Round:  data.maxRound,
-		}, proto.MessageType_ROUND_CHANGE); messages != nil {
-			for _, message := range messages {
-				roundChangeMessages = append(roundChangeMessages, message)
-			}
-		}
-	}
-
-	return roundChangeMessages
-}
-
-// GetProposal extracts the valid proposal for the specified view
-func (ms *Messages) GetProposal(view *proto.View) []byte {
-	preprepares := ms.GetMessages(view, proto.MessageType_PREPREPARE)
-	if len(preprepares) < 1 {
+	if bestRound == 0 {
+		//	no messages found
 		return nil
 	}
 
-	msg := preprepares[0]
-
-	return msg.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
-}
-
-// GetCommittedSeals extracts the valid committed for the specified view
-func (ms *Messages) GetCommittedSeals(view *proto.View) [][]byte {
-	commitMessages := ms.GetMessages(view, proto.MessageType_COMMIT)
-	if len(commitMessages) < 1 {
-		return nil
+	messages := make([]*proto.Message, 0, bestRoundMessagesCount)
+	for _, msg := range roundMessageMap[bestRound] {
+		messages = append(messages, msg)
 	}
 
+	return messages
+}
+
+// ExtractCommittedSeals extracts the committed seals from the passed in messages
+func ExtractCommittedSeals(commitMessages []*proto.Message) [][]byte {
 	committedSeals := make([][]byte, len(commitMessages))
 
 	for index, commitMessage := range commitMessages {
-		committedSeal := commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
-		committedSeals[index] = committedSeal
+		committedSeals[index] = ExtractCommittedSeal(commitMessage)
 	}
 
 	return committedSeals
+}
+
+// ExtractCommittedSeal extracts the committed seal from the passed in message
+func ExtractCommittedSeal(commitMessage *proto.Message) []byte {
+	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
+
+	return commitData.CommitData.CommittedSeal
+}
+
+// ExtractCommitHash extracts the commit proposal hash from the passed in message
+func ExtractCommitHash(commitMessage *proto.Message) []byte {
+	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
+
+	return commitData.CommitData.ProposalHash
+}
+
+// ExtractProposal extracts the proposal from the passed in message
+func ExtractProposal(proposalMessage *proto.Message) []byte {
+	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
+
+	return preprepareData.PreprepareData.Proposal
+}
+
+// ExtractPrepareHash extracts the prepare proposal hash from the passed in message
+func ExtractPrepareHash(prepareMessage *proto.Message) []byte {
+	prepareData, _ := prepareMessage.Payload.(*proto.Message_PrepareData)
+
+	return prepareData.PrepareData.ProposalHash
 }

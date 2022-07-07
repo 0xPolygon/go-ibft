@@ -100,6 +100,8 @@ func buildBasicRoundChangeMessage(
 // - Node 0 proposes a valid block B
 // - All nodes go through the consensus states to insert the valid block B
 func TestConsensus_ValidFlow(t *testing.T) {
+	t.Parallel()
+
 	var multicastFn func(message *proto.Message)
 
 	proposal := []byte("proposal")
@@ -196,13 +198,35 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			2: commonTransportCallback,
 			3: commonTransportCallback,
 		}
+		logCallbackMap = map[int]loggerConfigCallback{
+			0: func(logger *mockLogger) {
+				logger.infoFn = func(s string, i ...interface{}) {
+					fmt.Printf("[Node 0]: %s\n", s)
+				}
+			},
+			1: func(logger *mockLogger) {
+				logger.infoFn = func(s string, i ...interface{}) {
+					fmt.Printf("[Node 1]: %s\n", s)
+				}
+			},
+			2: func(logger *mockLogger) {
+				logger.infoFn = func(s string, i ...interface{}) {
+					fmt.Printf("[Node 2]: %s\n", s)
+				}
+			},
+			3: func(logger *mockLogger) {
+				logger.infoFn = func(s string, i ...interface{}) {
+					fmt.Printf("[Node 3]: %s\n", s)
+				}
+			},
+		}
 	)
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
 		backendCallbackMap,
-		nil,
+		logCallbackMap,
 		transportCallbackMap,
 	)
 
@@ -213,7 +237,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	}
 
 	// Start the main run loops
-	cluster.runNewRound()
+	cluster.runSequence(1)
 
 	// Wait until the main run loops finish
 	cluster.stop()
@@ -235,6 +259,8 @@ func TestConsensus_ValidFlow(t *testing.T) {
 // - Node 1 proposes a valid block B'
 // - All nodes go through the consensus states to insert the valid block B'
 func TestConsensus_InvalidBlock(t *testing.T) {
+	t.Parallel()
+
 	var multicastFn func(message *proto.Message)
 
 	proposals := [][]byte{
@@ -250,7 +276,6 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	numNodes := 4
 	nodes := generateNodeAddresses(numNodes)
 	insertedBlocks := make([][]byte, numNodes)
-	roundSwitched := false
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
@@ -277,7 +302,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the allowed faulty nodes function is accurate
-		backend.allowedFaultyFn = func() uint64 {
+		backend.maximumFaultyNodesFn = func() uint64 {
 			return maxFaulty(numNodes)
 		}
 
@@ -293,25 +318,10 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			return bytes.Equal(from, nodes[round])
 		}
 
-		backend.buildProposalFn = func(_ uint64) ([]byte, error) {
-			if !roundSwitched {
-				// Node 0 is the proposer for round 0
-				return proposals[0], nil
-			}
-
-			// Node 1 is the proposer for round 1
-			return proposals[1], nil
-		}
-
 		// Make sure the proposal is valid if it matches what node 0 proposed
 		backend.isValidBlockFn = func(newProposal []byte) bool {
-			if !roundSwitched {
-				// Node 0 is the proposer for round 0,
-				// and their proposal is invalid
-				return false
-			}
-
-			// Node 1 is the proposer for round 1
+			// Node 1 is the proposer for round 1,
+			// and their proposal is the only one that's valid
 			return bytes.Equal(newProposal, proposals[1])
 		}
 
@@ -347,9 +357,17 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		backendCallbackMap = map[int]backendConfigCallback{
 			0: func(backend *mockBackend) {
 				commonBackendCallback(backend, 0)
+
+				backend.buildProposalFn = func(_ uint64) ([]byte, error) {
+					return proposals[0], nil
+				}
 			},
 			1: func(backend *mockBackend) {
 				commonBackendCallback(backend, 1)
+
+				backend.buildProposalFn = func(_ uint64) ([]byte, error) {
+					return proposals[1], nil
+				}
 			},
 			2: func(backend *mockBackend) {
 				commonBackendCallback(backend, 2)
@@ -403,7 +421,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	}
 
 	// Start the main run loops
-	cluster.runNewRound()
+	cluster.runSequence(1)
 
 	// Wait until the main run loops finish
 	cluster.stop()
@@ -411,43 +429,8 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	// Make sure the nodes switched to the new round
 	assert.True(t, cluster.areAllNodesOnRound(1))
 
-	// Make sure no blocks were inserted
-	for _, block := range insertedBlocks {
-		assert.True(t, bytes.Equal(block, nil))
-	}
-
-	roundSwitched = true
-
-	// Now that the nodes have switched to a new round,
-	// start the new consensus cycle for round 1
-	cluster.runNewRound()
-
-	// Wait until the main run loops finish
-	cluster.stop()
-
 	// Make sure the inserted blocks match what node 1 proposed
 	for _, block := range insertedBlocks {
 		assert.True(t, bytes.Equal(block, proposals[1]))
 	}
-}
-
-//func TestDummy(t *testing.T) {
-//	for i := 0; i < 500; i++ {
-//		TestConsensus_InvalidBlock(t)
-//		fmt.Printf("\nNEW ROUND %d\n", i+1)
-//	}
-//}
-
-// TestConsensus_Persistence verifies the persistence problem
-// outlined in the following analysis paper:
-// https://arxiv.org/pdf/1901.07160.pdf
-func TestConsensus_Persistence(t *testing.T) {
-	// TODO implement
-}
-
-// TestConsensus_Liveness verifies the liveness problem
-// outlined in the following analysis paper:
-// https://arxiv.org/pdf/1901.07160.pdf
-func TestConsensus_Liveness(t *testing.T) {
-	// TODO implement
 }
