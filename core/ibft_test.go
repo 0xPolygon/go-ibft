@@ -12,8 +12,6 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-//	New Round
-
 func proposalMatches(proposal []byte, message *proto.Message) bool {
 	if message == nil || message.Type != proto.MessageType_PREPREPARE {
 		return false

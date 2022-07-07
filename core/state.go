@@ -32,7 +32,6 @@ func (s stateName) String() (str string) {
 	return
 }
 
-// TODO make sure all fields are cleared when they should be
 type state struct {
 	sync.RWMutex
 
