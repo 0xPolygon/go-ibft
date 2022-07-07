@@ -211,16 +211,15 @@ func (ms *Messages) GetValidMessages(
 
 	invalidMessages := make([]string, 0)
 	messages := ms.getProtoMessages(view, messageType)
-	if messages != nil {
-		for key, message := range messages {
-			if !isValid(message) {
-				invalidMessages = append(invalidMessages, key)
 
-				continue
-			}
+	for key, message := range messages {
+		if !isValid(message) {
+			invalidMessages = append(invalidMessages, key)
 
-			result = append(result, message)
+			continue
 		}
+
+		result = append(result, message)
 	}
 
 	// Prune out invalid messages
@@ -284,20 +283,28 @@ func ExtractCommittedSeals(commitMessages []*proto.Message) [][]byte {
 
 // ExtractCommittedSeal extracts the committed seal from the passed in message
 func ExtractCommittedSeal(commitMessage *proto.Message) []byte {
-	return commitMessage.Payload.(*proto.Message_CommitData).CommitData.CommittedSeal
+	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
+
+	return commitData.CommitData.CommittedSeal
 }
 
 // ExtractCommitHash extracts the commit proposal hash from the passed in message
 func ExtractCommitHash(commitMessage *proto.Message) []byte {
-	return commitMessage.Payload.(*proto.Message_CommitData).CommitData.ProposalHash
+	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
+
+	return commitData.CommitData.ProposalHash
 }
 
 // ExtractProposal extracts the proposal from the passed in message
 func ExtractProposal(proposalMessage *proto.Message) []byte {
-	return proposalMessage.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
+
+	return preprepareData.PreprepareData.Proposal
 }
 
 // ExtractPrepareHash extracts the prepare proposal hash from the passed in message
 func ExtractPrepareHash(prepareMessage *proto.Message) []byte {
-	return prepareMessage.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
+	prepareData, _ := prepareMessage.Payload.(*proto.Message_PrepareData)
+
+	return prepareData.PrepareData.ProposalHash
 }

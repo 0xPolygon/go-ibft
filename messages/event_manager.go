@@ -11,8 +11,6 @@ type eventManager struct {
 	subscriptions     map[SubscriptionID]*eventSubscription
 	subscriptionsLock sync.RWMutex
 	numSubscriptions  int64
-
-	nonce int
 }
 
 func newEventManager() *eventManager {

@@ -17,7 +17,8 @@ func proposalMatches(proposal []byte, message *proto.Message) bool {
 		return false
 	}
 
-	extractedProposal := message.Payload.(*proto.Message_PreprepareData).PreprepareData.Proposal
+	preprepareData, _ := message.Payload.(*proto.Message_PreprepareData)
+	extractedProposal := preprepareData.PreprepareData.Proposal
 
 	return bytes.Equal(proposal, extractedProposal)
 }
@@ -27,7 +28,8 @@ func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
 		return false
 	}
 
-	extractedPrepareHash := message.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
+	prepareData, _ := message.Payload.(*proto.Message_PrepareData)
+	extractedPrepareHash := prepareData.PrepareData.ProposalHash
 
 	return bytes.Equal(prepareHash, extractedPrepareHash)
 }
@@ -37,41 +39,10 @@ func commitHashMatches(commitHash []byte, message *proto.Message) bool {
 		return false
 	}
 
-	extractedCommitHash := message.Payload.(*proto.Message_CommitData).CommitData.ProposalHash
+	commitData, _ := message.Payload.(*proto.Message_CommitData)
+	extractedCommitHash := commitData.CommitData.ProposalHash
 
 	return bytes.Equal(commitHash, extractedCommitHash)
-}
-
-func generatePrepareMessages(count uint64) []*proto.Message {
-	prepares := make([]*proto.Message, count)
-
-	for index := uint64(0); index < count; index++ {
-		prepares[index] = &proto.Message{
-			Payload: &proto.Message_PrepareData{
-				PrepareData: &proto.PrepareMessage{
-					ProposalHash: nil,
-				},
-			},
-		}
-	}
-
-	return prepares
-}
-
-func generateCommitMessages(count uint64) []*proto.Message {
-	commits := make([]*proto.Message, count)
-
-	for index := uint64(0); index < count; index++ {
-		commits[index] = &proto.Message{
-			Payload: &proto.Message_CommitData{
-				CommitData: &proto.CommitMessage{
-					ProposalHash: nil,
-				},
-			},
-		}
-	}
-
-	return commits
 }
 
 func generateRoundChangeMessages(count uint64) []*proto.Message {
@@ -388,7 +359,11 @@ func TestRunNewRound_Validator(t *testing.T) {
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						quitCh <- struct{}{}
 					},
-					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
+					getValidMessagesFn: func(
+						view *proto.View,
+						_ proto.MessageType,
+						isValid func(message *proto.Message) bool,
+					) []*proto.Message {
 						return filterMessages(
 							[]*proto.Message{
 								{
@@ -472,7 +447,11 @@ func TestRunNewRound_Validator(t *testing.T) {
 					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
 						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
 					},
-					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
+					getValidMessagesFn: func(
+						view *proto.View,
+						_ proto.MessageType,
+						isValid func(message *proto.Message) bool,
+					) []*proto.Message {
 						return filterMessages(
 							[]*proto.Message{
 								{
@@ -579,7 +558,11 @@ func TestRunPrepare(t *testing.T) {
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						quitCh <- struct{}{}
 					},
-					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
+					getValidMessagesFn: func(
+						view *proto.View,
+						_ proto.MessageType,
+						isValid func(message *proto.Message) bool,
+					) []*proto.Message {
 						return filterMessages(
 							[]*proto.Message{
 								{
@@ -666,7 +649,11 @@ func TestRunCommit(t *testing.T) {
 					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
 						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
 					},
-					getValidMessagesFn: func(view *proto.View, _ proto.MessageType, isValid func(message *proto.Message) bool) []*proto.Message {
+					getValidMessagesFn: func(
+						view *proto.View,
+						_ proto.MessageType,
+						isValid func(message *proto.Message) bool,
+					) []*proto.Message {
 						return filterMessages(
 							[]*proto.Message{
 								{
@@ -892,8 +879,8 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		quitCh := make(chan struct{})
 
 		wg.Add(1)
+		i.wg.Add(1)
 		go func() {
-			i.wg.Add(1)
 			i.startRoundTimer(0, roundZeroTimeout, quitCh)
 
 			wg.Done()

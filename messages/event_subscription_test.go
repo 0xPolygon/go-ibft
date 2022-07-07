@@ -25,7 +25,9 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 		doneCh:   make(chan struct{}),
 	}
 
-	defer subscription.close()
+	t.Cleanup(func() {
+		subscription.close()
+	})
 
 	type signalDetails struct {
 		messageType   proto.MessageType

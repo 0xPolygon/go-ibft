@@ -127,7 +127,10 @@ func TestMessages_Prune(t *testing.T) {
 	numMessages := 5
 	messageType := proto.MessageType_PREPARE
 	messages := NewMessages()
-	defer messages.Close()
+
+	t.Cleanup(func() {
+		messages.Close()
+	})
 
 	views := make([]*proto.View, 0)
 	for index := uint64(1); index <= 3; index++ {

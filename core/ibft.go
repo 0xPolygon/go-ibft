@@ -78,9 +78,6 @@ type IBFT struct {
 	// wg is a simple barrier used for synchronizing
 	// state modification routines
 	wg sync.WaitGroup
-
-	// roundTimer is the main timer for a single round
-	roundTimer *time.Timer
 }
 
 // NewIBFT creates a new instance of the IBFT consensus protocol
@@ -138,8 +135,6 @@ func (i *IBFT) startRoundTimer(
 		i.log.Info("round timer expired, alerting of change")
 		i.signalRoundChange(round+1, quit)
 	}
-
-	return
 }
 
 // watchForRoundHop checks if there are F+1 Round Change messages
@@ -149,6 +144,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	defer i.wg.Done()
 
 	view := i.state.getView()
+
 	for {
 		// Get the messages from the message queue
 		rcMessages := i.messages.
@@ -177,6 +173,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		case <-quit:
 			// Quit signal received, teardown the worker
 			i.log.Info(fmt.Sprintf("Quitting round hop! Current=%d", view.Round))
+
 			return
 		default:
 		}
@@ -281,6 +278,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		var err error
 
 		i.log.Info(fmt.Sprintf("current state %s", i.state.getStateName()))
+
 		switch i.state.getStateName() {
 		case newRound:
 			err = i.runNewRound(quit)
@@ -289,7 +287,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		case commit:
 			err = i.runCommit(quit)
 		case fin:
-			i.log.Info("fin state")
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
 				// sequence is complete
@@ -301,8 +298,6 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 				return
 			}
-			//case roundChange:
-			//	return
 		}
 
 		if errors.Is(err, errTimeoutExpired) {
@@ -366,9 +361,10 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 
 				if err := i.validateProposal(proposal); err != nil {
 					return err
+				} else {
+					// Correct proposal found
+					break
 				}
-
-				break
 			}
 
 			// Accept the proposal since it's valid
@@ -495,6 +491,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 
 				//	Verify that the committed seal is valid
 				committedSeal := messages.ExtractCommittedSeal(message)
+
 				return i.backend.IsValidCommittedSeal(proposalHash, committedSeal)
 			}
 

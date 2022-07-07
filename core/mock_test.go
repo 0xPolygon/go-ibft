@@ -219,8 +219,11 @@ type mockMessages struct {
 	unsubscribeFn func(id messages.SubscriptionID)
 }
 
-func (m mockMessages) GetValidMessages(view *proto.View, messageType proto.MessageType, isValid func(*proto.Message) bool) []*proto.Message {
-
+func (m mockMessages) GetValidMessages(
+	view *proto.View,
+	messageType proto.MessageType,
+	isValid func(*proto.Message) bool,
+) []*proto.Message {
 	if m.getValidMessagesFn != nil {
 		return m.getValidMessagesFn(view, messageType, isValid)
 	}
@@ -374,10 +377,4 @@ func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
 	}
 
 	return true
-}
-
-// resetRoundStarted resets the round started flag
-// for the specified node
-func (m *mockCluster) resetRoundStarted(nodeIndex int) {
-	m.nodes[nodeIndex].state.setRoundStarted(false)
 }
