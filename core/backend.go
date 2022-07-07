@@ -4,8 +4,8 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-// messageConstructor defines a message constructor interface
-type messageConstructor interface {
+// MessageConstructor defines a message constructor interface
+type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
 	BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message
 
@@ -19,8 +19,8 @@ type messageConstructor interface {
 	BuildRoundChangeMessage(height, round uint64) *proto.Message
 }
 
-// validator defines the validator interface
-type validator interface {
+// Verifier defines the verifier interface
+type Verifier interface {
 	// IsValidBlock checks if the proposed block is child of parent
 	IsValidBlock(block []byte) bool
 
@@ -40,8 +40,8 @@ type validator interface {
 // Backend defines an interface all backend implementations
 // need to implement
 type Backend interface {
-	messageConstructor
-	validator
+	MessageConstructor
+	Verifier
 
 	// BuildProposal builds a new block proposal
 	BuildProposal(blockNumber uint64) ([]byte, error)
