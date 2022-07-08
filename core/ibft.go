@@ -367,7 +367,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 }
 
 //	handleProposal parses the received proposal and performs
-//	a state transition if the proposal is valid
+//	a transition to PREPARE state, if the proposal is valid
 func (i *IBFT) handleProposal(view *proto.View) error {
 	proposal := i.getPrePrepareMessage(view)
 
@@ -415,10 +415,9 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 		quorum = i.backend.Quorum(view.Height)
 
 		// Subscribe to PREPARE messages
-		messageType = proto.MessageType_PREPARE
-		sub         = i.messages.Subscribe(
+		sub = i.messages.Subscribe(
 			messages.Subscription{
-				MessageType: messageType,
+				MessageType: proto.MessageType_PREPARE,
 				View:        view,
 				NumMessages: int(quorum),
 			},
@@ -435,37 +434,48 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-			// Subscription conditions have been met,
-			// grab the prepare messages
-			isValidFn := func(message *proto.Message) bool {
-				// Verify that the proposal hash is valid
-				return i.backend.IsValidProposalHash(
-					i.state.getProposal(),
-					messages.ExtractPrepareHash(message),
-				)
-			}
-
-			prepareMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
-
-			if uint64(len(prepareMessages)) < quorum {
-				//	quorum not reached, keep polling
+			if !i.handlePrepare(view, quorum) {
+				//	quorum of valid prepare messages not received, retry
 				continue
 			}
-
-			// Multicast the COMMIT message
-			i.transport.Multicast(
-				i.backend.BuildCommitMessage(i.state.getProposal(), view),
-			)
-
-			// Make sure the node is locked
-			i.state.setLocked(true)
-
-			// Move to the commit state
-			i.state.setStateName(commit)
 
 			return nil
 		}
 	}
+}
+
+//	handlePrepare parses available prepare messages and performs
+//	a transition to COMMIT state, if quorum was reached
+func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
+	isValidPrepare := func(message *proto.Message) bool {
+		// Verify that the proposal hash is valid
+		return i.backend.IsValidProposalHash(
+			i.state.getProposal(),
+			messages.ExtractPrepareHash(message),
+		)
+	}
+
+	if len(i.messages.GetValidMessages(
+		view,
+		proto.MessageType_PREPARE,
+		isValidPrepare,
+	)) < int(quorum) {
+		//	quorum not reached, keep polling
+		return false
+	}
+
+	// Multicast the COMMIT message
+	i.transport.Multicast(
+		i.backend.BuildCommitMessage(i.state.getProposal(), view),
+	)
+
+	// Make sure the node is locked
+	i.state.setLocked(true)
+
+	// Move to the commit state
+	i.state.setStateName(commit)
+
+	return true
 }
 
 // runCommit runs the Commit IBFT state
