@@ -198,35 +198,13 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			2: commonTransportCallback,
 			3: commonTransportCallback,
 		}
-		logCallbackMap = map[int]loggerConfigCallback{
-			0: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 0]: %s\n", s)
-				}
-			},
-			1: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 1]: %s\n", s)
-				}
-			},
-			2: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 2]: %s\n", s)
-				}
-			},
-			3: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 3]: %s\n", s)
-				}
-			},
-		}
 	)
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
 		backendCallbackMap,
-		logCallbackMap,
+		nil,
 		transportCallbackMap,
 	)
 
@@ -382,35 +360,13 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			2: commonTransportCallback,
 			3: commonTransportCallback,
 		}
-		logCallbackMap = map[int]loggerConfigCallback{
-			0: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 0]: %s\n", s)
-				}
-			},
-			1: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 1]: %s\n", s)
-				}
-			},
-			2: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 2]: %s\n", s)
-				}
-			},
-			3: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 3]: %s\n", s)
-				}
-			},
-		}
 	)
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
 		backendCallbackMap,
-		logCallbackMap,
+		nil,
 		transportCallbackMap,
 	)
 

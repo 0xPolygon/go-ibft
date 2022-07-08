@@ -387,6 +387,8 @@ func (i *IBFT) handlePrePrepare(view *proto.View) error {
 		i.backend.BuildPrepareMessage(proposal, view),
 	)
 
+	i.log.Info("prepare multicasted")
+
 	// Move to the prepare state
 	i.state.setStateName(prepare)
 
@@ -476,6 +478,8 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	i.transport.Multicast(
 		i.backend.BuildCommitMessage(i.state.getProposal(), view),
 	)
+
+	i.log.Info("commit multicasted")
 
 	// Make sure the node is locked
 	i.state.setLocked(true)
