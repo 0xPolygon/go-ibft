@@ -87,10 +87,12 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:       log,
-		backend:   backend,
-		transport: transport,
-		messages:  messages.NewMessages(),
+		log:         log,
+		backend:     backend,
+		transport:   transport,
+		messages:    messages.NewMessages(),
+		roundDone:   make(chan struct{}),
+		roundChange: make(chan uint64),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
@@ -102,8 +104,6 @@ func NewIBFT(
 			locked:       false,
 			name:         newRound,
 		},
-		roundDone:   make(chan struct{}),
-		roundChange: make(chan uint64),
 	}
 }
 
@@ -146,43 +146,61 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	view := i.state.getView()
 
 	for {
-		// Get the messages from the message queue
-		rcMessages := i.messages.
-			GetMostRoundChangeMessages(
-				view.Round+1,
-				view.Height,
-			)
-
-		//	Signal round change if enough round change messages were received
-		if len(rcMessages) >= int(i.backend.MaximumFaultyNodes())+1 {
-			// The round in the Round Change messages should be the highest
-			// round for which there are F+1 RC messages
-			newRound := rcMessages[0].View.Round
-
-			i.log.Info(fmt.Sprintf("round hop detected, alerting of change, current=%d new=%d", view.Round, newRound))
-			i.log.Info(fmt.Sprintf("RH Messages are %v", rcMessages))
-
-			i.signalRoundChange(newRound, quit)
-
-			i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
-
-			return
-		}
-
 		select {
 		case <-quit:
 			// Quit signal received, teardown the worker
-			i.log.Info(fmt.Sprintf("Quitting round hop! Current=%d", view.Round))
-
 			return
 		default:
+			//	quorum of round change messages reached, teardown the worker
+			if i.doRoundHop(view, quit) {
+				i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
+
+				return
+			}
 		}
 	}
 }
 
+//	doRoundHop signals a round change if a quorum of round change messages was received
+func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
+	var (
+		currentRound = view.Round
+		height       = view.Height
+		hopQuorum    = i.backend.MaximumFaultyNodes() + 1
+	)
+
+	// Get round change messages with the highest count from a future round
+	rcMessages := i.messages.GetMostRoundChangeMessages(currentRound+1, height)
+
+	//	Signal round hop if quorum is reached
+	if len(rcMessages) >= int(hopQuorum) {
+		// The round in the Round Change messages should be the highest
+		// round for which there are F+1 RC messages
+		newRound := rcMessages[0].View.Round
+
+		i.log.Info(
+			fmt.Sprintf(
+				"round hop detected, alerting round change, current=%d new=%d",
+				currentRound,
+				newRound,
+			),
+		)
+
+		i.signalRoundChange(newRound, quit)
+
+		return true
+	}
+
+	return false
+}
+
+//	signalRoundChange notifies the sequence routine (runSequence) that it
+//	should move to a new round. The quit channel is used to abort this call
+//	if another routine has already signaled a round change request.
 func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
 	select {
 	case i.roundChange <- round:
+		i.log.Debug("signal round change", "new round", round)
 	case <-quit:
 	}
 }
@@ -192,7 +210,8 @@ func (i *IBFT) runSequence(h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 
-	i.log.Info("sequence started")
+	i.log.Info("sequence started", "height=", h)
+	defer i.log.Info("sequence complete", "height", h)
 
 	for {
 		i.wg.Add(3)
@@ -224,8 +243,6 @@ func (i *IBFT) runSequence(h uint64) {
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
-			i.log.Info("round done received")
-
 			close(quitCh)
 			i.wg.Wait()
 
@@ -253,31 +270,34 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
 	}
 
+	var (
+		id     = i.backend.ID()
+		height = i.state.getHeight()
+		round  = i.state.getRound()
+	)
+
 	// Check if any block needs to be proposed
-	if i.backend.IsProposer(
-		i.backend.ID(),
-		i.state.getHeight(),
-		i.state.getRound(),
-	) {
+	if i.backend.IsProposer(id, height, round) {
 		i.log.Info("we are the proposer")
 
-		// The current node is the proposer, submit the proposal
-		// to other nodes
-		if err := i.proposeBlock(i.state.getHeight()); err != nil {
+		if err := i.proposeBlock(height); err != nil {
 			// Proposal is unable to be submitted, move to the round change state
 			i.log.Info("unable to propose block, alerting of change")
 
-			i.signalRoundChange(i.state.getRound()+1, quit)
+			i.signalRoundChange(round+1, quit)
 
 			return
 		}
 	}
 
+	i.runStates(quit)
+}
+
+//	runStates is the main loop which performs state transitions
+func (i *IBFT) runStates(quit <-chan struct{}) {
+	var err error
+
 	for {
-		var err error
-
-		i.log.Info(fmt.Sprintf("current state %s", i.state.getStateName()))
-
 		switch i.state.getStateName() {
 		case newRound:
 			err = i.runNewRound(quit)
@@ -289,18 +309,14 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
 				// sequence is complete
-				i.log.Info("sending round done")
-
 				i.roundDone <- struct{}{}
-
-				i.log.Info("round done sent")
 
 				return
 			}
 		}
 
 		if errors.Is(err, errTimeoutExpired) {
-			i.log.Info("timeout expired")
+			i.log.Info("round timeout expired")
 
 			return
 		}
@@ -319,15 +335,17 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 // runNewRound runs the New Round IBFT state
 func (i *IBFT) runNewRound(quit <-chan struct{}) error {
+	i.log.Debug("entering: new round")
+	defer i.log.Debug("exiting: new round")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
 
 		// Subscribe for PREPREPARE messages
-		messageType = proto.MessageType_PREPREPARE
-		sub         = i.messages.Subscribe(
+		sub = i.messages.Subscribe(
 			messages.Subscription{
-				MessageType: messageType,
+				MessageType: proto.MessageType_PREPREPARE,
 				View:        view,
 				NumMessages: 1,
 			},
@@ -346,44 +364,57 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the proposal messages
-			var proposal []byte
-
-			isValidFn := func(message *proto.Message) bool {
-				// Verify that the message is indeed from the proposer for this view
-				return i.backend.IsProposer(message.From, view.Height, view.Round)
-			}
-
-			preprepareMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
-			for _, message := range preprepareMessages {
-				// Make sure that the proposer's PREPREPARE proposal is valid
-				proposal = messages.ExtractProposal(message)
-
-				if err := i.validateProposal(proposal); err != nil {
-					return err
-				} else {
-					// Correct proposal found
-					break
-				}
-			}
-
-			// Accept the proposal since it's valid
-			i.acceptProposal(proposal)
-
-			// Multicast the PREPARE message
-			i.transport.Multicast(
-				i.backend.BuildPrepareMessage(proposal, i.state.getView()),
-			)
-
-			// Move to the prepare state
-			i.state.setStateName(prepare)
-
-			return nil
+			return i.handlePrePrepare(view)
 		}
 	}
 }
 
+//	handlePrePrepare parses the received proposal and performs
+//	a transition to PREPARE state, if the proposal is valid
+func (i *IBFT) handlePrePrepare(view *proto.View) error {
+	proposal := i.getPrePrepareMessage(view)
+
+	//	Validate the proposal
+	if err := i.validateProposal(proposal); err != nil {
+		return err
+	}
+
+	// Accept the proposal since it's valid
+	i.acceptProposal(proposal)
+
+	// Multicast the PREPARE message
+	i.transport.Multicast(
+		i.backend.BuildPrepareMessage(proposal, view),
+	)
+
+	i.log.Info("prepare multicasted")
+
+	// Move to the prepare state
+	i.state.setStateName(prepare)
+
+	return nil
+}
+
+func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
+	isValidPrePrepare := func(message *proto.Message) bool {
+		// Verify that the message is indeed from the proposer for this view
+		return i.backend.IsProposer(message.From, view.Height, view.Round)
+	}
+
+	msgs := i.messages.GetValidMessages(
+		view,
+		proto.MessageType_PREPREPARE,
+		isValidPrePrepare,
+	)
+
+	return messages.ExtractProposal(msgs[0])
+}
+
 // runPrepare runs the Prepare IBFT state
 func (i *IBFT) runPrepare(quit <-chan struct{}) error {
+	i.log.Debug("entering: prepare")
+	defer i.log.Debug("exiting: prepare")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -392,10 +423,9 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 		quorum = i.backend.Quorum(view.Height)
 
 		// Subscribe to PREPARE messages
-		messageType = proto.MessageType_PREPARE
-		sub         = i.messages.Subscribe(
+		sub = i.messages.Subscribe(
 			messages.Subscription{
-				MessageType: messageType,
+				MessageType: proto.MessageType_PREPARE,
 				View:        view,
 				NumMessages: int(quorum),
 			},
@@ -412,41 +442,59 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-			// Subscription conditions have been met,
-			// grab the prepare messages
-			isValidFn := func(message *proto.Message) bool {
-				// Verify that the proposal hash is valid
-				return i.backend.IsValidProposalHash(
-					i.state.getProposal(),
-					messages.ExtractPrepareHash(message),
-				)
-			}
-
-			prepareMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
-
-			if uint64(len(prepareMessages)) < quorum {
-				//	quorum not reached, keep polling
+			if !i.handlePrepare(view, quorum) {
+				//	quorum of valid prepare messages not received, retry
 				continue
 			}
-
-			// Multicast the COMMIT message
-			i.transport.Multicast(
-				i.backend.BuildCommitMessage(i.state.getProposal(), view),
-			)
-
-			// Make sure the node is locked
-			i.state.setLocked(true)
-
-			// Move to the commit state
-			i.state.setStateName(commit)
 
 			return nil
 		}
 	}
 }
 
+//	handlePrepare parses available prepare messages and performs
+//	a transition to COMMIT state, if quorum was reached
+func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
+	isValidPrepare := func(message *proto.Message) bool {
+		// Verify that the proposal hash is valid
+		return i.backend.IsValidProposalHash(
+			i.state.getProposal(),
+			messages.ExtractPrepareHash(message),
+		)
+	}
+
+	if len(
+		i.messages.GetValidMessages(
+			view,
+			proto.MessageType_PREPARE,
+			isValidPrepare,
+		),
+	) < int(quorum) {
+		//	quorum not reached, keep polling
+		return false
+	}
+
+	// Multicast the COMMIT message
+	i.transport.Multicast(
+		i.backend.BuildCommitMessage(i.state.getProposal(), view),
+	)
+
+	i.log.Info("commit multicasted")
+
+	// Make sure the node is locked
+	i.state.setLocked(true)
+
+	// Move to the commit state
+	i.state.setStateName(commit)
+
+	return true
+}
+
 // runCommit runs the Commit IBFT state
 func (i *IBFT) runCommit(quit <-chan struct{}) error {
+	i.log.Debug("entering: commit")
+	defer i.log.Debug("exiting: commit")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -455,10 +503,9 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 		quorum = i.backend.Quorum(view.Height)
 
 		// Subscribe to COMMIT messages
-		messageType = proto.MessageType_COMMIT
-		sub         = i.messages.Subscribe(
+		sub = i.messages.Subscribe(
 			messages.Subscription{
-				MessageType: messageType,
+				MessageType: proto.MessageType_COMMIT,
 				View:        view,
 				NumMessages: int(quorum),
 			},
@@ -475,45 +522,55 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-			// Subscription conditions have been met,
-			// grab the commit messages
-			isValidFn := func(message *proto.Message) bool {
-				//	Verify that the proposal hash is valid
-				proposalHash := messages.ExtractCommitHash(message)
-
-				if !i.backend.IsValidProposalHash(
-					i.state.getProposal(),
-					messages.ExtractCommitHash(message),
-				) {
-					return false
-				}
-
-				//	Verify that the committed seal is valid
-				committedSeal := messages.ExtractCommittedSeal(message)
-
-				return i.backend.IsValidCommittedSeal(proposalHash, committedSeal)
-			}
-
-			commitMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
-
-			if uint64(len(commitMessages)) < quorum {
-				//	quorum not reached, keep polling
+			if !i.handleCommit(view, quorum) {
+				//	quorum not reached, retry
 				continue
 			}
-
-			// Set the committed seals
-			i.state.setCommittedSeals(messages.ExtractCommittedSeals(commitMessages))
-
-			//	Move to the fin state
-			i.state.setStateName(fin)
 
 			return nil
 		}
 	}
 }
 
+//	handleCommit parses available commit messages and performs
+//	a transition to FIN state, if quorum was reached
+func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
+	isValidCommit := func(message *proto.Message) bool {
+		var (
+			proposalHash  = messages.ExtractCommitHash(message)
+			committedSeal = messages.ExtractCommittedSeal(message)
+		)
+		//	Verify that the proposal hash is valid
+		if !i.backend.IsValidProposalHash(i.state.getProposal(), proposalHash) {
+			return false
+		}
+
+		//	Verify that the committed seal is valid
+		return i.backend.IsValidCommittedSeal(proposalHash, committedSeal)
+	}
+
+	commitMessages := i.messages.GetValidMessages(view, proto.MessageType_COMMIT, isValidCommit)
+	if len(commitMessages) < int(quorum) {
+		//	quorum not reached, keep polling
+		return false
+	}
+
+	// Set the committed seals
+	i.state.setCommittedSeals(
+		messages.ExtractCommittedSeals(commitMessages),
+	)
+
+	//	Move to the fin state
+	i.state.setStateName(fin)
+
+	return true
+}
+
 // runFin runs the fin state (block insertion)
 func (i *IBFT) runFin() error {
+	i.log.Debug("entering: fin")
+	defer i.log.Debug("exiting: fin")
+
 	// Insert the block to the node's underlying
 	// blockchain layer
 	if err := i.backend.InsertBlock(
@@ -524,14 +581,16 @@ func (i *IBFT) runFin() error {
 	}
 
 	// Remove stale messages
-	view := i.state.getView()
-	i.messages.PruneByHeight(view)
+	i.messages.PruneByHeight(i.state.getView())
 
 	return nil
 }
 
 // runRoundChange runs the Round Change IBFT state
 func (i *IBFT) runRoundChange() {
+	i.log.Debug("entering: round change")
+	defer i.log.Debug("exiting: round change")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -553,13 +612,13 @@ func (i *IBFT) runRoundChange() {
 	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
-	i.log.Info("waiting on round quorum")
+	i.log.Debug("waiting on round quorum")
 
 	// Wait until a quorum of Round Change messages
 	// has been received in order to start the new round
 	<-sub.GetCh()
 
-	i.log.Info("received round quorum")
+	i.log.Debug("received round quorum")
 }
 
 // moveToNewRound moves the state to the new round
