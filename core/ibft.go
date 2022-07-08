@@ -151,7 +151,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 			// Quit signal received, teardown the worker
 			return
 		default:
-			//	quorum on round change messages reached, teardown the worker
+			//	quorum of round change messages reached, teardown the worker
 			if i.doRoundHop(view, quit) {
 				i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
 
@@ -161,7 +161,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 	}
 }
 
-//	doRoundHop signals a round change if a quorum on round change messages was received
+//	doRoundHop signals a round change if a quorum of round change messages was received
 func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 	var (
 		currentRound = view.Round
@@ -178,7 +178,13 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 		// round for which there are F+1 RC messages
 		newRound := rcMessages[0].View.Round
 
-		i.log.Info(fmt.Sprintf("round hop detected, alerting round change, current=%d new=%d", currentRound, newRound))
+		i.log.Info(
+			fmt.Sprintf(
+				"round hop detected, alerting round change, current=%d new=%d",
+				currentRound,
+				newRound,
+			),
+		)
 
 		i.signalRoundChange(newRound, quit)
 
@@ -237,7 +243,6 @@ func (i *IBFT) runSequence(h uint64) {
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
-
 			close(quitCh)
 			i.wg.Wait()
 
@@ -456,11 +461,13 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		)
 	}
 
-	if len(i.messages.GetValidMessages(
-		view,
-		proto.MessageType_PREPARE,
-		isValidPrepare,
-	)) < int(quorum) {
+	if len(
+		i.messages.GetValidMessages(
+			view,
+			proto.MessageType_PREPARE,
+			isValidPrepare,
+		),
+	) < int(quorum) {
 		//	quorum not reached, keep polling
 		return false
 	}
