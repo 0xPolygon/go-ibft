@@ -182,9 +182,6 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 
 		i.log.Info(fmt.Sprintf("round hop detected, alerting of change, current=%d new=%d", view.Round, newRound))
 
-		//	TODO: remove log
-		//i.log.Info(fmt.Sprintf("RH Messages are %v", rcMessages))
-
 		i.signalRoundChange(newRound, quit)
 
 		return true
