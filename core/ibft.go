@@ -87,10 +87,12 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:       log,
-		backend:   backend,
-		transport: transport,
-		messages:  messages.NewMessages(),
+		log:         log,
+		backend:     backend,
+		transport:   transport,
+		messages:    messages.NewMessages(),
+		roundDone:   make(chan struct{}),
+		roundChange: make(chan uint64),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
@@ -102,8 +104,6 @@ func NewIBFT(
 			locked:       false,
 			name:         newRound,
 		},
-		roundDone:   make(chan struct{}),
-		roundChange: make(chan uint64),
 	}
 }
 
@@ -149,8 +149,6 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		select {
 		case <-quit:
 			// Quit signal received, teardown the worker
-			i.log.Info(fmt.Sprintf("Quitting round hop! Current=%d", view.Round))
-
 			return
 		default:
 			//	quorum on round change messages reached, teardown the worker
@@ -166,13 +164,13 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 //	doRoundHop signals a round change if a quorum on round change messages was received
 func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 	var (
-		round     = view.Round
-		height    = view.Height
-		hopQuorum = i.backend.MaximumFaultyNodes() + 1
+		currentRound = view.Round
+		height       = view.Height
+		hopQuorum    = i.backend.MaximumFaultyNodes() + 1
 	)
 
 	// Get round change messages with the highest count from a future round
-	rcMessages := i.messages.GetMostRoundChangeMessages(round+1, height)
+	rcMessages := i.messages.GetMostRoundChangeMessages(currentRound+1, height)
 
 	//	Signal round hop if quorum is reached
 	if len(rcMessages) >= int(hopQuorum) {
@@ -180,7 +178,7 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 		// round for which there are F+1 RC messages
 		newRound := rcMessages[0].View.Round
 
-		i.log.Info(fmt.Sprintf("round hop detected, alerting of change, current=%d new=%d", view.Round, newRound))
+		i.log.Info(fmt.Sprintf("round hop detected, alerting round change, current=%d new=%d", currentRound, newRound))
 
 		i.signalRoundChange(newRound, quit)
 
@@ -196,6 +194,7 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
 	select {
 	case i.roundChange <- round:
+		i.log.Debug("signal round change", "new round", round)
 	case <-quit:
 	}
 }
@@ -205,7 +204,8 @@ func (i *IBFT) runSequence(h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 
-	i.log.Info("sequence started")
+	i.log.Info("sequence started", "height=", h)
+	defer i.log.Info("sequence complete", "height", h)
 
 	for {
 		i.wg.Add(3)
@@ -237,7 +237,6 @@ func (i *IBFT) runSequence(h uint64) {
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
-			i.log.Info("round done received")
 
 			close(quitCh)
 			i.wg.Wait()
@@ -305,18 +304,14 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
 				// sequence is complete
-				i.log.Info("sending round done")
-
 				i.roundDone <- struct{}{}
-
-				i.log.Info("round done sent")
 
 				return
 			}
 		}
 
 		if errors.Is(err, errTimeoutExpired) {
-			i.log.Info("timeout expired")
+			i.log.Info("round timeout expired")
 
 			return
 		}
@@ -335,6 +330,9 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 
 // runNewRound runs the New Round IBFT state
 func (i *IBFT) runNewRound(quit <-chan struct{}) error {
+	i.log.Debug("entering: new round")
+	defer i.log.Debug("exiting: new round")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -407,6 +405,9 @@ func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
 
 // runPrepare runs the Prepare IBFT state
 func (i *IBFT) runPrepare(quit <-chan struct{}) error {
+	i.log.Debug("entering: prepare")
+	defer i.log.Debug("exiting: prepare")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -480,6 +481,9 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 
 // runCommit runs the Commit IBFT state
 func (i *IBFT) runCommit(quit <-chan struct{}) error {
+	i.log.Debug("entering: commit")
+	defer i.log.Debug("exiting: commit")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -553,6 +557,9 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 
 // runFin runs the fin state (block insertion)
 func (i *IBFT) runFin() error {
+	i.log.Debug("entering: fin")
+	defer i.log.Debug("exiting: fin")
+
 	// Insert the block to the node's underlying
 	// blockchain layer
 	if err := i.backend.InsertBlock(
@@ -570,6 +577,9 @@ func (i *IBFT) runFin() error {
 
 // runRoundChange runs the Round Change IBFT state
 func (i *IBFT) runRoundChange() {
+	i.log.Debug("entering: round change")
+	defer i.log.Debug("exiting: round change")
+
 	var (
 		// Grab the current view
 		view = i.state.getView()
@@ -591,13 +601,13 @@ func (i *IBFT) runRoundChange() {
 	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
-	i.log.Info("waiting on round quorum")
+	i.log.Debug("waiting on round quorum")
 
 	// Wait until a quorum of Round Change messages
 	// has been received in order to start the new round
 	<-sub.GetCh()
 
-	i.log.Info("received round quorum")
+	i.log.Debug("received round quorum")
 }
 
 // moveToNewRound moves the state to the new round
