@@ -563,8 +563,7 @@ func (i *IBFT) runFin() error {
 	}
 
 	// Remove stale messages
-	view := i.state.getView()
-	i.messages.PruneByHeight(view)
+	i.messages.PruneByHeight(i.state.getView())
 
 	return nil
 }
