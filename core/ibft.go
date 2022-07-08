@@ -488,10 +488,9 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 		quorum = i.backend.Quorum(view.Height)
 
 		// Subscribe to COMMIT messages
-		messageType = proto.MessageType_COMMIT
-		sub         = i.messages.Subscribe(
+		sub = i.messages.Subscribe(
 			messages.Subscription{
-				MessageType: messageType,
+				MessageType: proto.MessageType_COMMIT,
 				View:        view,
 				NumMessages: int(quorum),
 			},
@@ -508,41 +507,48 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-			// Subscription conditions have been met,
-			// grab the commit messages
-			isValidFn := func(message *proto.Message) bool {
-				//	Verify that the proposal hash is valid
-				proposalHash := messages.ExtractCommitHash(message)
-
-				if !i.backend.IsValidProposalHash(
-					i.state.getProposal(),
-					messages.ExtractCommitHash(message),
-				) {
-					return false
-				}
-
-				//	Verify that the committed seal is valid
-				committedSeal := messages.ExtractCommittedSeal(message)
-
-				return i.backend.IsValidCommittedSeal(proposalHash, committedSeal)
-			}
-
-			commitMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
-
-			if uint64(len(commitMessages)) < quorum {
-				//	quorum not reached, keep polling
+			if !i.handleCommit(view, quorum) {
+				//	quorum not reached, retry
 				continue
 			}
-
-			// Set the committed seals
-			i.state.setCommittedSeals(messages.ExtractCommittedSeals(commitMessages))
-
-			//	Move to the fin state
-			i.state.setStateName(fin)
 
 			return nil
 		}
 	}
+}
+
+//	handleCommit parses available commit messages and performs
+//	a transition to FIN state, if quorum was reached
+func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
+	isValidCommit := func(message *proto.Message) bool {
+		var (
+			proposalHash  = messages.ExtractCommitHash(message)
+			committedSeal = messages.ExtractCommittedSeal(message)
+		)
+		//	Verify that the proposal hash is valid
+		if !i.backend.IsValidProposalHash(i.state.getProposal(), proposalHash) {
+			return false
+		}
+
+		//	Verify that the committed seal is valid
+		return i.backend.IsValidCommittedSeal(proposalHash, committedSeal)
+	}
+
+	commitMessages := i.messages.GetValidMessages(view, proto.MessageType_COMMIT, isValidCommit)
+	if len(commitMessages) < int(quorum) {
+		//	quorum not reached, keep polling
+		return false
+	}
+
+	// Set the committed seals
+	i.state.setCommittedSeals(
+		messages.ExtractCommittedSeals(commitMessages),
+	)
+
+	//	Move to the fin state
+	i.state.setStateName(fin)
+
+	return true
 }
 
 // runFin runs the fin state (block insertion)
