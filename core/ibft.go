@@ -266,31 +266,34 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
 	}
 
+	var (
+		id     = i.backend.ID()
+		height = i.state.getHeight()
+		round  = i.state.getRound()
+	)
+
 	// Check if any block needs to be proposed
-	if i.backend.IsProposer(
-		i.backend.ID(),
-		i.state.getHeight(),
-		i.state.getRound(),
-	) {
+	if i.backend.IsProposer(id, height, round) {
 		i.log.Info("we are the proposer")
 
-		// The current node is the proposer, submit the proposal
-		// to other nodes
-		if err := i.proposeBlock(i.state.getHeight()); err != nil {
+		if err := i.proposeBlock(height); err != nil {
 			// Proposal is unable to be submitted, move to the round change state
 			i.log.Info("unable to propose block, alerting of change")
 
-			i.signalRoundChange(i.state.getRound()+1, quit)
+			i.signalRoundChange(round+1, quit)
 
 			return
 		}
 	}
 
+	i.runStates(quit)
+}
+
+//	runStates is the main loop which performs state transitions
+func (i *IBFT) runStates(quit <-chan struct{}) {
+	var err error
+
 	for {
-		var err error
-
-		i.log.Info(fmt.Sprintf("current state %s", i.state.getStateName()))
-
 		switch i.state.getStateName() {
 		case newRound:
 			err = i.runNewRound(quit)
