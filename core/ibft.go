@@ -361,14 +361,14 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the proposal messages
-			return i.handleProposal(view)
+			return i.handlePrePrepare(view)
 		}
 	}
 }
 
-//	handleProposal parses the received proposal and performs
+//	handlePrePrepare parses the received proposal and performs
 //	a transition to PREPARE state, if the proposal is valid
-func (i *IBFT) handleProposal(view *proto.View) error {
+func (i *IBFT) handlePrePrepare(view *proto.View) error {
 	proposal := i.getPrePrepareMessage(view)
 
 	//	Validate the proposal
