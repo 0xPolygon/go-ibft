@@ -340,10 +340,9 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		view = i.state.getView()
 
 		// Subscribe for PREPREPARE messages
-		messageType = proto.MessageType_PREPREPARE
-		sub         = i.messages.Subscribe(
+		sub = i.messages.Subscribe(
 			messages.Subscription{
-				MessageType: messageType,
+				MessageType: proto.MessageType_PREPREPARE,
 				View:        view,
 				NumMessages: 1,
 			},
@@ -362,40 +361,48 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 		case <-sub.GetCh():
 			// Subscription conditions have been met,
 			// grab the proposal messages
-			var proposal []byte
-
-			isValidFn := func(message *proto.Message) bool {
-				// Verify that the message is indeed from the proposer for this view
-				return i.backend.IsProposer(message.From, view.Height, view.Round)
-			}
-
-			preprepareMessages := i.messages.GetValidMessages(view, messageType, isValidFn)
-			for _, message := range preprepareMessages {
-				// Make sure that the proposer's PREPREPARE proposal is valid
-				proposal = messages.ExtractProposal(message)
-
-				if err := i.validateProposal(proposal); err != nil {
-					return err
-				} else {
-					// Correct proposal found
-					break
-				}
-			}
-
-			// Accept the proposal since it's valid
-			i.acceptProposal(proposal)
-
-			// Multicast the PREPARE message
-			i.transport.Multicast(
-				i.backend.BuildPrepareMessage(proposal, i.state.getView()),
-			)
-
-			// Move to the prepare state
-			i.state.setStateName(prepare)
-
-			return nil
+			return i.handleProposal(view)
 		}
 	}
+}
+
+//	handleProposal parses the received proposal and performs
+//	a state transition if the proposal is valid
+func (i *IBFT) handleProposal(view *proto.View) error {
+	proposal := i.getPrePrepareMessage(view)
+
+	//	Validate the proposal
+	if err := i.validateProposal(proposal); err != nil {
+		return err
+	}
+
+	// Accept the proposal since it's valid
+	i.acceptProposal(proposal)
+
+	// Multicast the PREPARE message
+	i.transport.Multicast(
+		i.backend.BuildPrepareMessage(proposal, view),
+	)
+
+	// Move to the prepare state
+	i.state.setStateName(prepare)
+
+	return nil
+}
+
+func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
+	isValidPrePrepare := func(message *proto.Message) bool {
+		// Verify that the message is indeed from the proposer for this view
+		return i.backend.IsProposer(message.From, view.Height, view.Round)
+	}
+
+	msgs := i.messages.GetValidMessages(
+		view,
+		proto.MessageType_PREPREPARE,
+		isValidPrePrepare,
+	)
+
+	return messages.ExtractProposal(msgs[0])
 }
 
 // runPrepare runs the Prepare IBFT state
