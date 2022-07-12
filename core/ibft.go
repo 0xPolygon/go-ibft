@@ -1,5 +1,7 @@
 package core
 
+//TODO Delete this before merge
+
 import (
 	"bytes"
 	"errors"
