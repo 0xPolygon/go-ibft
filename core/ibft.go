@@ -153,7 +153,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 		default:
 			//	quorum of round change messages reached, teardown the worker
 			if i.doRoundHop(view, quit) {
-				i.log.Info(fmt.Sprintf("Quitting round hop after signal! Current=%d", view.Round))
+				i.log.Debug("quitting round after signal", "round", view.Round)
 
 				return
 			}
@@ -210,7 +210,7 @@ func (i *IBFT) RunSequence(h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 
-	i.log.Info("sequence started", "height=", h)
+	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence complete", "height", h)
 
 	for {
@@ -267,7 +267,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 		i.state.setStateName(newRound)
 		i.state.setRoundStarted(true)
 
-		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
+		i.log.Info("round started", "round", i.state.getRound())
 	}
 
 	var (
@@ -282,7 +282,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 		if err := i.proposeBlock(height); err != nil {
 			// Proposal is unable to be submitted, move to the round change state
-			i.log.Info("unable to propose block, alerting of change")
+			i.log.Error("unable to propose block, alerting of round change")
 
 			i.signalRoundChange(round+1, quit)
 
@@ -324,7 +324,11 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 		if err != nil {
 			// There was a critical consensus error (or timeout) during
 			// state execution, move to the round change state
-			i.log.Info(fmt.Sprintf("error during state processing: %v", err))
+			i.log.Error(
+				"error during state processing",
+				"state", i.state.getStateName().String(),
+				"err", err,
+			)
 
 			i.signalRoundChange(i.state.getRound()+1, quit)
 
@@ -335,8 +339,8 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 
 // runNewRound runs the New Round IBFT state
 func (i *IBFT) runNewRound(quit <-chan struct{}) error {
-	i.log.Debug("entering: new round")
-	defer i.log.Debug("exiting: new round")
+	i.log.Debug("enter: new round state")
+	defer i.log.Debug("exit: new round state")
 
 	var (
 		// Grab the current view
@@ -387,7 +391,7 @@ func (i *IBFT) handlePrePrepare(view *proto.View) error {
 		i.backend.BuildPrepareMessage(proposal, view),
 	)
 
-	i.log.Info("prepare multicasted")
+	i.log.Debug("prepare message multicasted")
 
 	// Move to the prepare state
 	i.state.setStateName(prepare)
@@ -412,8 +416,8 @@ func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
 
 // runPrepare runs the Prepare IBFT state
 func (i *IBFT) runPrepare(quit <-chan struct{}) error {
-	i.log.Debug("entering: prepare")
-	defer i.log.Debug("exiting: prepare")
+	i.log.Debug("enter: prepare state")
+	defer i.log.Debug("exit: prepare state")
 
 	var (
 		// Grab the current view
@@ -479,7 +483,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		i.backend.BuildCommitMessage(i.state.getProposal(), view),
 	)
 
-	i.log.Info("commit multicasted")
+	i.log.Debug("commit message multicasted")
 
 	// Make sure the node is locked
 	i.state.setLocked(true)
@@ -492,8 +496,8 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 
 // runCommit runs the Commit IBFT state
 func (i *IBFT) runCommit(quit <-chan struct{}) error {
-	i.log.Debug("entering: commit")
-	defer i.log.Debug("exiting: commit")
+	i.log.Debug("enter: commit state")
+	defer i.log.Debug("exit: commit state")
 
 	var (
 		// Grab the current view
@@ -568,8 +572,8 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 
 // runFin runs the fin state (block insertion)
 func (i *IBFT) runFin() error {
-	i.log.Debug("entering: fin")
-	defer i.log.Debug("exiting: fin")
+	i.log.Debug("enter: fin state")
+	defer i.log.Debug("exit: fin state")
 
 	// Insert the block to the node's underlying
 	// blockchain layer
@@ -588,8 +592,8 @@ func (i *IBFT) runFin() error {
 
 // runRoundChange runs the Round Change IBFT state
 func (i *IBFT) runRoundChange() {
-	i.log.Debug("entering: round change")
-	defer i.log.Debug("exiting: round change")
+	i.log.Debug("enter: round change state")
+	defer i.log.Debug("exit: round change state")
 
 	var (
 		// Grab the current view
@@ -612,13 +616,13 @@ func (i *IBFT) runRoundChange() {
 	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
-	i.log.Debug("waiting on round quorum")
+	i.log.Debug("waiting on quorum of round change messages")
 
 	// Wait until a quorum of Round Change messages
 	// has been received in order to start the new round
 	<-sub.GetCh()
 
-	i.log.Debug("received round quorum")
+	i.log.Debug("received quorum of round change messages")
 }
 
 // moveToNewRound moves the state to the new round
@@ -647,7 +651,11 @@ func (i *IBFT) moveToNewRoundWithRC(round uint64) {
 		),
 	)
 
-	i.log.Info(fmt.Sprintf("multicasted RC round=%d height=%d", round, i.state.getHeight()))
+	i.log.Info(
+		"round change message multicasted",
+		"sequence", i.state.getHeight(),
+		"round", round,
+	)
 }
 
 // buildProposal builds a new proposal
@@ -672,19 +680,19 @@ func (i *IBFT) proposeBlock(height uint64) error {
 	}
 
 	i.acceptProposal(proposal)
-	i.log.Info("proposal accepted")
+	i.log.Debug("block proposal accepted")
 
 	i.transport.Multicast(
 		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
 	)
 
-	i.log.Info("proposal multicasted")
+	i.log.Debug("pre-prepare message multicasted")
 
 	i.transport.Multicast(
 		i.backend.BuildPrepareMessage(proposal, i.state.getView()),
 	)
 
-	i.log.Info("prepare multicasted")
+	i.log.Debug("prepare message multicasted")
 
 	return nil
 }
