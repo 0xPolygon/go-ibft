@@ -205,8 +205,8 @@ func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
 	}
 }
 
-// runSequence runs the consensus cycle for the specified block height
-func (i *IBFT) runSequence(h uint64) {
+// RunSequence runs the consensus cycle for the specified block height
+func (i *IBFT) RunSequence(h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 
