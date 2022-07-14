@@ -346,7 +346,7 @@ func (m *mockCluster) runSequence(height uint64) {
 			}()
 
 			// Start the main run loop for the node
-			node.runSequence(height)
+			node.RunSequence(height)
 		}(node, height)
 	}
 }

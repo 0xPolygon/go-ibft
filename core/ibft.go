@@ -194,7 +194,7 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 	return false
 }
 
-//	signalRoundChange notifies the sequence routine (runSequence) that it
+//	signalRoundChange notifies the sequence routine (RunSequence) that it
 //	should move to a new round. The quit channel is used to abort this call
 //	if another routine has already signaled a round change request.
 func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
