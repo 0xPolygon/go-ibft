@@ -636,7 +636,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setProposal(nil)
 	i.state.setStateName(roundChange)
 
-	i.log.Info("moved to new round", round)
+	i.log.Info("moved to new round", "round", round)
 }
 
 // moveToNewRoundWithRC moves the state to the new round change
