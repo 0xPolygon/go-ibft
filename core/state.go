@@ -5,17 +5,17 @@ import (
 	"sync"
 )
 
-type stateName int
+type stateType int
 
 const (
-	newRound stateName = iota
+	newRound stateType = iota
 	prepare
 	commit
 	roundChange
 	fin
 )
 
-func (s stateName) String() (str string) {
+func (s stateType) String() (str string) {
 	switch s {
 	case newRound:
 		str = "new round"
@@ -47,7 +47,7 @@ type state struct {
 	//	flags for different states
 	roundStarted, locked bool
 
-	name stateName
+	name stateType
 }
 
 func (s *state) getView() *proto.View {
@@ -118,7 +118,7 @@ func (s *state) isLocked() bool {
 	return s.locked
 }
 
-func (s *state) getStateName() stateName {
+func (s *state) getStateName() stateType {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -132,7 +132,7 @@ func (s *state) setLocked(locked bool) {
 	s.locked = locked
 }
 
-func (s *state) setStateName(name stateName) {
+func (s *state) setStateName(name stateType) {
 	s.Lock()
 	defer s.Unlock()
 
