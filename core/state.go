@@ -35,7 +35,7 @@ func (s stateType) String() (str string) {
 type state struct {
 	sync.RWMutex
 
-	//	current view (block height, round)
+	//	current view (sequence, round)
 	view *proto.View
 
 	//	block proposal for current round
