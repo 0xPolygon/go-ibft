@@ -322,7 +322,7 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 		}
 
 		if err != nil {
-			// There was a critical consensus error (or timeout) during
+			// There was a critical consensus error during
 			// state execution, move to the round change state
 			i.log.Info(fmt.Sprintf("error during state processing: %v", err))
 
