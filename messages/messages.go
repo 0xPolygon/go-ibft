@@ -186,7 +186,7 @@ func (ms *Messages) GetValidMessages(
 	mux.Lock()
 	defer mux.Unlock()
 
-	result := make([]*proto.Message, 0)
+	validMessages := make([]*proto.Message, 0)
 
 	invalidMessages := make([]string, 0)
 	messages := ms.getProtoMessages(view, messageType)
@@ -198,7 +198,7 @@ func (ms *Messages) GetValidMessages(
 			continue
 		}
 
-		result = append(result, message)
+		validMessages = append(validMessages, message)
 	}
 
 	// Prune out invalid messages
@@ -206,7 +206,7 @@ func (ms *Messages) GetValidMessages(
 		delete(messages, key)
 	}
 
-	return result
+	return validMessages
 }
 
 // GetMostRoundChangeMessages fetches most round change messages
