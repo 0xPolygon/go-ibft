@@ -148,8 +148,10 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 
 		// Delete all height maps up until and including the specified
 		// view height
-		for height := uint64(0); height <= view.Height; height++ {
-			delete(messageMap, height)
+		for height := range messageMap {
+			if height <= view.Height {
+				delete(messageMap, height)
+			}
 		}
 
 		mux.Unlock()
