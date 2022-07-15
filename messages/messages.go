@@ -188,12 +188,12 @@ func (ms *Messages) GetValidMessages(
 
 	validMessages := make([]*proto.Message, 0)
 
-	invalidMessages := make([]string, 0)
+	invalidMessageKeys := make([]string, 0)
 	messages := ms.getProtoMessages(view, messageType)
 
 	for key, message := range messages {
 		if !isValid(message) {
-			invalidMessages = append(invalidMessages, key)
+			invalidMessageKeys = append(invalidMessageKeys, key)
 
 			continue
 		}
@@ -202,7 +202,7 @@ func (ms *Messages) GetValidMessages(
 	}
 
 	// Prune out invalid messages
-	for _, key := range invalidMessages {
+	for _, key := range invalidMessageKeys {
 		delete(messages, key)
 	}
 
