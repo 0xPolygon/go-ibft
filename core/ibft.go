@@ -264,7 +264,7 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 
 	if !i.state.isRoundStarted() {
 		// Round is not yet started, kick the round off
-		i.state.setStateName(newRound)
+		i.state.changeState(newRound)
 		i.state.setRoundStarted(true)
 
 		i.log.Info(fmt.Sprintf("round started: %d", i.state.getRound()))
@@ -390,7 +390,7 @@ func (i *IBFT) handlePrePrepare(view *proto.View) error {
 	i.log.Info("prepare multicasted")
 
 	// Move to the prepare state
-	i.state.setStateName(prepare)
+	i.state.changeState(prepare)
 
 	return nil
 }
@@ -485,7 +485,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	i.state.setLocked(true)
 
 	// Move to the commit state
-	i.state.setStateName(commit)
+	i.state.changeState(commit)
 
 	return true
 }
@@ -561,7 +561,7 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 	)
 
 	//	Move to the fin state
-	i.state.setStateName(fin)
+	i.state.changeState(fin)
 
 	return true
 }
@@ -630,7 +630,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 
 	i.state.setRoundStarted(false)
 	i.state.setProposal(nil)
-	i.state.setStateName(roundChange)
+	i.state.changeState(roundChange)
 
 	i.log.Info("moved to new round", round)
 }
@@ -710,7 +710,7 @@ func (i *IBFT) validateProposal(newProposal []byte) error {
 func (i *IBFT) acceptProposal(proposal []byte) {
 	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposal(proposal)
-	i.state.setStateName(prepare)
+	i.state.changeState(prepare)
 }
 
 // AddMessage adds a new message to the IBFT message system

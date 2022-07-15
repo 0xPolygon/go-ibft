@@ -132,7 +132,7 @@ func (s *state) setLocked(locked bool) {
 	s.locked = locked
 }
 
-func (s *state) setStateName(name stateType) {
+func (s *state) changeState(name stateType) {
 	s.Lock()
 	defer s.Unlock()
 
