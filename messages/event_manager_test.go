@@ -10,8 +10,8 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 	t.Parallel()
 
 	numSubscriptions := 10
-	subscriptions := make([]*SubscribeResult, numSubscriptions)
-	baseDetails := Subscription{
+	subscriptions := make([]*Subscription, numSubscriptions)
+	baseDetails := SubscriptionDetails{
 		MessageType: proto.MessageType_PREPARE,
 		View: &proto.View{
 			Height: 0,
@@ -70,8 +70,8 @@ func TestEventManager_SubscribeClose(t *testing.T) {
 	t.Parallel()
 
 	numSubscriptions := 10
-	subscriptions := make([]*SubscribeResult, numSubscriptions)
-	baseDetails := Subscription{
+	subscriptions := make([]*Subscription, numSubscriptions)
+	baseDetails := SubscriptionDetails{
 		MessageType: proto.MessageType_PREPARE,
 		View: &proto.View{
 			Height: 0,
@@ -97,7 +97,7 @@ func TestEventManager_SubscribeClose(t *testing.T) {
 	// Check if the subscription channels are closed
 	for indx, subscription := range subscriptions {
 		if _, more := <-subscription.GetCh(); more {
-			t.Fatalf("Subscription channel not closed for index %d", indx)
+			t.Fatalf("SubscriptionDetails channel not closed for index %d", indx)
 		}
 	}
 }

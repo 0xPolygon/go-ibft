@@ -32,7 +32,7 @@ type Messages struct {
 }
 
 // Subscribe creates a new message type subscription
-func (ms *Messages) Subscribe(details Subscription) *SubscribeResult {
+func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 	// Create the subscription
 	subscription := ms.eventManager.subscribe(details)
 

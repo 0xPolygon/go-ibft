@@ -34,7 +34,7 @@ type Messages interface {
 
 	// Messages subscription handlers //
 
-	Subscribe(details messages.Subscription) *messages.SubscribeResult
+	Subscribe(details messages.SubscriptionDetails) *messages.Subscription
 	Unsubscribe(id messages.SubscriptionID)
 }
 
@@ -344,7 +344,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 
 		// Subscribe for PREPREPARE messages
 		sub = i.messages.Subscribe(
-			messages.Subscription{
+			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPREPARE,
 				View:        view,
 				NumMessages: 1,
@@ -362,7 +362,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-			// Subscription conditions have been met,
+			// SubscriptionDetails conditions have been met,
 			// grab the proposal messages
 			return i.handlePrePrepare(view)
 		}
@@ -424,7 +424,7 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 
 		// Subscribe to PREPARE messages
 		sub = i.messages.Subscribe(
-			messages.Subscription{
+			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPARE,
 				View:        view,
 				NumMessages: int(quorum),
@@ -504,7 +504,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 
 		// Subscribe to COMMIT messages
 		sub = i.messages.Subscribe(
-			messages.Subscription{
+			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_COMMIT,
 				View:        view,
 				NumMessages: int(quorum),
@@ -600,7 +600,7 @@ func (i *IBFT) runRoundChange() {
 
 		// Subscribe to ROUND CHANGE messages
 		sub = i.messages.Subscribe(
-			messages.Subscription{
+			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_ROUND_CHANGE,
 				View:        view,
 				NumMessages: int(quorum),

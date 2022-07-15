@@ -215,7 +215,7 @@ type mockMessages struct {
 	) []*proto.Message
 	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.Message
 
-	subscribeFn   func(details messages.Subscription) *messages.SubscribeResult
+	subscribeFn   func(details messages.SubscriptionDetails) *messages.Subscription
 	unsubscribeFn func(id messages.SubscriptionID)
 }
 
@@ -231,7 +231,7 @@ func (m mockMessages) GetValidMessages(
 	return nil
 }
 
-func (m mockMessages) Subscribe(details messages.Subscription) *messages.SubscribeResult {
+func (m mockMessages) Subscribe(details messages.SubscriptionDetails) *messages.Subscription {
 	if m.subscribeFn != nil {
 		return m.subscribeFn(details)
 	}

@@ -318,7 +318,7 @@ func TestMessages_EventManager(t *testing.T) {
 	}
 
 	// Create the subscription
-	subscription := messages.Subscribe(Subscription{
+	subscription := messages.Subscribe(SubscriptionDetails{
 		MessageType: messageType,
 		View:        baseView,
 		NumMessages: numMessages,

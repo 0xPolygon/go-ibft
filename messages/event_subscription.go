@@ -8,7 +8,7 @@ type SubscriptionID int32
 
 type eventSubscription struct {
 	// details contains the details of the event subscription
-	details Subscription
+	details SubscriptionDetails
 
 	// outputCh is the update channel for the subscriber
 	outputCh chan struct{}

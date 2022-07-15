@@ -126,10 +126,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
+					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						quitCh <- struct{}{}
 
-						return messages.NewSubscribeResult(messages.SubscriptionID(1), make(chan struct{}))
+						return messages.NewSubscription(messages.SubscriptionID(1), make(chan struct{}))
 					},
 				}
 			)
@@ -267,10 +267,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
+					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						quitCh <- struct{}{}
 
-						return messages.NewSubscribeResult(messages.SubscriptionID(1), make(chan struct{}))
+						return messages.NewSubscription(messages.SubscriptionID(1), make(chan struct{}))
 					},
 				}
 			)
@@ -353,8 +353,8 @@ func TestRunNewRound_Validator(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
-						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
+					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						quitCh <- struct{}{}
@@ -444,8 +444,8 @@ func TestRunNewRound_Validator(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
-						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
+					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
 					getValidMessagesFn: func(
 						view *proto.View,
@@ -552,8 +552,8 @@ func TestRunPrepare(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
-						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
+					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						quitCh <- struct{}{}
@@ -646,8 +646,8 @@ func TestRunCommit(t *testing.T) {
 					},
 				}
 				messages = mockMessages{
-					subscribeFn: func(_ messages.Subscription) *messages.SubscribeResult {
-						return messages.NewSubscribeResult(messages.SubscriptionID(1), notifyCh)
+					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
 					getValidMessagesFn: func(
 						view *proto.View,
