@@ -6,16 +6,6 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-// heightMessageMap maps the height number -> round message map
-type heightMessageMap map[uint64]roundMessageMap
-
-// roundMessageMap maps the round number -> messages
-type roundMessageMap map[uint64]protoMessages
-
-// protoMessages is the set of messages that circulate.
-// It contains a mapping between the sender and their messages to avoid duplicates
-type protoMessages map[string]*proto.Message
-
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
 	// manager for incoming message events
@@ -111,33 +101,6 @@ func (ms *Messages) getMessageMap(messageType proto.MessageType) heightMessageMa
 	}
 
 	return nil
-}
-
-// getViewMessages fetches the message queue for the specified view (height + round).
-// It will initialize a new message array if it's not found
-func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
-	var (
-		height = view.Height
-		round  = view.Round
-	)
-
-	// Check if the height is present
-	roundMessages, exists := m[height]
-	if !exists {
-		roundMessages = roundMessageMap{}
-
-		m[height] = roundMessages
-	}
-
-	// Check if the round is present
-	messages, exists := roundMessages[round]
-	if !exists {
-		messages = protoMessages{}
-
-		roundMessages[round] = messages
-	}
-
-	return messages
 }
 
 // numMessages returns the number of messages received for the specific type
@@ -280,6 +243,43 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto
 	messages := make([]*proto.Message, 0, bestRoundMessagesCount)
 	for _, msg := range roundMessageMap[bestRound] {
 		messages = append(messages, msg)
+	}
+
+	return messages
+}
+
+// heightMessageMap maps the height number -> round message map
+type heightMessageMap map[uint64]roundMessageMap
+
+// roundMessageMap maps the round number -> messages
+type roundMessageMap map[uint64]protoMessages
+
+// protoMessages is the set of messages that circulate.
+// It contains a mapping between the sender and their messages to avoid duplicates
+type protoMessages map[string]*proto.Message
+
+// getViewMessages fetches the message queue for the specified view (height + round).
+// It will initialize a new message array if it's not found
+func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
+	var (
+		height = view.Height
+		round  = view.Round
+	)
+
+	// Check if the height is present
+	roundMessages, exists := m[height]
+	if !exists {
+		roundMessages = roundMessageMap{}
+
+		m[height] = roundMessages
+	}
+
+	// Check if the round is present
+	messages, exists := roundMessages[round]
+	if !exists {
+		messages = protoMessages{}
+
+		roundMessages[round] = messages
 	}
 
 	return messages
