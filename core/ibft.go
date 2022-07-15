@@ -240,6 +240,12 @@ func (i *IBFT) runSequence(h uint64) {
 			//	Move to the new round
 			i.moveToNewRoundWithRC(newRound)
 			i.state.setLocked(false)
+
+			i.log.Info("going to round change...")
+
+			// Wait to reach quorum on what the next round
+			// should be before starting the cycle again
+			i.runRoundChange()
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
@@ -248,12 +254,6 @@ func (i *IBFT) runSequence(h uint64) {
 
 			return
 		}
-
-		i.log.Info("going to round change...")
-
-		// Wait to reach quorum on what the next round
-		// should be before starting the cycle again
-		i.runRoundChange()
 	}
 }
 
