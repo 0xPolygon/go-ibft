@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-type stateType int
+type stateType uint8
 
 const (
 	newRound stateType = iota
