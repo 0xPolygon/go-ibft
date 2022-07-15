@@ -4,8 +4,6 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-type SubscriptionID int32
-
 type eventSubscription struct {
 	// details contains the details of the event subscription
 	details SubscriptionDetails

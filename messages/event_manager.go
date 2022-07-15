@@ -20,6 +20,8 @@ func newEventManager() *eventManager {
 	}
 }
 
+type SubscriptionID int32
+
 type Subscription struct {
 	id                  SubscriptionID
 	subscriptionChannel chan struct{}
