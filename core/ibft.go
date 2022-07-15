@@ -210,7 +210,7 @@ func (i *IBFT) runSequence(h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 
-	i.log.Info("sequence started", "height=", h)
+	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence complete", "height", h)
 
 	for {
