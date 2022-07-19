@@ -625,13 +625,31 @@ func (i *IBFT) runRoundChange() {
 	// this state is done executing
 	defer i.messages.Unsubscribe(sub.GetID())
 
-	i.log.Debug("waiting on quorum of round change messages")
+	i.log.Debug(
+		"waiting on quorum of round change messages",
+		"height", view.Height,
+		"round", view.Round,
+		"quorum", quorum,
+	)
 
-	// Wait until a quorum of Round Change messages
-	// has been received in order to start the new round
-	<-sub.GetCh()
+	ticker := time.NewTicker(roundZeroTimeout / 3)
+	defer ticker.Stop()
 
-	i.log.Debug("received quorum of round change messages")
+	for {
+		select {
+		case <-ticker.C:
+			//	periodically send the same round change message
+			//	to ensure reconnecting nodes are able to catch up
+			i.transport.Multicast(
+				i.backend.BuildRoundChangeMessage(
+					view.Height,
+					view.Round,
+				),
+			)
+		case <-sub.GetCh():
+			i.log.Debug("received quorum of round change messages")
+		}
+	}
 }
 
 // moveToNewRound moves the state to the new round
