@@ -205,6 +205,12 @@ func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
 	}
 }
 
+func (i *IBFT) CancelSequence() {
+	//	pre-emptively send a signal to roundDone
+	//	so the thread can finish early
+	i.roundDone <- struct{}{}
+}
+
 // RunSequence runs the consensus cycle for the specified block height
 func (i *IBFT) RunSequence(h uint64) {
 	// Set the starting state data
