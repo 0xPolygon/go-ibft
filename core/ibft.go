@@ -22,7 +22,7 @@ type Messages interface {
 	// Messages modifiers //
 
 	AddMessage(message *proto.Message)
-	PruneByHeight(view *proto.View)
+	PruneByHeight(height uint64)
 
 	// Messages fetchers //
 
@@ -215,7 +215,7 @@ func (i *IBFT) CancelSequence() {
 func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
-	i.messages.PruneByHeight(i.state.getView())
+	i.messages.PruneByHeight(i.state.getHeight())
 
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence complete", "height", h)
@@ -598,7 +598,7 @@ func (i *IBFT) runFin() error {
 	}
 
 	// Remove stale messages
-	i.messages.PruneByHeight(i.state.getView())
+	i.messages.PruneByHeight(i.state.getHeight())
 
 	return nil
 }

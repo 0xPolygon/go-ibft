@@ -131,7 +131,7 @@ func (ms *Messages) numMessages(
 
 // PruneByHeight prunes out all old messages from the message queues
 // by the specified height in the view
-func (ms *Messages) PruneByHeight(view *proto.View) {
+func (ms *Messages) PruneByHeight(height uint64) {
 	possibleMaps := []proto.MessageType{
 		proto.MessageType_PREPREPARE,
 		proto.MessageType_PREPARE,
@@ -148,9 +148,9 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 
 		// Delete all height maps up until and including the specified
 		// view height
-		for height := range messageMap {
-			if height <= view.Height {
-				delete(messageMap, height)
+		for msgHeight := range messageMap {
+			if msgHeight <= height {
+				delete(messageMap, msgHeight)
 			}
 		}
 
