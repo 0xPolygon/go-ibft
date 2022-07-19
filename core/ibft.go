@@ -215,6 +215,7 @@ func (i *IBFT) CancelSequence() {
 func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
+	i.messages.PruneByHeight(i.state.getView())
 
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence complete", "height", h)
