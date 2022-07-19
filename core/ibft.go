@@ -75,6 +75,9 @@ type IBFT struct {
 	// round changing events
 	roundChange chan uint64
 
+	//	User configured additional timeout for each round of consensus
+	additionalTimeout time.Duration
+
 	// wg is a simple barrier used for synchronizing
 	// state modification routines
 	wg sync.WaitGroup
@@ -760,4 +763,9 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 
 	// Make sure the message round is >= the current state round
 	return message.View.Round >= i.state.getRound()
+}
+
+//	ExtendRoundTimeout extends each round's timer by the specified amount.
+func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
+	i.additionalTimeout = amount
 }
