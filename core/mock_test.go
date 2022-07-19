@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"sync"
@@ -346,7 +347,7 @@ func (m *mockCluster) runSequence(height uint64) {
 			}()
 
 			// Start the main run loop for the node
-			node.RunSequence(height)
+			node.RunSequence(context.Background(), height)
 		}(node, height)
 	}
 }

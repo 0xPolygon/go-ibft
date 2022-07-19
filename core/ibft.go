@@ -223,7 +223,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		i.wg.Add(3)
 
 		currentRound := i.state.getRound()
-		quitCh := make(chan struct{})
 
 		ctxRound, cancelRound := context.WithCancel(ctx)
 
@@ -243,7 +242,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			i.log.Info("round change received")
 
 			cancelRound()
-			close(quitCh)
 			i.wg.Wait()
 
 			//	Move to the new round
@@ -258,9 +256,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
-
 			cancelRound()
-			close(quitCh)
 			i.wg.Wait()
 
 			return

@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +94,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			quitCh := make(chan struct{}, 1)
+			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
 				newProposal                        = []byte("new block")
@@ -127,7 +128,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						quitCh <- struct{}{}
+						cancelFn()
 
 						return messages.NewSubscription(messages.SubscriptionID(1), make(chan struct{}))
 					},
@@ -138,7 +139,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.messages = messages
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 
@@ -161,7 +162,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			var (
 				wg            sync.WaitGroup
 				capturedRound uint64 = 0
-				quitCh               = make(chan struct{}, 1)
+				ctx, cancelFn        = context.WithCancel(context.Background())
 
 				log       = mockLogger{}
 				transport = mockTransport{}
@@ -191,7 +192,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				defer func() {
 					wg.Done()
 
-					quitCh <- struct{}{}
+					cancelFn()
 				}()
 				select {
 				case nextRound := <-i.roundChange:
@@ -202,7 +203,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			}(i)
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 			wg.Wait()
@@ -220,7 +221,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			quitCh := make(chan struct{}, 1)
+			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
 				multicastedPreprepare *proto.Message = nil
@@ -268,7 +269,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						quitCh <- struct{}{}
+						cancelFn()
 
 						return messages.NewSubscription(messages.SubscriptionID(1), make(chan struct{}))
 					},
@@ -281,7 +282,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.state.proposal = previousProposal
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 
@@ -310,7 +311,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			quitCh := make(chan struct{}, 1)
+			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
 				proposal                          = []byte("new block")
@@ -357,7 +358,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
-						quitCh <- struct{}{}
+						cancelFn()
 					},
 					getValidMessagesFn: func(
 						view *proto.View,
@@ -390,7 +391,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			notifyCh <- struct{}{}
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 
@@ -410,7 +411,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			quitCh := make(chan struct{}, 1)
+			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
 				wg            sync.WaitGroup
@@ -479,7 +480,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				defer func() {
 					wg.Done()
 
-					quitCh <- struct{}{}
+					cancelFn()
 				}()
 
 				select {
@@ -494,7 +495,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			notifyCh <- struct{}{}
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 			wg.Wait()
@@ -518,7 +519,7 @@ func TestRunPrepare(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			quitCh := make(chan struct{}, 1)
+			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
 				proposal                         = []byte("block proposal")
@@ -556,7 +557,7 @@ func TestRunPrepare(t *testing.T) {
 						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
-						quitCh <- struct{}{}
+						cancelFn()
 					},
 					getValidMessagesFn: func(
 						view *proto.View,
@@ -591,7 +592,7 @@ func TestRunPrepare(t *testing.T) {
 			notifyCh <- struct{}{}
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 
@@ -679,11 +680,11 @@ func TestRunCommit(t *testing.T) {
 			i.state.roundStarted = true
 			i.state.name = commit
 
-			quitCh := make(chan struct{}, 1)
+			ctx, cancelFn := context.WithCancel(context.Background())
 
 			go func(i *IBFT) {
 				defer func() {
-					quitCh <- struct{}{}
+					cancelFn()
 				}()
 
 				select {
@@ -698,7 +699,7 @@ func TestRunCommit(t *testing.T) {
 			notifyCh <- struct{}{}
 
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 
@@ -747,7 +748,11 @@ func TestRunCommit(t *testing.T) {
 			i.state.name = fin
 			i.state.roundStarted = true
 
+			ctx, cancelFn := context.WithCancel(context.Background())
+
 			go func(i *IBFT) {
+				defer cancelFn()
+
 				select {
 				case newRound := <-i.roundChange:
 					capturedRound = newRound
@@ -756,10 +761,8 @@ func TestRunCommit(t *testing.T) {
 				}
 			}(i)
 
-			quitCh := make(chan struct{}, 1)
-
 			i.wg.Add(1)
-			i.runRound(quitCh)
+			i.runRound(ctx)
 
 			i.wg.Wait()
 
@@ -876,17 +879,17 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 		i := NewIBFT(log, backend, transport)
 
-		quitCh := make(chan struct{})
+		ctx, cancelFn := context.WithCancel(context.Background())
 
 		wg.Add(1)
 		i.wg.Add(1)
 		go func() {
-			i.startRoundTimer(quitCh, 0, roundZeroTimeout)
+			i.startRoundTimer(ctx, 0, roundZeroTimeout)
 
 			wg.Done()
 		}()
 
-		quitCh <- struct{}{}
+		cancelFn()
 
 		wg.Wait()
 	})
@@ -905,14 +908,14 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 		i := NewIBFT(log, backend, transport)
 
-		quitCh := make(chan struct{}, 1)
+		ctx, cancelFn := context.WithCancel(context.Background())
 
 		wg.Add(1)
 		go func() {
 			defer func() {
 				wg.Done()
 
-				quitCh <- struct{}{}
+				cancelFn()
 			}()
 
 			select {
@@ -923,7 +926,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		}()
 
 		i.wg.Add(1)
-		i.startRoundTimer(quitCh, 0, 0*time.Second)
+		i.startRoundTimer(ctx, 0, 0*time.Second)
 
 		wg.Wait()
 
@@ -966,7 +969,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}
 		)
 
-		quitCh := make(chan struct{}, 1)
+		ctx, cancelFn := context.WithCancel(context.Background())
 
 		i := NewIBFT(log, backend, transport)
 		i.messages = messages
@@ -976,7 +979,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			defer func() {
 				wg.Done()
 
-				quitCh <- struct{}{}
+				cancelFn()
 			}()
 
 			select {
@@ -987,7 +990,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 		}()
 
 		i.wg.Add(1)
-		i.watchForRoundHop(quitCh)
+		i.watchForRoundHop(ctx)
 
 		wg.Wait()
 
@@ -1024,7 +1027,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}
 		)
 
-		quitCh := make(chan struct{})
+		ctx, cancelFn := context.WithCancel(context.Background())
 
 		i := NewIBFT(log, backend, transport)
 		i.messages = &messages
@@ -1039,7 +1042,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			case newRound := <-i.roundChange:
 				capturedRound = newRound
 			case <-time.After(5 * time.Second):
-			case <-quitCh:
+			case <-ctx.Done():
 			}
 		}()
 
@@ -1050,10 +1053,10 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}()
 
 			i.wg.Add(1)
-			i.watchForRoundHop(quitCh)
+			i.watchForRoundHop(ctx)
 		}()
 
-		close(quitCh)
+		cancelFn()
 
 		wg.Wait()
 
