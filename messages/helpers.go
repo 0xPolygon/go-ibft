@@ -1,6 +1,8 @@
 package messages
 
-import "github.com/Trapesys/go-ibft/messages/proto"
+import (
+	"github.com/Trapesys/go-ibft/messages/proto"
+)
 
 // ExtractCommittedSeals extracts the committed seals from the passed in messages
 func ExtractCommittedSeals(commitMessages []*proto.Message) [][]byte {
