@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/Trapesys/go-ibft/messages"
@@ -112,11 +113,7 @@ func NewIBFT(
 
 // startRoundTimer starts the exponential round timer, based on the
 // passed in round number
-func (i *IBFT) startRoundTimer(
-	round uint64,
-	baseTimeout time.Duration,
-	quit <-chan struct{},
-) {
+func (i *IBFT) startRoundTimer(ctx context.Context, round uint64, baseTimeout time.Duration) {
 	defer i.wg.Done()
 
 	var (
@@ -129,33 +126,33 @@ func (i *IBFT) startRoundTimer(
 	timer := time.NewTimer(roundTimeout)
 
 	select {
-	case <-quit:
+	case <-ctx.Done():
 		// Stop signal received, stop the timer
 		timer.Stop()
 	case <-timer.C:
 		// Timer expired, alert the round change channel to move
 		// to the next round
 		i.log.Info("round timer expired, alerting of change")
-		i.signalRoundChange(round+1, quit)
+		i.signalRoundChange(ctx, round+1)
 	}
 }
 
 // watchForRoundHop checks if there are F+1 Round Change messages
 // at any point in time to trigger a round hop to the highest round
 // which has F+1 Round Change messages
-func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
+func (i *IBFT) watchForRoundHop(ctx context.Context) {
 	defer i.wg.Done()
 
 	view := i.state.getView()
 
 	for {
 		select {
-		case <-quit:
+		case <-ctx.Done():
 			// Quit signal received, teardown the worker
 			return
 		default:
 			//	quorum of round change messages reached, teardown the worker
-			if i.doRoundHop(view, quit) {
+			if i.doRoundHop(ctx, view) {
 				i.log.Debug("quitting round after signal", "round", view.Round)
 
 				return
@@ -165,7 +162,7 @@ func (i *IBFT) watchForRoundHop(quit <-chan struct{}) {
 }
 
 //	doRoundHop signals a round change if a quorum of round change messages was received
-func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
+func (i *IBFT) doRoundHop(ctx context.Context, view *proto.View) bool {
 	var (
 		currentRound = view.Round
 		height       = view.Height
@@ -189,7 +186,7 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 			),
 		)
 
-		i.signalRoundChange(newRound, quit)
+		i.signalRoundChange(ctx, newRound)
 
 		return true
 	}
@@ -200,11 +197,11 @@ func (i *IBFT) doRoundHop(view *proto.View, quit <-chan struct{}) bool {
 //	signalRoundChange notifies the sequence routine (RunSequence) that it
 //	should move to a new round. The quit channel is used to abort this call
 //	if another routine has already signaled a round change request.
-func (i *IBFT) signalRoundChange(round uint64, quit <-chan struct{}) {
+func (i *IBFT) signalRoundChange(ctx context.Context, round uint64) {
 	select {
 	case i.roundChange <- round:
 		i.log.Debug("signal round change", "new round", round)
-	case <-quit:
+	case <-ctx.Done():
 	}
 }
 
@@ -215,7 +212,7 @@ func (i *IBFT) CancelSequence() {
 }
 
 // RunSequence runs the consensus cycle for the specified block height
-func (i *IBFT) RunSequence(h uint64) {
+func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 
@@ -228,14 +225,16 @@ func (i *IBFT) RunSequence(h uint64) {
 		currentRound := i.state.getRound()
 		quitCh := make(chan struct{})
 
+		ctxRound, cancelRound := context.WithCancel(ctx)
+
 		// Start the round timer worker
-		go i.startRoundTimer(currentRound, roundZeroTimeout, quitCh)
+		go i.startRoundTimer(ctxRound, currentRound, roundZeroTimeout)
 
 		// Start the state machine worker
-		go i.runRound(quitCh)
+		go i.runRound(ctxRound)
 
 		// Start the round hop worker
-		go i.watchForRoundHop(quitCh)
+		go i.watchForRoundHop(ctxRound)
 
 		select {
 		case newRound := <-i.roundChange:
@@ -243,6 +242,7 @@ func (i *IBFT) RunSequence(h uint64) {
 			// Stop all running worker threads
 			i.log.Info("round change received")
 
+			cancelRound()
 			close(quitCh)
 			i.wg.Wait()
 
@@ -258,7 +258,14 @@ func (i *IBFT) RunSequence(h uint64) {
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
+
+			cancelRound()
 			close(quitCh)
+			i.wg.Wait()
+
+			return
+		case <-ctx.Done():
+			cancelRound()
 			i.wg.Wait()
 
 			return
@@ -267,7 +274,7 @@ func (i *IBFT) RunSequence(h uint64) {
 }
 
 // runRound runs the state machine loop for the current round
-func (i *IBFT) runRound(quit <-chan struct{}) {
+func (i *IBFT) runRound(ctx context.Context) {
 	// Register this worker thread with the barrier
 	defer i.wg.Done()
 
@@ -293,27 +300,27 @@ func (i *IBFT) runRound(quit <-chan struct{}) {
 			// Proposal is unable to be submitted, move to the round change state
 			i.log.Error("unable to propose block, alerting of round change")
 
-			i.signalRoundChange(round+1, quit)
+			i.signalRoundChange(ctx, round+1)
 
 			return
 		}
 	}
 
-	i.runStates(quit)
+	i.runStates(ctx)
 }
 
 //	runStates is the main loop which performs state transitions
-func (i *IBFT) runStates(quit <-chan struct{}) {
+func (i *IBFT) runStates(ctx context.Context) {
 	var err error
 
 	for {
 		switch i.state.getStateName() {
 		case newRound:
-			err = i.runNewRound(quit)
+			err = i.runNewRound(ctx)
 		case prepare:
-			err = i.runPrepare(quit)
+			err = i.runPrepare(ctx)
 		case commit:
-			err = i.runCommit(quit)
+			err = i.runCommit(ctx)
 		case fin:
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
@@ -339,7 +346,7 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 				"err", err,
 			)
 
-			i.signalRoundChange(i.state.getRound()+1, quit)
+			i.signalRoundChange(ctx, i.state.getRound()+1)
 
 			return
 		}
@@ -347,7 +354,7 @@ func (i *IBFT) runStates(quit <-chan struct{}) {
 }
 
 // runNewRound runs the New Round IBFT state
-func (i *IBFT) runNewRound(quit <-chan struct{}) error {
+func (i *IBFT) runNewRound(ctx context.Context) error {
 	i.log.Debug("enter: new round state")
 	defer i.log.Debug("exit: new round state")
 
@@ -371,7 +378,7 @@ func (i *IBFT) runNewRound(quit <-chan struct{}) error {
 
 	for {
 		select {
-		case <-quit:
+		case <-ctx.Done():
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
@@ -424,7 +431,7 @@ func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
 }
 
 // runPrepare runs the Prepare IBFT state
-func (i *IBFT) runPrepare(quit <-chan struct{}) error {
+func (i *IBFT) runPrepare(ctx context.Context) error {
 	i.log.Debug("enter: prepare state")
 	defer i.log.Debug("exit: prepare state")
 
@@ -451,7 +458,7 @@ func (i *IBFT) runPrepare(quit <-chan struct{}) error {
 
 	for {
 		select {
-		case <-quit:
+		case <-ctx.Done():
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
@@ -504,7 +511,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 }
 
 // runCommit runs the Commit IBFT state
-func (i *IBFT) runCommit(quit <-chan struct{}) error {
+func (i *IBFT) runCommit(ctx context.Context) error {
 	i.log.Debug("enter: commit state")
 	defer i.log.Debug("exit: commit state")
 
@@ -531,7 +538,7 @@ func (i *IBFT) runCommit(quit <-chan struct{}) error {
 
 	for {
 		select {
-		case <-quit:
+		case <-ctx.Done():
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():

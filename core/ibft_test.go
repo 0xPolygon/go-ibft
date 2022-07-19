@@ -881,7 +881,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		wg.Add(1)
 		i.wg.Add(1)
 		go func() {
-			i.startRoundTimer(0, roundZeroTimeout, quitCh)
+			i.startRoundTimer(quitCh, 0, roundZeroTimeout)
 
 			wg.Done()
 		}()
@@ -923,7 +923,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		}()
 
 		i.wg.Add(1)
-		i.startRoundTimer(0, 0*time.Second, quitCh)
+		i.startRoundTimer(quitCh, 0, 0*time.Second)
 
 		wg.Wait()
 
