@@ -648,6 +648,8 @@ func (i *IBFT) runRoundChange() {
 			)
 		case <-sub.GetCh():
 			i.log.Debug("received quorum of round change messages")
+
+			return
 		}
 	}
 }
