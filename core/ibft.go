@@ -123,7 +123,7 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64, baseTimeout ti
 	)
 
 	//	Create a new timer instance
-	timer := time.NewTimer(roundTimeout)
+	timer := time.NewTimer(roundTimeout + i.additionalTimeout)
 
 	select {
 	case <-ctx.Done():
