@@ -72,9 +72,13 @@ type IBFT struct {
 	// consensus finalization upon a certain sequence
 	roundDone chan struct{}
 
-	// roundChange is the channel used for signalizing
+	// roundTimer is the channel used for signalizing
 	// round changing events
-	roundChange chan uint64
+	roundTimer chan uint64
+
+	roundJump chan uint64
+
+	roundCertificate chan uint64
 
 	//	User configured additional timeout for each round of consensus
 	additionalTimeout time.Duration
@@ -91,12 +95,12 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:         log,
-		backend:     backend,
-		transport:   transport,
-		messages:    messages.NewMessages(),
-		roundDone:   make(chan struct{}),
-		roundChange: make(chan uint64),
+		log:        log,
+		backend:    backend,
+		transport:  transport,
+		messages:   messages.NewMessages(),
+		roundDone:  make(chan struct{}),
+		roundTimer: make(chan uint64),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
@@ -199,7 +203,7 @@ func (i *IBFT) doRoundHop(ctx context.Context, view *proto.View) bool {
 //	if another routine has already signaled a round change request.
 func (i *IBFT) signalRoundChange(ctx context.Context, round uint64) {
 	select {
-	case i.roundChange <- round:
+	case i.roundTimer <- round:
 		i.log.Debug("signal round change", "new round", round)
 	case <-ctx.Done():
 	}
@@ -209,6 +213,131 @@ func (i *IBFT) CancelSequence() {
 	//	pre-emptively send a signal to roundDone
 	//	so the thread can finish early
 	i.roundDone <- struct{}{}
+}
+
+func (i *IBFT) watchForFutureProposal(ctx context.Context) {
+	var (
+		_ = i.state.getView()
+
+		sub = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				//	TODO
+				//MessageType: 0,
+				//View:        nil,
+				//NumMessages: 0,
+			},
+		)
+	)
+
+	defer i.messages.Unsubscribe(sub.GetID())
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sub.GetCh():
+			//	TODO: handle round transition
+		}
+	}
+}
+
+func (i *IBFT) watchForRoundChangeCertificates(
+	ctx context.Context,
+	round uint64,
+) {
+	var (
+		_ = i.state.getView()
+
+		sub = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				//	TODO
+				//MessageType: 0,
+				//View:        nil,
+				//NumMessages: 0,
+			},
+		)
+	)
+
+	defer i.messages.Unsubscribe(sub.GetID())
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sub.GetCh():
+			//	TODO: handle
+		}
+	}
+}
+
+func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
+	// Set the starting state data
+	i.state.clear(h)
+	i.messages.PruneByHeight(i.state.getHeight())
+
+	i.log.Info("sequence started", "height", h)
+	defer i.log.Info("sequence complete", "height", h)
+
+	for {
+		i.wg.Add(3)
+
+		currentRound := i.state.getRound()
+
+		ctxRound, cancelRound := context.WithCancel(ctx)
+
+		// Start the round timer worker
+		go i.startRoundTimer(ctxRound, currentRound, roundZeroTimeout)
+
+		// Start the round hop worker
+		go i.watchForRoundHop(ctxRound)
+
+		//	Jump round on proposals from higher rounds
+		go i.watchForFutureProposal(ctxRound)
+
+		//	Jump round on certificates
+		go i.watchForRoundChangeCertificates(ctxRound, currentRound+1)
+
+		// Start the state machine worker
+		go i.runRound(ctxRound)
+
+		teardown := func() {
+			cancelRound()
+			i.wg.Wait()
+		}
+
+		select {
+		case _ = <-i.roundJump:
+		//	TODO: handle future proposal transition
+		case _ = <-i.roundCertificate:
+		//	TODO: handle round certificate transition
+		case newRound := <-i.roundTimer:
+			// Round Change request received.
+			// Stop all running worker threads
+			i.log.Info("round change received")
+
+			teardown()
+
+			//	Move to the new round
+			i.moveToNewRoundWithRC(newRound)
+			i.state.setLocked(false)
+
+			i.log.Info("going to round change...")
+
+			// Wait to reach quorum on what the next round
+			// should be before starting the cycle again
+			i.runRoundChange()
+		case <-i.roundDone:
+			// The consensus cycle for the block height is finished.
+			// Stop all running worker threads
+			teardown()
+
+			return
+		case <-ctx.Done():
+			teardown()
+
+			return
+		}
+	}
 }
 
 // RunSequence runs the consensus cycle for the specified block height
@@ -237,7 +366,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		go i.watchForRoundHop(ctxRound)
 
 		select {
-		case newRound := <-i.roundChange:
+		case newRound := <-i.roundTimer:
 			// Round Change request received.
 			// Stop all running worker threads
 			i.log.Info("round change received")

@@ -195,7 +195,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					cancelFn()
 				}()
 				select {
-				case nextRound := <-i.roundChange:
+				case nextRound := <-i.roundTimer:
 					capturedRound = nextRound
 				case <-time.After(5 * time.Second):
 					return
@@ -484,7 +484,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				}()
 
 				select {
-				case newRound := <-i.roundChange:
+				case newRound := <-i.roundTimer:
 					capturedRound = newRound
 				case <-time.After(5 * time.Second):
 					return
@@ -754,7 +754,7 @@ func TestRunCommit(t *testing.T) {
 				defer cancelFn()
 
 				select {
-				case newRound := <-i.roundChange:
+				case newRound := <-i.roundTimer:
 					capturedRound = newRound
 				case <-time.After(5 * time.Second):
 					return
@@ -919,7 +919,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 			}()
 
 			select {
-			case newRound := <-i.roundChange:
+			case newRound := <-i.roundTimer:
 				capturedRound = newRound
 			case <-time.After(5 * time.Second):
 			}
@@ -983,7 +983,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}()
 
 			select {
-			case newRound := <-i.roundChange:
+			case newRound := <-i.roundTimer:
 				capturedRound = newRound
 			case <-time.After(5 * time.Second):
 			}
@@ -1039,7 +1039,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}()
 
 			select {
-			case newRound := <-i.roundChange:
+			case newRound := <-i.roundTimer:
 				capturedRound = newRound
 			case <-time.After(5 * time.Second):
 			case <-ctx.Done():
