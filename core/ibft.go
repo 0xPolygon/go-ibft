@@ -322,7 +322,14 @@ func (i *IBFT) runStates(ctx context.Context) {
 			if err = i.runFin(); err == nil {
 				//	Block inserted without any errors,
 				// sequence is complete
-				i.roundDone <- struct{}{}
+
+				//	TODO: we managed to insert the block, but timeout expired
+				//		We need to stop the timer when entering Fin state
+				select {
+				case i.roundDone <- struct{}{}:
+				case <-ctx.Done():
+					//
+				}
 
 				return
 			}
