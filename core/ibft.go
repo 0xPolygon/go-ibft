@@ -40,12 +40,9 @@ type Messages interface {
 }
 
 var (
-	errBuildProposal        = errors.New("failed to build proposal")
-	errInvalidBlockProposal = errors.New("invalid block proposal")
-	errInvalidBlockProposed = errors.New("invalid block proposed")
-	errInsertBlock          = errors.New("failed to insert block")
-	errTimeoutExpired       = errors.New("round timeout expired")
-	errQuorumNotReached     = errors.New("quorum messages not reached")
+	errBuildProposal  = errors.New("failed to build proposal")
+	errInsertBlock    = errors.New("failed to insert block")
+	errTimeoutExpired = errors.New("round timeout expired")
 
 	roundZeroTimeout = 10 * time.Second
 )
