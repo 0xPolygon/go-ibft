@@ -577,28 +577,69 @@ func (i *IBFT) runRound(ctx context.Context) {
 			}
 		} else {
 			//	round > 0 -> needs RCC
-			if err := i.waitForRCC(ctx, height, round); err != nil {
-				if errors.Is(err, errBuildProposal) ||
-					errors.Is(err, errTimeoutExpired) {
-					return
+			rcc := i.waitForRCC(ctx, height, round)
+			if rcc == nil {
+				// Timeout occurred
+				return
+			}
+
+			//	check the messages for any previous proposal (if they have any, it's the same proposal)
+			var previousProposal []byte
+
+			for _, msg := range rcc.RoundChangeMessages {
+				//	if message contains block, break
+				latestPC := messages.ExtractLatestPC(msg)
+
+				if latestPC != nil {
+					previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
+
+					break
 				}
 			}
+
+			var proposal []byte
+			if previousProposal == nil {
+				//	build new proposal
+				var err error
+
+				proposal, err = i.buildProposal(height)
+				if err != nil {
+					// Proposal is unable to be built
+					i.log.Error("unable to build proposal")
+
+					i.signalRoundChange(ctx, round+1)
+
+					return
+				}
+			} else {
+				proposal = previousProposal
+			}
+
+			i.acceptProposal(proposal)
+			i.log.Debug("block proposal accepted")
+
+			i.transport.Multicast(
+				i.backend.BuildPrePrepareMessage(i.state.getProposal(), i.state.getView()),
+			)
+
+			i.log.Debug("pre-prepare message multicasted")
 		}
 	}
 
 	i.runStates(ctx)
 }
 
-func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) error {
+func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) *proto.RoundChangeCertificate {
 	quorum := i.backend.Quorum(height)
+	view := &proto.View{
+		Height: height,
+		Round:  round,
+	}
 
 	sub := i.messages.Subscribe(
 		messages.SubscriptionDetails{
 			MessageType: proto.MessageType_ROUND_CHANGE,
-			View: &proto.View{
-				Height: height,
-				Round:  round,
-			},
+			View:        view,
 			NumMessages: int(quorum),
 		},
 	)
@@ -608,17 +649,42 @@ func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return errTimeoutExpired
+			return nil
 		case <-sub.GetCh():
-			err := i.handleRoundChangeMessage(&proto.View{Height: height, Round: round}, quorum)
-			if errors.Is(err, errQuorumNotReached) {
+			rcc := i.handleRoundChangeMessage(view, quorum)
+			if rcc == nil {
 				continue
-			} else if errors.Is(err, errBuildProposal) {
-				return err
 			}
 
-			return nil
+			return rcc
 		}
+	}
+}
+
+func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.RoundChangeCertificate {
+	isValidFn := func(msg *proto.Message) bool {
+		proposal := messages.ExtractLastPreparedProposedBlock(msg)
+		certificate := messages.ExtractLatestPC(msg)
+
+		if !i.validPC(certificate, view.Round) {
+			return false
+		}
+
+		return i.matchProposalWithCertificate(proposal, certificate)
+	}
+
+	msgs := i.messages.GetValidMessages(
+		view,
+		proto.MessageType_ROUND_CHANGE,
+		isValidFn,
+	)
+
+	if len(msgs) < int(quorum) {
+		return nil
+	}
+
+	return &proto.RoundChangeCertificate{
+		RoundChangeMessages: msgs,
 	}
 }
 
@@ -652,69 +718,6 @@ func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.
 	}
 
 	return true
-}
-
-func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) error {
-	isValidFn := func(msg *proto.Message) bool {
-		proposal := messages.ExtractLastPreparedProposedBlock(msg)
-		certificate := messages.ExtractLatestPC(msg)
-
-		if !i.validPC(certificate, view.Round) {
-			return false
-		}
-
-		return i.matchProposalWithCertificate(proposal, certificate)
-	}
-
-	msgs := i.messages.GetValidMessages(
-		view,
-		proto.MessageType_ROUND_CHANGE,
-		isValidFn,
-	)
-
-	if len(msgs) < int(quorum) {
-		return errors.New("quorum not reached")
-	}
-
-	//	check the messages for any previous proposal (if they have any, it's the same proposal)
-	var previousProposal []byte
-
-	for _, msg := range msgs {
-		//	if message contains block, break
-		latestPC := messages.ExtractLatestPC(msg)
-
-		if latestPC != nil {
-			previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
-
-			break
-		}
-	}
-
-	var proposal []byte
-	if previousProposal == nil {
-		//	build new proposal
-		var err error
-		proposal, err = i.buildProposal(view.Height)
-		if err != nil {
-			//	return early
-			return errBuildProposal
-		}
-	} else {
-		proposal = previousProposal
-	}
-
-	i.acceptProposal(proposal)
-	i.log.Debug("block proposal accepted")
-
-	i.transport.Multicast(
-		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
-	)
-
-	i.state.changeState(prepare)
-
-	i.log.Debug("pre-prepare message multicasted")
-
-	return nil
 }
 
 //	runStates is the main loop which performs state transitions
