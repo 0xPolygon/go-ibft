@@ -7,16 +7,25 @@ import (
 // MessageConstructor defines a message constructor interface
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
-	BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message
+	BuildPrePrepareMessage(
+		proposal,
+		proposalHash []byte,
+		certificate *proto.RoundChangeCertificate,
+		view *proto.View,
+	) *proto.Message
 
 	// BuildPrepareMessage builds a PREPARE message based on the passed in proposal
-	BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message
+	BuildPrepareMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildCommitMessage builds a COMMIT message based on the passed in proposal
-	BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message
+	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
-	BuildRoundChangeMessage(height, round uint64) *proto.Message
+	BuildRoundChangeMessage(
+		proposal []byte,
+		certificate *proto.PreparedCertificate,
+		view *proto.View,
+	) *proto.Message
 }
 
 // Verifier defines the verifier interface

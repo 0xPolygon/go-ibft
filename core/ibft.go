@@ -73,9 +73,9 @@ type IBFT struct {
 	// consensus finalization upon a certain sequence
 	roundDone chan struct{}
 
-	// roundTimer is the channel used for signalizing
+	// roundExpired is the channel used for signalizing
 	// round changing events
-	roundTimer chan struct{}
+	roundExpired chan struct{}
 
 	newProposal chan newProposalEvent
 
@@ -96,13 +96,13 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:         log,
-		backend:     backend,
-		transport:   transport,
-		messages:    messages.NewMessages(),
-		roundDone:   make(chan struct{}),
-		roundTimer:  make(chan struct{}),
-		newProposal: make(chan newProposalEvent),
+		log:          log,
+		backend:      backend,
+		transport:    transport,
+		messages:     messages.NewMessages(),
+		roundDone:    make(chan struct{}),
+		roundExpired: make(chan struct{}),
+		newProposal:  make(chan newProposalEvent),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
@@ -204,7 +204,7 @@ func (i *IBFT) doRoundHop(ctx context.Context, view *proto.View) bool {
 //	if another routine has already signaled a round change request.
 func (i *IBFT) signalRoundExpired(ctx context.Context) {
 	select {
-	case i.roundTimer <- struct{}{}:
+	case i.roundExpired <- struct{}{}:
 	case <-ctx.Done():
 	}
 }
@@ -374,7 +374,7 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 			teardown()
 
 			i.moveToNewRound(round)
-		case <-i.roundTimer:
+		case <-i.roundExpired:
 			teardown()
 
 			newRound := currentRound + 1
@@ -425,7 +425,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		go i.watchForRoundHop(ctxRound)
 
 		select {
-		case <-i.roundTimer:
+		case <-i.roundExpired:
 			// Round Change request received.
 			// Stop all running worker threads
 			i.log.Info("round change received")

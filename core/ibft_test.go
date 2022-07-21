@@ -1119,7 +1119,7 @@ func TestRunCommit(t *testing.T) {
 	//			defer cancelFn()
 	//
 	//			select {
-	//			case newRound := <-i.roundTimer:
+	//			case newRound := <-i.roundExpired:
 	//				capturedRound = newRound
 	//			case <-time.After(5 * time.Second):
 	//				return
@@ -1284,7 +1284,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 			}()
 
 			select {
-			case <-i.roundTimer:
+			case <-i.roundExpired:
 				expired = true
 			case <-time.After(5 * time.Second):
 			}
