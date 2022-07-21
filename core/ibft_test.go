@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/stretchr/testify/assert"
@@ -217,68 +216,6 @@ func TestRunNewRound_Proposer(t *testing.T) {
 
 			// Make sure the accepted proposal matches what was built
 			assert.True(t, proposalMatches(newProposal, multicastedProposal))
-		},
-	)
-
-	t.Run(
-		"proposer fails to build proposal",
-		func(t *testing.T) {
-			t.Parallel()
-
-			var (
-				wg            sync.WaitGroup
-				capturedRound uint64 = 0
-				ctx, cancelFn        = context.WithCancel(context.Background())
-
-				log       = mockLogger{}
-				transport = mockTransport{}
-				backend   = mockBackend{
-					idFn: func() []byte { return nil },
-					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
-						return true
-					},
-					buildProposalFn: func(_ uint64) ([]byte, error) {
-						return nil, errors.New("unable to build proposal")
-					},
-					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
-						return &proto.Message{
-							View: &proto.View{
-								Height: height,
-								Round:  round,
-							},
-						}
-					},
-				}
-			)
-
-			i := NewIBFT(log, backend, transport)
-
-			wg.Add(1)
-			go func(i *IBFT) {
-				defer func() {
-					wg.Done()
-
-					cancelFn()
-				}()
-				select {
-				case nextRound := <-i.roundTimer:
-					capturedRound = nextRound
-				case <-time.After(5 * time.Second):
-					return
-				}
-			}(i)
-
-			i.wg.Add(1)
-			i.runRound(ctx)
-
-			i.wg.Wait()
-			wg.Wait()
-
-			// Make sure the proposal is not accepted
-			assert.Equal(t, []byte(nil), i.state.proposal)
-
-			// Make sure the correct round number was emitted
-			assert.Equal(t, uint64(1), capturedRound)
 		},
 	)
 
@@ -647,108 +584,6 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
 		},
 	)
-
-	t.Run(
-		"validator receives invalid block proposal",
-		func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancelFn := context.WithCancel(context.Background())
-
-			var (
-				wg            sync.WaitGroup
-				capturedRound uint64 = 0
-				proposer             = []byte("proposer")
-				notifyCh             = make(chan uint64, 1)
-
-				log       = mockLogger{}
-				transport = mockTransport{}
-				backend   = mockBackend{
-					idFn: func() []byte {
-						return nil
-					},
-					quorumFn: func(_ uint64) uint64 {
-						return 1
-					},
-					isProposerFn: func(from []byte, _ uint64, _ uint64) bool {
-						return bytes.Equal(from, proposer)
-					},
-					isValidBlockFn: func(_ []byte) bool {
-						return false
-					},
-					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
-						return &proto.Message{
-							View: &proto.View{
-								Height: height,
-								Round:  round,
-							},
-							Type: proto.MessageType_ROUND_CHANGE,
-						}
-					},
-				}
-				messages = mockMessages{
-					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
-					},
-					getValidMessagesFn: func(
-						view *proto.View,
-						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
-						return filterMessages(
-							[]*proto.Message{
-								{
-									View: view,
-									From: proposer,
-									Type: proto.MessageType_PREPREPARE,
-									Payload: &proto.Message_PreprepareData{
-										PreprepareData: &proto.PrePrepareMessage{
-											Proposal: nil,
-										},
-									},
-								},
-							},
-							isValid,
-						)
-					},
-				}
-			)
-
-			i := NewIBFT(log, backend, transport)
-			i.messages = messages
-
-			wg.Add(1)
-			go func(i *IBFT) {
-				defer func() {
-					wg.Done()
-
-					cancelFn()
-				}()
-
-				select {
-				case newRound := <-i.roundTimer:
-					capturedRound = newRound
-				case <-time.After(5 * time.Second):
-					return
-				}
-			}(i)
-
-			// Make sure the notification is sent out
-			notifyCh <- 0
-
-			i.wg.Add(1)
-			i.runRound(ctx)
-
-			i.wg.Wait()
-			wg.Wait()
-
-			// Make sure the proposal is not accepted
-			assert.Equal(t, []byte(nil), i.state.proposal)
-
-			// Make sure the correct error was emitted
-			assert.Equal(t, uint64(1), capturedRound)
-		},
-	)
 }
 
 // TestRunPrepare checks that the node behaves correctly
@@ -959,59 +794,60 @@ func TestRunCommit(t *testing.T) {
 		},
 	)
 
-	t.Run(
-		"validator failed to insert the finalized block",
-		func(t *testing.T) {
-			t.Parallel()
-
-			var (
-				capturedRound uint64 = 0
-
-				log       = mockLogger{}
-				transport = mockTransport{}
-				backend   = mockBackend{
-					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
-						return errInsertBlock
-					},
-					buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
-						return &proto.Message{
-							View: &proto.View{
-								Height: height,
-								Round:  round,
-							},
-							Type: proto.MessageType_ROUND_CHANGE,
-						}
-					},
-				}
-			)
-
-			i := NewIBFT(log, backend, transport)
-			i.messages = mockMessages{}
-			i.state.name = fin
-			i.state.roundStarted = true
-
-			ctx, cancelFn := context.WithCancel(context.Background())
-
-			go func(i *IBFT) {
-				defer cancelFn()
-
-				select {
-				case newRound := <-i.roundTimer:
-					capturedRound = newRound
-				case <-time.After(5 * time.Second):
-					return
-				}
-			}(i)
-
-			i.wg.Add(1)
-			i.runRound(ctx)
-
-			i.wg.Wait()
-
-			// Make sure the captured round change number is captured
-			assert.Equal(t, uint64(1), capturedRound)
-		},
-	)
+	// TODO Discuss this with @dbrajovic
+	//t.Run(
+	//	"validator failed to insert the finalized block",
+	//	func(t *testing.T) {
+	//		t.Parallel()
+	//
+	//		var (
+	//			capturedRound uint64 = 0
+	//
+	//			log       = mockLogger{}
+	//			transport = mockTransport{}
+	//			backend   = mockBackend{
+	//				insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
+	//					return errInsertBlock
+	//				},
+	//				buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
+	//					return &proto.Message{
+	//						View: &proto.View{
+	//							Height: height,
+	//							Round:  round,
+	//						},
+	//						Type: proto.MessageType_ROUND_CHANGE,
+	//					}
+	//				},
+	//			}
+	//		)
+	//
+	//		i := NewIBFT(log, backend, transport)
+	//		i.messages = mockMessages{}
+	//		i.state.name = fin
+	//		i.state.roundStarted = true
+	//
+	//		ctx, cancelFn := context.WithCancel(context.Background())
+	//
+	//		go func(i *IBFT) {
+	//			defer cancelFn()
+	//
+	//			select {
+	//			case newRound := <-i.roundTimer:
+	//				capturedRound = newRound
+	//			case <-time.After(5 * time.Second):
+	//				return
+	//			}
+	//		}(i)
+	//
+	//		i.wg.Add(1)
+	//		i.runRound(ctx)
+	//
+	//		i.wg.Wait()
+	//
+	//		// Make sure the captured round change number is captured
+	//		assert.Equal(t, uint64(1), capturedRound)
+	//	},
+	//)
 }
 
 // TestIBFT_IsAcceptableMessage makes sure invalid messages
@@ -1140,8 +976,8 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		t.Parallel()
 
 		var (
-			wg            sync.WaitGroup
-			capturedRound uint64 = 0
+			wg      sync.WaitGroup
+			expired = false
 
 			log       = mockLogger{}
 			transport = mockTransport{}
@@ -1161,8 +997,8 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 			}()
 
 			select {
-			case newRound := <-i.roundTimer:
-				capturedRound = newRound
+			case <-i.roundTimer:
+				expired = true
 			case <-time.After(5 * time.Second):
 			}
 		}()
@@ -1172,138 +1008,8 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 		wg.Wait()
 
-		// Make sure the proper round was emitted
-		assert.Equal(t, uint64(1), capturedRound)
-	})
-}
-
-// TestIBFT_WatchForRoundHop makes sure that the
-// watch round hop routine behaves correctly
-func TestIBFT_WatchForRoundHop(t *testing.T) {
-	t.Parallel()
-
-	t.Run("received F+1 round hop messages", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			wg             sync.WaitGroup
-			capturedRound  uint64 = 0
-			suggestedRound uint64 = 10
-			maxFaultyNodes uint64 = 2
-
-			log       = mockLogger{}
-			transport = mockTransport{}
-			backend   = mockBackend{
-				maximumFaultyNodesFn: func() uint64 {
-					return maxFaultyNodes
-				},
-			}
-			messages = mockMessages{
-				getMostRoundChangeMessagesFn: func(_ uint64, _ uint64) []*proto.Message {
-					messages := generateMessages(maxFaultyNodes+1, proto.MessageType_ROUND_CHANGE)
-
-					for i := uint64(0); i < maxFaultyNodes; i++ {
-						messages[i].View.Round = suggestedRound
-					}
-
-					return messages
-				},
-			}
-		)
-
-		ctx, cancelFn := context.WithCancel(context.Background())
-
-		i := NewIBFT(log, backend, transport)
-		i.messages = messages
-
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-
-				cancelFn()
-			}()
-
-			select {
-			case newRound := <-i.roundTimer:
-				capturedRound = newRound
-			case <-time.After(5 * time.Second):
-			}
-		}()
-
-		i.wg.Add(1)
-		i.watchForRoundHop(ctx)
-
-		wg.Wait()
-
-		// Make sure the proper round hop number was emitted
-		assert.Equal(t, suggestedRound, capturedRound)
-	})
-
-	t.Run("received a quit signal", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			wg             sync.WaitGroup
-			capturedRound  uint64 = 0
-			suggestedRound uint64 = 10
-			maxFaultyNodes uint64 = 2
-
-			log       = mockLogger{}
-			transport = mockTransport{}
-			backend   = mockBackend{
-				maximumFaultyNodesFn: func() uint64 {
-					return maxFaultyNodes
-				},
-			}
-			messages = mockMessages{
-				getMostRoundChangeMessagesFn: func(_ uint64, _ uint64) []*proto.Message {
-					messages := generateMessages(maxFaultyNodes, proto.MessageType_ROUND_CHANGE)
-
-					for i := uint64(0); i < maxFaultyNodes; i++ {
-						messages[i].View.Round = suggestedRound
-					}
-
-					return messages
-				},
-			}
-		)
-
-		ctx, cancelFn := context.WithCancel(context.Background())
-
-		i := NewIBFT(log, backend, transport)
-		i.messages = &messages
-
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-			}()
-
-			select {
-			case newRound := <-i.roundTimer:
-				capturedRound = newRound
-			case <-time.After(5 * time.Second):
-			case <-ctx.Done():
-			}
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-			}()
-
-			i.wg.Add(1)
-			i.watchForRoundHop(ctx)
-		}()
-
-		cancelFn()
-
-		wg.Wait()
-
-		// Make sure the proper round hop number was emitted
-		assert.Equal(t, uint64(0), capturedRound)
+		// Make sure the round timer expired properly
+		assert.True(t, expired)
 	})
 }
 
@@ -1316,7 +1022,7 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		t.Parallel()
 
 		var (
-			newRound uint64 = 1
+			expectedNewRound uint64 = 1
 
 			log       = mockLogger{}
 			transport = mockTransport{}
@@ -1325,10 +1031,10 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 
 		i := NewIBFT(log, backend, transport)
 
-		i.moveToNewRound(newRound)
+		i.moveToNewRound(expectedNewRound)
 
 		// Make sure the view has changed
-		assert.Equal(t, newRound, i.state.getRound())
+		assert.Equal(t, expectedNewRound, i.state.getRound())
 
 		// Make sure the state is unlocked
 		assert.False(t, i.state.locked)
@@ -1337,14 +1043,14 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		assert.Nil(t, i.state.proposal)
 
 		// Make sure the state is correct
-		assert.Equal(t, roundChange, i.state.name)
+		assert.Equal(t, newRound, i.state.name)
 	})
 
 	t.Run("move to new round with RC", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			newRound           uint64         = 1
+			expectedNewRound   uint64         = 1
 			multicastedMessage *proto.Message = nil
 
 			log       = mockLogger{}
@@ -1360,10 +1066,10 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 
 		i := NewIBFT(log, backend, transport)
 
-		i.moveToNewRoundWithRC(newRound)
+		i.moveToNewRoundWithRC(expectedNewRound)
 
 		// Make sure the view has changed
-		assert.Equal(t, newRound, i.state.getRound())
+		assert.Equal(t, expectedNewRound, i.state.getRound())
 
 		// Make sure the state is unlocked
 		assert.False(t, i.state.locked)
@@ -1372,14 +1078,14 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		assert.Nil(t, i.state.proposal)
 
 		// Make sure the state is correct
-		assert.Equal(t, roundChange, i.state.name)
+		assert.Equal(t, newRound, i.state.name)
 
 		if multicastedMessage == nil {
 			t.Fatalf("message not multicasted")
 		}
 
 		// Make sure the multicasted message is correct
-		assert.Equal(t, newRound, multicastedMessage.View.Round)
+		assert.Equal(t, expectedNewRound, multicastedMessage.View.Round)
 		assert.Equal(t, uint64(0), multicastedMessage.View.Height)
 	})
 }
