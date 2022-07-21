@@ -156,7 +156,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 	t.Parallel()
 
 	t.Run(
-		"proposer builds block",
+		"proposer builds fresh block",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -394,20 +394,58 @@ func TestRunNewRound_Proposer(t *testing.T) {
 	)
 
 	t.Run(
-		"proposer builds proposal for round > 0 (create new)",
+		"proposer builds proposal for round > 0 (resend last prepared proposal)",
 		func(t *testing.T) {
 			t.Parallel()
+
+			lastPreparedProposedBlock := []byte("last prepared block")
+			proposalHash := []byte("proposal hash")
 
 			quorum := uint64(4)
 			ctx, cancelFn := context.WithCancel(context.Background())
 
 			roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
+			prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
+
+			for index, message := range prepareMessages {
+				message.Payload = &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: proposalHash,
+					},
+				}
+
+				message.From = []byte(fmt.Sprintf("node %d", index+1))
+			}
+
 			setRoundForMessages(roundChangeMessages, 1)
+
+			// Make sure at least one RC message has a PC
+			payload, _ := roundChangeMessages[1].Payload.(*proto.Message_RoundChangeData)
+			rcData := payload.RoundChangeData
+
+			rcData.LastPreparedProposedBlock = lastPreparedProposedBlock
+			rcData.LatestPreparedCertificate = &proto.PreparedCertificate{
+				ProposalMessage: &proto.Message{
+					View: &proto.View{
+						Height: 0,
+						Round:  0,
+					},
+					From: []byte("unique node"),
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							Proposal:     lastPreparedProposedBlock,
+							ProposalHash: proposalHash,
+							Certificate:  nil,
+						},
+					},
+				},
+				PrepareMessages: prepareMessages,
+			}
 
 			var (
 				multicastedPreprepare *proto.Message = nil
 				multicastedPrepare    *proto.Message = nil
-				proposalHash                         = []byte("proposal hash")
 				proposal                             = []byte("proposal")
 				notifyCh                             = make(chan uint64, 1)
 
@@ -443,7 +481,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							},
 						}
 					},
-					buildPrePrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
+					buildPrePrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
@@ -494,10 +532,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the locked proposal is the accepted proposal
-			assert.Equal(t, proposal, i.state.proposal)
+			assert.Equal(t, lastPreparedProposedBlock, i.state.proposal)
 
 			// Make sure the locked proposal was multicasted
-			assert.True(t, proposalMatches(proposal, multicastedPreprepare))
+			assert.True(t, proposalMatches(lastPreparedProposedBlock, multicastedPreprepare))
 
 			// Make sure the prepare message was not multicasted
 			assert.Nil(t, multicastedPrepare)
