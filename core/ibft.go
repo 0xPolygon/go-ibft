@@ -101,7 +101,7 @@ func NewIBFT(
 		transport:   transport,
 		messages:    messages.NewMessages(),
 		roundDone:   make(chan struct{}),
-		roundTimer:  make(chan uint64),
+		roundTimer:  make(chan struct{}),
 		newProposal: make(chan newProposalEvent),
 		state: &state{
 			view: &proto.View{
@@ -236,8 +236,6 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 		height    = view.Height
 		nextRound = view.Round + 1
 
-		quorum = int(i.backend.Quorum(height))
-
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPREPARE,
@@ -263,45 +261,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			return
 		case round := <-sub.GetCh():
 			isValidPrePrepare := func(message *proto.Message) bool {
-				// Extract the payload data
-				proposal := messages.ExtractProposal(message)
-				proposalHash := messages.ExtractProposalHash(message)
-				certificate := messages.ExtractRoundChangeCertificate(message)
-
-				// Verify that the message is indeed from the proposer for this view
-				if !i.backend.IsProposer(message.From, height, round) {
-					return false
-				}
-
-				// Verify that the proposal hash matches the proposal
-				if !i.backend.IsValidProposalHash(proposal, proposalHash) {
-					return false
-				}
-
-				// Make sure there is a certificate
-				if certificate == nil {
-					return false
-				}
-
-				// Make sure there are Quorum RCC
-				if len(certificate.RoundChangeMessages) < quorum {
-					return false
-				}
-
-				// Make sure the current node is not the proposer for this round
-				if i.backend.IsProposer(i.backend.ID(), height, round) {
-					return false
-				}
-
-				// Make sure all messages in the RCC are valid Round Change messages
-				for _, rc := range certificate.RoundChangeMessages {
-					// Make sure the message is a Round Change message
-					if rc.Type != proto.MessageType_ROUND_CHANGE {
-						return false
-					}
-				}
-
-				return true
+				return i.validateProposal(message, view)
 			}
 
 			msgs := i.messages.GetValidMessages(
@@ -429,9 +389,6 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 		// Start the round timer worker
 		go i.startRoundTimer(ctxRound, currentRound, roundZeroTimeout)
 
-		// Start the round hop worker
-		go i.watchForRoundHop(ctxRound)
-
 		//	Jump round on proposals from higher rounds
 		go i.watchForFutureProposal(ctxRound)
 
@@ -502,7 +459,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		go i.watchForRoundHop(ctxRound)
 
 		select {
-		case newRound := <-i.roundTimer:
+		case <-i.roundTimer:
 			// Round Change request received.
 			// Stop all running worker threads
 			i.log.Info("round change received")
@@ -511,7 +468,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			i.wg.Wait()
 
 			//	Move to the new round
-			i.moveToNewRoundWithRC(newRound)
+			//i.moveToNewRoundWithRC(newRound)
 			i.state.setLocked(false)
 
 			i.log.Info("going to round change...")
@@ -791,41 +748,122 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 		case <-sub.GetCh():
 			// SubscriptionDetails conditions have been met,
 			// grab the proposal messages
-			return i.handlePrePrepare(view)
+			proposal := i.handlePrePrepare(view)
+			if proposal == nil {
+				continue
+			}
+
+			// Accept the proposal since it's valid
+			i.acceptProposal(proposal)
+
+			// Multicast the PREPARE message
+			i.transport.Multicast(
+				i.backend.BuildPrepareMessage(proposal, view),
+			)
+
+			i.log.Debug("prepare message multicasted")
+
+			// Move to the prepare state
+			i.state.changeState(prepare)
+
+			return nil
 		}
 	}
 }
 
-//	handlePrePrepare parses the received proposal and performs
-//	a transition to PREPARE state, if the proposal is valid
-func (i *IBFT) handlePrePrepare(view *proto.View) error {
-	proposal := i.getPrePrepareMessage(view)
-
-	//	Validate the proposal
-	if err := i.validateProposal(proposal); err != nil {
-		return err
-	}
-
-	// Accept the proposal since it's valid
-	i.acceptProposal(proposal)
-
-	// Multicast the PREPARE message
-	i.transport.Multicast(
-		i.backend.BuildPrepareMessage(proposal, view),
+func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
+	var (
+		height = view.Height
+		round  = view.Round
 	)
 
-	i.log.Debug("prepare message multicasted")
+	//	proposal must be for round 0
+	if msg.View.Round != 0 {
+		return false
+	}
 
-	// Move to the prepare state
-	i.state.changeState(prepare)
+	//	is proposer
+	if !i.backend.IsProposer(msg.From, height, round) {
+		return false
+	}
 
-	return nil
+	// Make sure the current node is not the proposer for this round
+	if i.backend.IsProposer(i.backend.ID(), height, round) {
+		return false
+	}
+
+	proposal := messages.ExtractProposal(msg)
+	proposalHash := messages.ExtractProposalHash(msg)
+
+	//	hash matches keccak(proposal)
+	if !i.backend.IsValidProposalHash(proposal, proposalHash) {
+		return false
+	}
+
+	//	is valid block
+	if !i.backend.IsValidBlock(proposal) {
+		return false
+	}
+
+	return true
 }
 
-func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
+func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
+	var (
+		height = view.Height
+		round  = view.Round
+
+		proposal     = messages.ExtractProposal(msg)
+		proposalHash = messages.ExtractProposalHash(msg)
+		certificate  = messages.ExtractRoundChangeCertificate(msg)
+	)
+
+	// Verify that the message is indeed from the proposer for this view
+	if !i.backend.IsProposer(msg.From, height, round) {
+		return false
+	}
+
+	// Verify that the proposal hash matches the proposal
+	if !i.backend.IsValidProposalHash(proposal, proposalHash) {
+		return false
+	}
+
+	// Make sure there is a certificate
+	if certificate == nil {
+		return false
+	}
+
+	// Make sure there are Quorum RCC
+	if len(certificate.RoundChangeMessages) < int(i.backend.Quorum(height)) {
+		return false
+	}
+
+	// Make sure the current node is not the proposer for this round
+	if i.backend.IsProposer(i.backend.ID(), height, round) {
+		return false
+	}
+
+	// Make sure all messages in the RCC are valid Round Change messages
+	for _, rc := range certificate.RoundChangeMessages {
+		// Make sure the message is a Round Change message
+		if rc.Type != proto.MessageType_ROUND_CHANGE {
+			return false
+		}
+	}
+
+	return true
+}
+
+//	handlePrePrepare parses the received proposal and performs
+//	a transition to PREPARE state, if the proposal is valid
+func (i *IBFT) handlePrePrepare(view *proto.View) []byte {
 	isValidPrePrepare := func(message *proto.Message) bool {
-		// Verify that the message is indeed from the proposer for this view
-		return i.backend.IsProposer(message.From, view.Height, view.Round)
+		if view.Round == 0 {
+			//	proposal must be for round 0
+			return i.validateProposal0(message, view)
+		}
+
+		return i.validateProposal(message, view)
 	}
 
 	msgs := i.messages.GetValidMessages(
@@ -833,6 +871,10 @@ func (i *IBFT) getPrePrepareMessage(view *proto.View) []byte {
 		proto.MessageType_PREPREPARE,
 		isValidPrePrepare,
 	)
+
+	if len(msgs) < 1 {
+		return nil
+	}
 
 	return messages.ExtractProposal(msgs[0])
 }
@@ -1137,23 +1179,6 @@ func (i *IBFT) proposeBlock(ctx context.Context, height uint64, round uint64) er
 	)
 
 	i.log.Debug("prepare message multicasted")
-
-	return nil
-}
-
-// validateProposal validates that the proposal is valid
-func (i *IBFT) validateProposal(newProposal []byte) error {
-	//	In case I was previously locked on a block proposal,
-	//	the new one must match the old
-	if i.state.isLocked() &&
-		!bytes.Equal(i.state.getProposal(), newProposal) {
-		//	proposed block does not match my locked block
-		return errInvalidBlockProposed
-	}
-
-	if !i.backend.IsValidBlock(newProposal) {
-		return errInvalidBlockProposal
-	}
 
 	return nil
 }
