@@ -321,6 +321,11 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 			if rcc == nil {
 				continue
 			}
+
+			//	we received a valid RCC for a higher round
+			i.roundCertificate <- round
+
+			return
 		}
 	}
 }
@@ -358,10 +363,13 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 		}
 
 		select {
-		case _ = <-i.newProposal:
-		//	TODO: handle future proposal transition
-		case _ = <-i.roundCertificate:
-		//	TODO: handle round certificate transition
+		case ev := <-i.newProposal:
+			i.moveToNewRound(ev.round)
+			i.acceptProposal(ev.proposal)
+			i.state.setRoundStarted(true) //	TODO
+
+		case round := <-i.roundCertificate:
+			i.moveToNewRound(round)
 		case <-i.roundTimer:
 			teardown()
 
@@ -508,8 +516,6 @@ func (i *IBFT) runRound(ctx context.Context) {
 				if err != nil {
 					// Proposal is unable to be built
 					i.log.Error("unable to build proposal")
-
-					i.signalRoundExpired(ctx)
 
 					return
 				}
@@ -1111,8 +1117,6 @@ func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setRoundStarted(false)
 	i.state.setProposal(nil)
 	i.state.changeState(newRound)
-
-	i.log.Info("moved to new round", "round", round)
 }
 
 // moveToNewRoundWithRC moves the state to the new round change
