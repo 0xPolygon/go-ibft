@@ -98,7 +98,7 @@ func NewIBFT(
 		transport:        transport,
 		messages:         messages.NewMessages(),
 		roundDone:        make(chan struct{}),
-		roundExpired:       make(chan struct{}),
+		roundExpired:     make(chan struct{}),
 		newProposal:      make(chan newProposalEvent),
 		roundCertificate: make(chan uint64),
 		state: &state{
@@ -529,7 +529,10 @@ func (i *IBFT) runRound(ctx context.Context) {
 			i.log.Debug("block proposal accepted")
 
 			i.transport.Multicast(
-				i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
+				i.backend.BuildPrePrepareMessage(
+					proposal,
+					i.state.getView(),
+				),
 			)
 
 			i.log.Debug("pre-prepare message multicasted")

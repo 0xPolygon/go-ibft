@@ -15,10 +15,19 @@ type buildProposalDelegate func(uint64) ([]byte, error)
 type isValidProposalHashDelegate func([]byte, []byte) bool
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
-type buildPrePrepareMessageDelegate func([]byte, *proto.View) *proto.Message
+type buildPrePrepareMessageDelegate func(
+	[]byte,
+	[]byte,
+	*proto.RoundChangeCertificate,
+	*proto.View,
+) *proto.Message
 type buildPrepareMessageDelegate func([]byte, *proto.View) *proto.Message
 type buildCommitMessageDelegate func([]byte, *proto.View) *proto.Message
-type buildRoundChangeMessageDelegate func(uint64, uint64) *proto.Message
+type buildRoundChangeMessageDelegate func(
+	[]byte,
+	*proto.PreparedCertificate,
+	*proto.View,
+) *proto.Message
 
 type quorumDelegate func(blockHeight uint64) uint64
 type insertBlockDelegate func([]byte, [][]byte) error
@@ -124,9 +133,14 @@ func (m mockBackend) MaximumFaultyNodes() uint64 {
 	return 0
 }
 
-func (m mockBackend) BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message {
+func (m mockBackend) BuildPrePrepareMessage(
+	proposal []byte,
+	proposalHash []byte,
+	certificate *proto.RoundChangeCertificate,
+	view *proto.View,
+) *proto.Message {
 	if m.buildPrePrepareMessageFn != nil {
-		return m.buildPrePrepareMessageFn(proposal, view)
+		return m.buildPrePrepareMessageFn(proposal, proposalHash, certificate, view)
 	}
 
 	return nil
@@ -148,15 +162,19 @@ func (m mockBackend) BuildCommitMessage(proposal []byte, view *proto.View) *prot
 	return nil
 }
 
-func (m mockBackend) BuildRoundChangeMessage(height uint64, round uint64) *proto.Message {
+func (m mockBackend) BuildRoundChangeMessage(
+	proposal []byte,
+	certificate *proto.PreparedCertificate,
+	view *proto.View,
+) *proto.Message {
 	if m.buildRoundChangeMessageFn != nil {
-		return m.buildRoundChangeMessageFn(height, round)
+		return m.buildRoundChangeMessageFn(proposal, certificate, view)
 	}
 
 	return &proto.Message{
 		View: &proto.View{
-			Height: height,
-			Round:  round,
+			Height: view.Height,
+			Round:  view.Round,
 		},
 		Type:    proto.MessageType_ROUND_CHANGE,
 		Payload: nil,

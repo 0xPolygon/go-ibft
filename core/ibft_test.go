@@ -179,13 +179,20 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					buildProposalFn: func(_ uint64) ([]byte, error) {
 						return newProposal, nil
 					},
-					buildPrePrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
+					buildPrePrepareMessageFn: func(
+						proposal []byte,
+						proposalHash []byte,
+						certificate *proto.RoundChangeCertificate,
+						view *proto.View,
+					) *proto.Message {
 						return &proto.Message{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
 							Payload: &proto.Message_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
-									Proposal: proposal,
+									Proposal:     proposal,
+									ProposalHash: proposalHash,
+									Certificate:  certificate,
 								},
 							},
 						}
@@ -269,7 +276,12 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							},
 						}
 					},
-					buildPrePrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
+					buildPrePrepareMessageFn: func(
+						_ []byte,
+						_ []byte,
+						_ *proto.RoundChangeCertificate,
+						view *proto.View,
+					) *proto.Message {
 						return &proto.Message{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
@@ -418,7 +430,12 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							},
 						}
 					},
-					buildPrePrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
+					buildPrePrepareMessageFn: func(
+						proposal []byte,
+						proposalHash []byte,
+						certificate *proto.RoundChangeCertificate,
+						view *proto.View,
+					) *proto.Message {
 						return &proto.Message{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
@@ -426,6 +443,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal:     proposal,
 									ProposalHash: proposalHash,
+									Certificate:  certificate,
 								},
 							},
 						}
