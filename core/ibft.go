@@ -341,32 +341,37 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 }
 
 func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
-	var (
-		view = i.state.getView()
+	defer i.wg.Done()
 
-		sub = i.messages.Subscribe(
-			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_ROUND_CHANGE,
-				View: &proto.View{
-					Height: view.Height,
-					Round:  view.Round + 1,
-				},
-				NumMessages: 1,
+	var (
+		view   = i.state.getView()
+		height = view.Height
+		round  = view.Round
+		quorum = i.backend.Quorum(height)
+
+		details = messages.SubscriptionDetails{
+			MessageType: proto.MessageType_ROUND_CHANGE,
+			View: &proto.View{
+				Height: height,
+				Round:  round + 1, // only for higher rounds
 			},
-		)
+			NumMessages: 1,
+			HasMinRound: true,
+		}
 	)
 
-	defer func() {
-		i.messages.Unsubscribe(sub.GetID())
-
-		i.wg.Done()
-	}()
+	sub := i.messages.Subscribe(details)
+	defer i.messages.Unsubscribe(sub.GetID())
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-sub.GetCh(): //	TODO: handle
+		case round := <-sub.GetCh():
+			rcc := i.handleRoundChangeMessage(&proto.View{Height: height, Round: round}, quorum)
+			if rcc == nil {
+				continue
+			}
 		}
 	}
 }
