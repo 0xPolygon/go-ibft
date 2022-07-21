@@ -85,8 +85,12 @@ message RoundChangeMessage {
 // PreparedCertificate is a collection of
 // prepare messages for a certain proposal
 message PreparedCertificate {
-  // prepareMessages are the PREPARE messages
-  repeated Message prepareMessages = 1;
+  // proposalMessage is the proposal message to reach
+  // at least Q(N) - 1 PREPARE messages
+  Message proposalMessage = 1;
+
+  // prepareMessages are the PREPARE messages at least Q(N) - 1
+  repeated Message prepareMessages = 2;
 }
 
 // RoundChangeCertificate is a collection of

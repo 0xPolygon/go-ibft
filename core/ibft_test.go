@@ -1141,3 +1141,101 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		assert.Equal(t, uint64(0), multicastedMessage.View.Height)
 	})
 }
+
+// TestIBFT_FutureProposal checks the
+// behavior when new proposal messages
+// appear
+//func TestIBFT_FutureProposal(t *testing.T) {
+//	t.Parallel()
+//
+//	t.Run("valid future proposal", func(t *testing.T) {
+//		t.Parallel()
+//
+//		ctx, cancelFn := context.WithCancel(context.Background())
+//
+//		proposer := []byte("proposer")
+//		proposal := []byte("proposal")
+//		proposalHash := []byte("proposal hash")
+//		quorum := uint64(4)
+//
+//		roundChangeMessages := generateRoundChangeMessages(quorum)
+//
+//		validProposal := &proto.Message{
+//			View: &proto.View{
+//				Height: 0,
+//				Round:  1,
+//			},
+//			From: proposer,
+//			Type: proto.MessageType_PREPREPARE,
+//			Payload: &proto.Message_PreprepareData{
+//				PreprepareData: &proto.PrePrepareMessage{
+//					Proposal:     proposal,
+//					ProposalHash: proposalHash,
+//					Certificate:  nil,
+//				},
+//			},
+//		}
+//
+//		var (
+//			wg               sync.WaitGroup
+//			receivedProposal []byte = nil
+//			notifyCh                = make(chan uint64, 1)
+//
+//			log       = mockLogger{}
+//			backend   = mockBackend{}
+//			transport = mockTransport{}
+//			messages  = mockMessages{
+//				subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+//					return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+//				},
+//				getValidMessagesFn: func(
+//					view *proto.View,
+//					_ proto.MessageType,
+//					isValid func(message *proto.Message) bool,
+//				) []*proto.Message {
+//					return filterMessages(
+//						[]*proto.Message{
+//							{
+//								View: view,
+//								From: proposer,
+//								Type: proto.MessageType_PREPREPARE,
+//								Payload: &proto.Message_PreprepareData{
+//									PreprepareData: &proto.PrePrepareMessage{
+//										Proposal: proposal,
+//									},
+//								},
+//							},
+//						},
+//						isValid,
+//					)
+//				},
+//			}
+//		)
+//
+//		i := NewIBFT(log, backend, transport)
+//		i.messages = messages
+//
+//		wg.Add(1)
+//		go func() {
+//			defer func() {
+//				cancelFn()
+//
+//				wg.Done()
+//			}()
+//
+//			select {
+//			case <-time.After(5 * time.Second):
+//			case proposal := <-i.newProposal:
+//				receivedProposal = proposal
+//			}
+//		}()
+//
+//		i.watchForFutureProposal(ctx)
+//
+//		wg.Wait()
+//
+//		// Make sure the received proposal is the one that was expected
+//		assert.Equal(t, []byte("expected proposal"), receivedProposal)
+//	})
+//
+//}

@@ -223,16 +223,22 @@ func (i *IBFT) CancelSequence() {
 	i.roundDone <- struct{}{}
 }
 
+// watchForFutureProposal listens for new proposal messages
+// that are intended for higher rounds
 func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 	var (
-		view = i.state.getView()
+		view      = i.state.getView()
+		height    = view.Height
+		nextRound = view.Round + 1
+
+		quorum = int(i.backend.Quorum(height))
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPREPARE,
 				View: &proto.View{
-					Height: view.Height,
-					Round:  view.Round + 1,
+					Height: height,
+					Round:  nextRound,
 				},
 				NumMessages: 1,
 				HasMinRound: true,
@@ -250,9 +256,54 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case _ = <-sub.GetCh():
-			// TODO verify the proposal message and signal
-			// the runSequence loop
+		case round := <-sub.GetCh():
+			isValidPrePrepare := func(message *proto.Message) bool {
+				// Extract the payload data
+				payload := message.Payload.(*proto.Message_PreprepareData).PreprepareData
+
+				// Verify that the message is indeed from the proposer for this view
+				if !i.backend.IsProposer(message.From, height, round) {
+					return false
+				}
+
+				// Verify that the proposal hash matches the proposal
+				if !i.backend.IsValidProposalHash(payload.Proposal, payload.ProposalHash) {
+					return false
+				}
+
+				// Make sure there are Quorum RCC
+				if len(payload.Certificate.RoundChangeMessages) < quorum {
+					return false
+				}
+
+				// Make sure the current node is not the proposer for this round
+				if i.backend.IsProposer(i.backend.ID(), height, round) {
+					return false
+				}
+
+				// Make sure all messages in the RCC are valid Round Change messages
+				for _, rc := range payload.Certificate.RoundChangeMessages {
+					// Make sure the message is a Round Change message
+					if rc.Type != proto.MessageType_ROUND_CHANGE {
+						return false
+					}
+				}
+
+				return true
+			}
+
+			msgs := i.messages.GetValidMessages(
+				&proto.View{
+					Height: height,
+					Round:  round,
+				},
+				proto.MessageType_PREPREPARE,
+				isValidPrePrepare,
+			)
+
+			i.signalNewProposal(ctx, messages.ExtractProposal(msgs[0]))
+
+			return
 		}
 	}
 }
