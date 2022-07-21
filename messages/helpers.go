@@ -37,11 +37,35 @@ func ExtractProposal(proposalMessage *proto.Message) []byte {
 	return preprepareData.PreprepareData.Proposal
 }
 
+func ExtractProposalHash(proposalMessage *proto.Message) []byte {
+	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
+
+	return preprepareData.PreprepareData.ProposalHash
+}
+
+func ExtractRoundChangeCertificate(proposalMessage *proto.Message) *proto.RoundChangeCertificate {
+	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
+
+	return preprepareData.PreprepareData.Certificate
+}
+
 // ExtractPrepareHash extracts the prepare proposal hash from the passed in message
 func ExtractPrepareHash(prepareMessage *proto.Message) []byte {
 	prepareData, _ := prepareMessage.Payload.(*proto.Message_PrepareData)
 
 	return prepareData.PrepareData.ProposalHash
+}
+
+func ExtractLatestPC(roundChangeMessage *proto.Message) *proto.PreparedCertificate {
+	rcData, _ := roundChangeMessage.Payload.(*proto.Message_RoundChangeData)
+
+	return rcData.RoundChangeData.LatestPreparedCertificate
+}
+
+func ExtractLastPreparedProposedBlock(roundChangeMessage *proto.Message) []byte {
+	rcData, _ := roundChangeMessage.Payload.(*proto.Message_RoundChangeData)
+
+	return rcData.RoundChangeData.LastPreparedProposedBlock
 }
 
 func HasUniqueSenders(messages []*proto.Message) bool {

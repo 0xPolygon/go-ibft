@@ -265,8 +265,9 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 		case round := <-sub.GetCh():
 			isValidPrePrepare := func(message *proto.Message) bool {
 				// Extract the payload data
-				ppData, _ := message.Payload.(*proto.Message_PreprepareData)
-				payload := ppData.PreprepareData
+				proposal := messages.ExtractProposal(message)
+				proposalHash := messages.ExtractProposal(message)
+				certificate := messages.ExtractRoundChangeCertificate(message)
 
 				// Verify that the message is indeed from the proposer for this view
 				if !i.backend.IsProposer(message.From, height, round) {
@@ -274,17 +275,17 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				}
 
 				// Verify that the proposal hash matches the proposal
-				if !i.backend.IsValidProposalHash(payload.Proposal, payload.ProposalHash) {
+				if !i.backend.IsValidProposalHash(proposal, proposalHash) {
 					return false
 				}
 
 				// Make sure there is a certificate
-				if payload.Certificate == nil {
+				if certificate == nil {
 					return false
 				}
 
 				// Make sure there are Quorum RCC
-				if len(payload.Certificate.RoundChangeMessages) < quorum {
+				if len(certificate.RoundChangeMessages) < quorum {
 					return false
 				}
 
@@ -294,7 +295,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				}
 
 				// Make sure all messages in the RCC are valid Round Change messages
-				for _, rc := range payload.Certificate.RoundChangeMessages {
+				for _, rc := range certificate.RoundChangeMessages {
 					// Make sure the message is a Round Change message
 					if rc.Type != proto.MessageType_ROUND_CHANGE {
 						return false
@@ -315,9 +316,9 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 
 			// Extract the proposal
 			proposalMessage := msgs[0]
-			ppData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
-			payload := ppData.PreprepareData
-			rcc := payload.Certificate
+			rcc := messages.ExtractRoundChangeCertificate(proposalMessage)
+			proposalHash := messages.ExtractProposalHash(proposalMessage)
+			proposal := messages.ExtractProposal(proposalMessage)
 
 			// Extract possible rounds and their corresponding
 			// block hashes
@@ -329,13 +330,10 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
 
 			for _, rcMessage := range rcc.RoundChangeMessages {
-				rcData, _ := rcMessage.Payload.(*proto.Message_RoundChangeData)
-				payload := rcData.RoundChangeData
-				certificate := payload.LatestPreparedCertificate
+				certificate := messages.ExtractLatestPC(rcMessage)
 
 				if certificate != nil && i.validPC(certificate, proposalMessage.View.Round) {
-					ppData, _ := certificate.ProposalMessage.Payload.(*proto.Message_PreprepareData)
-					hash := ppData.PreprepareData.ProposalHash
+					hash := messages.ExtractProposalHash(certificate.ProposalMessage)
 
 					roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
 						round: rcMessage.View.Round,
@@ -358,20 +356,20 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 					}
 				}
 
-				if bytes.Equal(expectedHash, payload.ProposalHash) {
+				if bytes.Equal(expectedHash, proposalHash) {
 					// The proposal contains a verifiable old proposal, it's valid
 					i.signalNewProposal(ctx, newProposalEvent{
-						proposal: payload.Proposal,
+						proposal: proposal,
 						round:    round,
 					})
 
 					return
 				}
 			} else {
-				if i.backend.IsValidBlock(payload.Proposal) {
+				if i.backend.IsValidBlock(proposal) {
 					// The proposal contains a newly created proposal, it's valid
 					i.signalNewProposal(ctx, newProposalEvent{
-						proposal: payload.Proposal,
+						proposal: proposal,
 						round:    round,
 					})
 
@@ -626,14 +624,13 @@ func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.
 	hashesInCertificate := make([][]byte, 0)
 
 	//	collect hash from pre-prepare message
-	ppData, _ := certificate.ProposalMessage.Payload.(*proto.Message_PreprepareData)
-	proposalHash := ppData.PreprepareData.ProposalHash
+	proposalHash := messages.ExtractProposalHash(certificate.ProposalMessage)
 	hashesInCertificate = append(hashesInCertificate, proposalHash)
 
 	//	collect hashes from prepare messages
 	for _, msg := range certificate.PrepareMessages {
-		pData, _ := msg.Payload.(*proto.Message_PrepareData)
-		proposalHash := pData.PrepareData.ProposalHash
+		proposalHash := messages.ExtractProposalHash(msg)
+
 		hashesInCertificate = append(hashesInCertificate, proposalHash)
 	}
 
@@ -650,11 +647,9 @@ func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.
 func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 	isValidFn := func(msg *proto.Message) bool {
 		//	TODO: isValidPC
-		rcData, _ := msg.Payload.(*proto.Message_RoundChangeData)
-		payload := rcData.RoundChangeData
 
-		proposal := payload.LastPreparedProposedBlock
-		certificate := payload.LatestPreparedCertificate
+		proposal := messages.ExtractLastPreparedProposedBlock(msg)
+		certificate := messages.ExtractLatestPC(msg)
 
 		return i.matchProposalWithCertificate(proposal, certificate)
 	}
@@ -674,11 +669,10 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 
 	for _, msg := range msgs {
 		//	if message contains block, break
-		rcData, _ := msg.Payload.(*proto.Message_RoundChangeData)
-		payload := rcData.RoundChangeData
+		latestPC := messages.ExtractLatestPC(msg)
 
-		if payload.LastPreparedProposedBlock != nil {
-			previousProposal = payload.LastPreparedProposedBlock
+		if latestPC != nil {
+			previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
 
 			break
 		}
