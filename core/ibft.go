@@ -955,6 +955,8 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	// Make sure the node is locked
 	i.state.setLocked(true)
 
+	// TODO add latestPC...
+
 	// Move to the commit state
 	i.state.changeState(commit)
 
