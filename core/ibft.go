@@ -273,69 +273,17 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				isValidPrePrepare,
 			)
 
+			if len(msgs) < 1 {
+				continue
+			}
+
 			// Extract the proposal
-			proposalMessage := msgs[0]
-			rcc := messages.ExtractRoundChangeCertificate(proposalMessage)
-			proposalHash := messages.ExtractProposalHash(proposalMessage)
-			proposal := messages.ExtractProposal(proposalMessage)
+			i.signalNewProposal(ctx, newProposalEvent{
+				proposal: messages.ExtractProposal(msgs[0]),
+				round:    round,
+			})
 
-			// Extract possible rounds and their corresponding
-			// block hashes
-			type roundHashTuple struct {
-				round uint64
-				hash  []byte
-			}
-
-			roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
-
-			for _, rcMessage := range rcc.RoundChangeMessages {
-				certificate := messages.ExtractLatestPC(rcMessage)
-
-				// Check if there is a certificate, and if it's a valid PC
-				if certificate != nil && i.validPC(certificate, proposalMessage.View.Round) {
-					hash := messages.ExtractProposalHash(certificate.ProposalMessage)
-
-					roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
-						round: rcMessage.View.Round,
-						hash:  hash,
-					})
-				}
-			}
-
-			if len(roundsAndPreparedBlockHashes) > 0 {
-				// Find the max round
-				var (
-					maxRound     uint64 = 0
-					expectedHash []byte = nil
-				)
-
-				for _, tuple := range roundsAndPreparedBlockHashes {
-					if tuple.round > maxRound {
-						maxRound = tuple.round
-						expectedHash = tuple.hash
-					}
-				}
-
-				if bytes.Equal(expectedHash, proposalHash) {
-					// The proposal contains a verifiable old proposal, it's valid
-					i.signalNewProposal(ctx, newProposalEvent{
-						proposal: proposal,
-						round:    round,
-					})
-
-					return
-				}
-			} else {
-				if i.backend.IsValidBlock(proposal) {
-					// The proposal contains a newly created proposal, it's valid
-					i.signalNewProposal(ctx, newProposalEvent{
-						proposal: proposal,
-						round:    round,
-					})
-
-					return
-				}
-			}
+			return
 		}
 	}
 }
@@ -808,10 +756,16 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		proposal     = messages.ExtractProposal(msg)
 		proposalHash = messages.ExtractProposalHash(msg)
 		certificate  = messages.ExtractRoundChangeCertificate(msg)
+		rcc          = messages.ExtractRoundChangeCertificate(msg)
 	)
 
 	// Verify that the message is indeed from the proposer for this view
 	if !i.backend.IsProposer(msg.From, height, round) {
+		return false
+	}
+
+	// Make sure the block is actually valid
+	if !i.backend.IsValidBlock(proposal) {
 		return false
 	}
 
@@ -841,6 +795,50 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		if rc.Type != proto.MessageType_ROUND_CHANGE {
 			return false
 		}
+	}
+
+	// Extract possible rounds and their corresponding
+	// block hashes
+	type roundHashTuple struct {
+		round uint64
+		hash  []byte
+	}
+
+	roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
+
+	for _, rcMessage := range rcc.RoundChangeMessages {
+		certificate := messages.ExtractLatestPC(rcMessage)
+
+		// Check if there is a certificate, and if it's a valid PC
+		if certificate != nil && i.validPC(certificate, msg.View.Round) {
+			hash := messages.ExtractProposalHash(certificate.ProposalMessage)
+
+			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
+				round: rcMessage.View.Round,
+				hash:  hash,
+			})
+		}
+	}
+
+	if len(roundsAndPreparedBlockHashes) == 0 {
+		return true
+	}
+
+	// Find the max round
+	var (
+		maxRound     uint64 = 0
+		expectedHash []byte = nil
+	)
+
+	for _, tuple := range roundsAndPreparedBlockHashes {
+		if tuple.round > maxRound {
+			maxRound = tuple.round
+			expectedHash = tuple.hash
+		}
+	}
+
+	if !bytes.Equal(expectedHash, proposalHash) {
+		return false
 	}
 
 	return true
