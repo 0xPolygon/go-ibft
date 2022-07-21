@@ -266,7 +266,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			isValidPrePrepare := func(message *proto.Message) bool {
 				// Extract the payload data
 				proposal := messages.ExtractProposal(message)
-				proposalHash := messages.ExtractProposal(message)
+				proposalHash := messages.ExtractProposalHash(message)
 				certificate := messages.ExtractRoundChangeCertificate(message)
 
 				// Verify that the message is indeed from the proposer for this view
