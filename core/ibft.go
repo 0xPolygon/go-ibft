@@ -512,13 +512,16 @@ func (i *IBFT) runRound(ctx context.Context) {
 }
 
 func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) {
+	quorum := i.backend.Quorum(height)
+
 	sub := i.messages.Subscribe(
 		messages.SubscriptionDetails{
-			//	TODO
-			//MessageType: 0,
-			//View:        nil,
-			//NumMessages: 0,
-			//HasMinRound: false,
+			MessageType: proto.MessageType_ROUND_CHANGE,
+			View: &proto.View{
+				Height: height,
+				Round:  round,
+			},
+			NumMessages: int(quorum),
 		},
 	)
 
@@ -529,21 +532,58 @@ func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) {
 		case <-ctx.Done():
 			return
 		case <-sub.GetCh():
+			if !i.handleRoundChangeMessage(&proto.View{Height: height, Round: round}, quorum) {
+				continue
+			}
 
-			//		TODO: get RCC for this round
-			//		extract proposal from RCC
-			// if proposal == nil -> build a new block
-			//		if not -> accept proposal
-
-			//	multicast preprepare message based on new proposal
-
+			return
 		}
 	}
 }
 
+func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.PreparedCertificate) bool {
+	if proposal == nil && certificate == nil {
+		return true
+	}
+
+	if certificate == nil {
+		return false
+	}
+
+	hashesInCertificate := make([][]byte, 0)
+
+	//	collect hash from pre-prepare message
+	proposalHash := certificate.ProposalMessage.Payload.(*proto.Message_PreprepareData).PreprepareData.ProposalHash
+	hashesInCertificate = append(hashesInCertificate, proposalHash)
+
+	//	collect hashes from prepare messages
+	for _, msg := range certificate.PrepareMessages {
+		proposalHash := msg.Payload.(*proto.Message_PrepareData).PrepareData.ProposalHash
+		hashesInCertificate = append(hashesInCertificate, proposalHash)
+	}
+
+	//	verify all hashes match the proposal
+	for _, hash := range hashesInCertificate {
+		if !i.backend.IsValidProposalHash(proposal, hash) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 	isValidFn := func(msg *proto.Message) bool {
-		//	TODO:
+		//	TODO: isValidPC
+
+		payload := msg.Payload.(*proto.Message_RoundChangeData).RoundChangeData
+
+		proposal := payload.LastPreparedProposedBlock
+		certificate := payload.LatestPreparedCertificate
+
+		if !i.matchProposalWithCertificate(proposal, certificate) {
+			return false
+		}
 
 		return true
 	}
@@ -565,6 +605,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 		payload := msg.Payload.(*proto.Message_RoundChangeData).RoundChangeData
 		if payload.LastPreparedProposedBlock != nil {
 			previousProposal = payload.LastPreparedProposedBlock
+			break
 		}
 
 	}
