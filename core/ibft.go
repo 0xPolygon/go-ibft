@@ -700,20 +700,6 @@ func (i *IBFT) runStates(ctx context.Context) {
 
 			return
 		}
-
-		if err != nil {
-			// There was a critical consensus error during
-			// state execution, move to the round change state
-			i.log.Error(
-				"error during state processing",
-				"state", i.state.getStateName().String(),
-				"err", err,
-			)
-
-			i.signalRoundExpired(ctx)
-
-			return
-		}
 	}
 }
 
