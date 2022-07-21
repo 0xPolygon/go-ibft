@@ -332,6 +332,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			for _, rcMessage := range rcc.RoundChangeMessages {
 				certificate := messages.ExtractLatestPC(rcMessage)
 
+				// Check if there is a certificate, and if it's a valid PC
 				if certificate != nil && i.validPC(certificate, proposalMessage.View.Round) {
 					hash := messages.ExtractProposalHash(certificate.ProposalMessage)
 
@@ -1248,17 +1249,10 @@ func (i *IBFT) validPC(certificate *proto.PreparedCertificate, rLimit uint64) bo
 		return false
 	}
 
-	proposer := proposal.From
-
 	// Make sure the Prepare messages are validators, apart from the proposer
 	for _, message := range certificate.PrepareMessages {
 		// Make sure the sender is part of the validator set
 		if !i.backend.IsValidSender(message) {
-			return false
-		}
-
-		// Make sure the proposer has not sent out a prepare message
-		if bytes.Equal(message.From, proposer) {
 			return false
 		}
 	}

@@ -51,16 +51,81 @@ func generateMessages(count uint64, messageType proto.MessageType) []*proto.Mess
 	messages := make([]*proto.Message, count)
 
 	for index := uint64(0); index < count; index++ {
-		messages[index] = &proto.Message{
+		message := &proto.Message{
 			View: &proto.View{
 				Height: 0,
 				Round:  0,
 			},
 			Type: messageType,
 		}
+
+		switch message.Type {
+		case proto.MessageType_PREPREPARE:
+			message.Payload = &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{},
+			}
+		case proto.MessageType_PREPARE:
+			message.Payload = &proto.Message_PrepareData{
+				PrepareData: &proto.PrepareMessage{},
+			}
+		case proto.MessageType_COMMIT:
+			message.Payload = &proto.Message_CommitData{
+				CommitData: &proto.CommitMessage{},
+			}
+		case proto.MessageType_ROUND_CHANGE:
+			message.Payload = &proto.Message_RoundChangeData{
+				RoundChangeData: &proto.RoundChangeMessage{},
+			}
+		}
+
+		messages[index] = message
 	}
 
 	return messages
+}
+
+func generateMessagesWithSender(count uint64, messageType proto.MessageType, sender []byte) []*proto.Message {
+	messages := generateMessages(count, messageType)
+
+	for _, message := range messages {
+		message.From = sender
+	}
+
+	return messages
+}
+
+func generateMessagesWithUniqueSender(count uint64, messageType proto.MessageType) []*proto.Message {
+	messages := generateMessages(count, messageType)
+
+	for index, message := range messages {
+		message.From = []byte(fmt.Sprintf("node %d", index))
+	}
+
+	return messages
+}
+
+func appendProposalHash(messages []*proto.Message, proposalHash []byte) {
+	for _, message := range messages {
+		switch message.Type {
+		case proto.MessageType_PREPREPARE:
+			ppData, _ := message.Payload.(*proto.Message_PreprepareData)
+			payload := ppData.PreprepareData
+
+			payload.ProposalHash = proposalHash
+		case proto.MessageType_PREPARE:
+			pData, _ := message.Payload.(*proto.Message_PrepareData)
+			payload := pData.PrepareData
+
+			payload.ProposalHash = proposalHash
+		default:
+		}
+	}
+}
+
+func setRoundForMessages(messages []*proto.Message, round uint64) {
+	for _, message := range messages {
+		message.View.Round = round
+	}
 }
 
 func generateSeals(count int) [][]byte {
@@ -1349,4 +1414,367 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			assert.Equal(t, proposal, receivedProposalEvent.proposal)
 		})
 	}
+}
+
+// TestIBFT_ValidPC validates that prepared certificates
+// are verified correctly
+func TestIBFT_ValidPC(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no certificate", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			certificate *proto.PreparedCertificate = nil
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		assert.True(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("proposal and prepare messages mismatch", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: nil,
+			PrepareMessages: make([]*proto.Message, 0),
+		}
+
+		assert.False(t, i.validPC(certificate, 0))
+
+		certificate = &proto.PreparedCertificate{
+			ProposalMessage: &proto.Message{},
+			PrepareMessages: nil,
+		}
+
+		assert.False(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("no Quorum PP + P messages", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: &proto.Message{},
+			PrepareMessages: generateMessages(quorum-2, proto.MessageType_PREPARE),
+		}
+
+		assert.False(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("invalid proposal message type", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: &proto.Message{
+				Type: proto.MessageType_PREPARE,
+			},
+			PrepareMessages: generateMessages(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		assert.False(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("invalid prepare message type", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: &proto.Message{
+				Type: proto.MessageType_PREPREPARE,
+			},
+			PrepareMessages: generateMessages(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure one of the messages has an invalid type
+		certificate.PrepareMessages[0].Type = proto.MessageType_ROUND_CHANGE
+
+		assert.False(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("non unique senders", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+			sender = []byte("node x")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: &proto.Message{
+				Type: proto.MessageType_PREPREPARE,
+				From: sender,
+			},
+			PrepareMessages: generateMessagesWithSender(quorum-1, proto.MessageType_PREPARE, sender),
+		}
+
+		assert.False(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("differing proposal hashes", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+			sender = []byte("unique node")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: proposal,
+			PrepareMessages: generateMessagesWithUniqueSender(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure the proposal has a different hash than the prepare messages
+		appendProposalHash([]*proto.Message{certificate.ProposalMessage}, []byte("proposal hash 1"))
+		appendProposalHash(certificate.PrepareMessages, []byte("proposal hash 2"))
+
+		assert.False(t, i.validPC(certificate, 0))
+	})
+
+	t.Run("rounds not lower than rLimit", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum       = uint64(4)
+			rLimit       = uint64(1)
+			sender       = []byte("unique node")
+			proposalHash = []byte("proposal hash")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: proposal,
+			PrepareMessages: generateMessagesWithUniqueSender(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure they all have the same proposal hash
+		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		appendProposalHash(
+			allMessages,
+			proposalHash,
+		)
+
+		setRoundForMessages(allMessages, rLimit+1)
+
+		assert.False(t, i.validPC(certificate, rLimit))
+	})
+
+	t.Run("proposal not from proposer", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum       = uint64(4)
+			rLimit       = uint64(1)
+			sender       = []byte("unique node")
+			proposalHash = []byte("proposal hash")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return !bytes.Equal(proposer, sender)
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: proposal,
+			PrepareMessages: generateMessagesWithUniqueSender(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure they all have the same proposal hash
+		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		appendProposalHash(
+			allMessages,
+			proposalHash,
+		)
+
+		setRoundForMessages(allMessages, rLimit-1)
+
+		assert.False(t, i.validPC(certificate, rLimit))
+	})
+
+	t.Run("prepare is from an invalid sender", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum       = uint64(4)
+			rLimit       = uint64(1)
+			sender       = []byte("unique node")
+			proposalHash = []byte("proposal hash")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, sender)
+				},
+				isValidSenderFn: func(message *proto.Message) bool {
+					// One of the messages will be invalid
+					return !bytes.Equal(message.From, []byte("node 1"))
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: proposal,
+			PrepareMessages: generateMessagesWithUniqueSender(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure they all have the same proposal hash
+		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		appendProposalHash(
+			allMessages,
+			proposalHash,
+		)
+
+		setRoundForMessages(allMessages, rLimit-1)
+
+		assert.False(t, i.validPC(certificate, rLimit))
+	})
+
+	t.Run("completely valid PC", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum       = uint64(4)
+			rLimit       = uint64(1)
+			sender       = []byte("unique node")
+			proposalHash = []byte("proposal hash")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, sender)
+				},
+				isValidSenderFn: func(message *proto.Message) bool {
+					return true
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: proposal,
+			PrepareMessages: generateMessagesWithUniqueSender(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure they all have the same proposal hash
+		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		appendProposalHash(
+			allMessages,
+			proposalHash,
+		)
+
+		setRoundForMessages(allMessages, rLimit-1)
+
+		assert.True(t, i.validPC(certificate, rLimit))
+	})
 }
