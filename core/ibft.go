@@ -258,15 +258,17 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case round := <-sub.GetCh():
+			futureView := &proto.View{
+				Height: height,
+				Round:  round,
+			}
+
 			isValidPrePrepare := func(message *proto.Message) bool {
-				return i.validateProposal(message, view)
+				return i.validateProposal(message, futureView)
 			}
 
 			msgs := i.messages.GetValidMessages(
-				&proto.View{
-					Height: height,
-					Round:  round,
-				},
+				futureView,
 				proto.MessageType_PREPREPARE,
 				isValidPrePrepare,
 			)
@@ -276,10 +278,13 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			}
 
 			// Extract the proposal
-			i.signalNewProposal(ctx, newProposalEvent{
-				proposal: messages.ExtractProposal(msgs[0]),
-				round:    round,
-			})
+			i.signalNewProposal(
+				ctx,
+				newProposalEvent{
+					proposal: messages.ExtractProposal(msgs[0]),
+					round:    round,
+				},
+			)
 
 			return
 		}
