@@ -45,6 +45,7 @@ var (
 	errInvalidBlockProposed = errors.New("invalid block proposed")
 	errInsertBlock          = errors.New("failed to insert block")
 	errTimeoutExpired       = errors.New("round timeout expired")
+	errQuorumNotReached     = errors.New("quorum messages not reached")
 
 	roundZeroTimeout = 10 * time.Second
 )
@@ -575,14 +576,19 @@ func (i *IBFT) runRound(ctx context.Context) {
 			}
 		} else {
 			//	round > 0 -> needs RCC
-			i.waitForRCC(ctx, height, round)
+			if err := i.waitForRCC(ctx, height, round); err != nil {
+				if errors.Is(err, errBuildProposal) ||
+					errors.Is(err, errTimeoutExpired) {
+					return
+				}
+			}
 		}
 	}
 
 	i.runStates(ctx)
 }
 
-func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) {
+func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) error {
 	quorum := i.backend.Quorum(height)
 
 	sub := i.messages.Subscribe(
@@ -601,13 +607,16 @@ func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return errTimeoutExpired
 		case <-sub.GetCh():
-			if !i.handleRoundChangeMessage(&proto.View{Height: height, Round: round}, quorum) {
+			err := i.handleRoundChangeMessage(&proto.View{Height: height, Round: round}, quorum)
+			if errors.Is(err, errQuorumNotReached) {
 				continue
+			} else if errors.Is(err, errBuildProposal) {
+				return err
 			}
 
-			return
+			return nil
 		}
 	}
 }
@@ -644,12 +653,14 @@ func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.
 	return true
 }
 
-func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
+func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) error {
 	isValidFn := func(msg *proto.Message) bool {
-		//	TODO: isValidPC
-
 		proposal := messages.ExtractLastPreparedProposedBlock(msg)
 		certificate := messages.ExtractLatestPC(msg)
+
+		if !i.validPC(certificate, view.Round) {
+			return false
+		}
 
 		return i.matchProposalWithCertificate(proposal, certificate)
 	}
@@ -661,7 +672,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 	)
 
 	if len(msgs) < int(quorum) {
-		return false
+		return errors.New("quorum not reached")
 	}
 
 	//	check the messages for any previous proposal (if they have any, it's the same proposal)
@@ -681,7 +692,12 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 	var proposal []byte
 	if previousProposal == nil {
 		//	build new proposal
-		proposal, _ = i.buildProposal(view.Height)
+		var err error
+		proposal, err = i.buildProposal(view.Height)
+		if err != nil {
+			//	return early
+			return errBuildProposal
+		}
 	} else {
 		proposal = previousProposal
 	}
@@ -693,9 +709,11 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
 		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
 	)
 
+	i.state.changeState(prepare)
+
 	i.log.Debug("pre-prepare message multicasted")
 
-	return true
+	return nil
 }
 
 //	runStates is the main loop which performs state transitions
