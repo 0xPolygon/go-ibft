@@ -277,6 +277,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				continue
 			}
 
+			//	TODO: accept proposal and multicast prepare in run sequence
 			// Extract the proposal
 			i.signalNewProposal(ctx, newProposalEvent{
 				proposal: messages.ExtractProposal(msgs[0]),
