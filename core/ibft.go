@@ -441,17 +441,101 @@ func (i *IBFT) runRound(ctx context.Context) {
 	if i.backend.IsProposer(id, height, round) {
 		i.log.Info("we are the proposer")
 
-		if err := i.proposeBlock(nil, height, 0); err != nil {
-			// Proposal is unable to be submitted, move to the round change state
-			i.log.Error("unable to propose block, alerting of round change")
+		if round == 0 {
+			if err := i.proposeBlock(nil, height, 0); err != nil {
+				// Proposal is unable to be submitted, move to the round change state
+				i.log.Error("unable to propose block, alerting of round change")
 
-			i.signalRoundChange(ctx, round+1)
+				i.signalRoundChange(ctx, round+1)
 
-			return
+				return
+			}
+		} else {
+			//	round > 0 -> needs RCC
+			i.waitForRCC(ctx, height, round)
 		}
+
 	}
 
 	i.runStates(ctx)
+}
+
+func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) {
+	sub := i.messages.Subscribe(
+		messages.SubscriptionDetails{
+			//	TODO
+			//MessageType: 0,
+			//View:        nil,
+			//NumMessages: 0,
+			//HasMinRound: false,
+		},
+	)
+
+	defer i.messages.Unsubscribe(sub.GetID())
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sub.GetCh():
+
+			//		TODO: get RCC for this round
+			//		extract proposal from RCC
+			// if proposal == nil -> build a new block
+			//		if not -> accept proposal
+
+			//	multicast preprepare message based on new proposal
+
+		}
+	}
+}
+
+func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) bool {
+	isValidFn := func(msg *proto.Message) bool {
+		//	TODO:
+
+		return true
+	}
+
+	msgs := i.messages.GetValidMessages(
+		view,
+		proto.MessageType_ROUND_CHANGE,
+		isValidFn,
+	)
+
+	if len(msgs) < int(quorum) {
+		return false
+	}
+
+	//	check the messages for any previous proposal (if they have any, it's the same proposal)
+	var previousProposal []byte
+	for _, msg := range msgs {
+		//	if message contains block, break
+		payload := msg.Payload.(*proto.Message_RoundChangeData).RoundChangeData
+		if payload.LastPreparedProposedBlock != nil {
+			previousProposal = payload.LastPreparedProposedBlock
+		}
+
+	}
+
+	var proposal []byte
+	if previousProposal == nil {
+		//	build new proposal
+		proposal, _ = i.buildProposal(view.Height)
+	} else {
+		proposal = previousProposal
+	}
+
+	i.acceptProposal(proposal)
+	i.log.Debug("block proposal accepted")
+
+	i.transport.Multicast(
+		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
+	)
+
+	i.log.Debug("pre-prepare message multicasted")
+
+	return true
 }
 
 //	runStates is the main loop which performs state transitions
@@ -858,13 +942,9 @@ func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 	return proposal, nil
 }
 
+//	TODO: revise this
 // proposeBlock proposes a block to other peers through multicast
 func (i *IBFT) proposeBlock(ctx context.Context, height uint64, round uint64) error {
-
-	if round == 0 {
-		//	just build the block
-	}
-
 	proposal, err := i.buildProposal(height)
 	if err != nil {
 		return err
