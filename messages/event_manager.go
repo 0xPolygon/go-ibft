@@ -24,17 +24,17 @@ type SubscriptionID int32
 
 type Subscription struct {
 	id                  SubscriptionID
-	subscriptionChannel chan struct{}
+	subscriptionChannel chan uint64
 }
 
-func NewSubscription(id SubscriptionID, ch chan struct{}) *Subscription {
+func NewSubscription(id SubscriptionID, ch chan uint64) *Subscription {
 	return &Subscription{
 		id:                  id,
 		subscriptionChannel: ch,
 	}
 }
 
-func (sr *Subscription) GetCh() chan struct{} {
+func (sr *Subscription) GetCh() chan uint64 {
 	return sr.subscriptionChannel
 }
 
@@ -46,6 +46,7 @@ type SubscriptionDetails struct {
 	MessageType proto.MessageType
 	View        *proto.View
 	NumMessages int
+	HasMinRound bool
 }
 
 // subscribe registers a new listener for message events
@@ -56,9 +57,9 @@ func (em *eventManager) subscribe(details SubscriptionDetails) *Subscription {
 	id := uuid.New().ID()
 	subscription := &eventSubscription{
 		details:  details,
-		outputCh: make(chan struct{}, 1),
+		outputCh: make(chan uint64, 1),
 		doneCh:   make(chan struct{}),
-		notifyCh: make(chan struct{}, 1),
+		notifyCh: make(chan uint64, 1),
 	}
 
 	em.subscriptions[SubscriptionID(id)] = subscription
