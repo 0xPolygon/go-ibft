@@ -533,7 +533,10 @@ func (i *IBFT) runRound(ctx context.Context) {
 			i.log.Debug("block proposal accepted")
 
 			i.transport.Multicast(
-				i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
+				i.backend.BuildPrePrepareMessage(
+					proposal,
+					i.state.getView(),
+				),
 			)
 
 			i.log.Debug("pre-prepare message multicasted")
@@ -955,6 +958,8 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 
 	// Make sure the node is locked
 	i.state.setLocked(true)
+
+	// TODO add latestPC...
 
 	// Move to the commit state
 	i.state.changeState(commit)
