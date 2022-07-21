@@ -76,7 +76,7 @@ type IBFT struct {
 	// round changing events
 	roundTimer chan uint64
 
-	roundJump chan uint64
+	newProposal chan []byte
 
 	roundCertificate chan uint64
 
@@ -209,6 +209,14 @@ func (i *IBFT) signalRoundChange(ctx context.Context, round uint64) {
 	}
 }
 
+func (i *IBFT) signalNewProposal(ctx context.Context, proposal []byte) {
+	select {
+	case i.newProposal <- proposal:
+		i.log.Debug("signal new proposal")
+	case <-ctx.Done():
+	}
+}
+
 func (i *IBFT) CancelSequence() {
 	//	pre-emptively send a signal to roundDone
 	//	so the thread can finish early
@@ -217,48 +225,59 @@ func (i *IBFT) CancelSequence() {
 
 func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 	var (
-		_ = i.state.getView()
+		view = i.state.getView()
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				//	TODO
-				//MessageType: 0,
-				//View:        nil,
-				//NumMessages: 0,
+				MessageType: proto.MessageType_PREPREPARE,
+				View: &proto.View{
+					Height: view.Height,
+					Round:  view.Round + 1,
+				},
+				NumMessages: 1,
+				HasMinRound: true,
 			},
 		)
 	)
 
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer func() {
+		i.messages.Unsubscribe(sub.GetID())
+
+		i.wg.Done()
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-sub.GetCh():
-			//	TODO: handle round transition
+		case _ = <-sub.GetCh():
+			// TODO verify the proposal message and signal
+			// the runSequence loop
 		}
 	}
 }
 
-func (i *IBFT) watchForRoundChangeCertificates(
-	ctx context.Context,
-	round uint64,
-) {
+func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 	var (
-		_ = i.state.getView()
+		view = i.state.getView()
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				//	TODO
-				//MessageType: 0,
-				//View:        nil,
-				//NumMessages: 0,
+				MessageType: proto.MessageType_ROUND_CHANGE,
+				View: &proto.View{
+					Height: view.Height,
+					Round:  view.Round + 1,
+				},
+				NumMessages: 1,
 			},
 		)
 	)
 
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer func() {
+		i.messages.Unsubscribe(sub.GetID())
+
+		i.wg.Done()
+	}()
 
 	for {
 		select {
@@ -279,7 +298,7 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 	defer i.log.Info("sequence complete", "height", h)
 
 	for {
-		i.wg.Add(3)
+		i.wg.Add(5)
 
 		currentRound := i.state.getRound()
 
@@ -295,7 +314,7 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 		go i.watchForFutureProposal(ctxRound)
 
 		//	Jump round on certificates
-		go i.watchForRoundChangeCertificates(ctxRound, currentRound+1)
+		go i.watchForRoundChangeCertificates(ctxRound)
 
 		// Start the state machine worker
 		go i.runRound(ctxRound)
@@ -306,7 +325,7 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 		}
 
 		select {
-		case _ = <-i.roundJump:
+		case _ = <-i.newProposal:
 		//	TODO: handle future proposal transition
 		case _ = <-i.roundCertificate:
 		//	TODO: handle round certificate transition
