@@ -93,13 +93,14 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:         log,
-		backend:     backend,
-		transport:   transport,
-		messages:    messages.NewMessages(),
-		roundDone:   make(chan struct{}),
-		roundTimer:  make(chan struct{}),
-		newProposal: make(chan newProposalEvent),
+		log:              log,
+		backend:          backend,
+		transport:        transport,
+		messages:         messages.NewMessages(),
+		roundDone:        make(chan struct{}),
+		roundTimer:       make(chan struct{}),
+		newProposal:      make(chan newProposalEvent),
+		roundCertificate: make(chan uint64),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
