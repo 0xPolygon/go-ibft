@@ -364,11 +364,15 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 
 		select {
 		case ev := <-i.newProposal:
+			teardown()
+
 			i.moveToNewRound(ev.round)
 			i.acceptProposal(ev.proposal)
 			i.state.setRoundStarted(true) //	TODO
 
 		case round := <-i.roundCertificate:
+			teardown()
+
 			i.moveToNewRound(round)
 		case <-i.roundTimer:
 			teardown()
