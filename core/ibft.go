@@ -98,7 +98,7 @@ func NewIBFT(
 		transport:        transport,
 		messages:         messages.NewMessages(),
 		roundDone:        make(chan struct{}),
-		roundExpired:       make(chan struct{}),
+		roundExpired:     make(chan struct{}),
 		newProposal:      make(chan newProposalEvent),
 		roundCertificate: make(chan uint64),
 		state: &state{
@@ -275,7 +275,6 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				continue
 			}
 
-			//	TODO: accept proposal and multicast prepare in run sequence
 			// Extract the proposal
 			i.signalNewProposal(ctx, newProposalEvent{
 				proposal: messages.ExtractProposal(msgs[0]),
