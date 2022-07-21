@@ -567,7 +567,7 @@ func (i *IBFT) runRound(ctx context.Context) {
 			i.log.Debug("block proposal accepted")
 
 			i.transport.Multicast(
-				i.backend.BuildPrePrepareMessage(i.state.getProposal(), i.state.getView()),
+				i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
 			)
 
 			i.log.Debug("pre-prepare message multicasted")
@@ -653,7 +653,7 @@ func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.
 
 	//	collect hashes from prepare messages
 	for _, msg := range certificate.PrepareMessages {
-		proposalHash := messages.ExtractProposalHash(msg)
+		proposalHash := messages.ExtractPrepareHash(msg)
 
 		hashesInCertificate = append(hashesInCertificate, proposalHash)
 	}
