@@ -76,7 +76,7 @@ type IBFT struct {
 	// round changing events
 	roundTimer chan uint64
 
-	newProposal chan []byte
+	newProposal chan newProposalEvent
 
 	roundCertificate chan uint64
 
@@ -95,12 +95,13 @@ func NewIBFT(
 	transport Transport,
 ) *IBFT {
 	return &IBFT{
-		log:        log,
-		backend:    backend,
-		transport:  transport,
-		messages:   messages.NewMessages(),
-		roundDone:  make(chan struct{}),
-		roundTimer: make(chan uint64),
+		log:         log,
+		backend:     backend,
+		transport:   transport,
+		messages:    messages.NewMessages(),
+		roundDone:   make(chan struct{}),
+		roundTimer:  make(chan uint64),
+		newProposal: make(chan newProposalEvent),
 		state: &state{
 			view: &proto.View{
 				Height: 0,
@@ -209,9 +210,14 @@ func (i *IBFT) signalRoundChange(ctx context.Context, round uint64) {
 	}
 }
 
-func (i *IBFT) signalNewProposal(ctx context.Context, proposal []byte) {
+type newProposalEvent struct {
+	proposal []byte
+	round    uint64
+}
+
+func (i *IBFT) signalNewProposal(ctx context.Context, event newProposalEvent) {
 	select {
-	case i.newProposal <- proposal:
+	case i.newProposal <- event:
 		i.log.Debug("signal new proposal")
 	case <-ctx.Done():
 	}
@@ -271,6 +277,11 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 					return false
 				}
 
+				// Make sure there is a certificate
+				if payload.Certificate == nil {
+					return false
+				}
+
 				// Make sure there are Quorum RCC
 				if len(payload.Certificate.RoundChangeMessages) < quorum {
 					return false
@@ -301,9 +312,69 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				isValidPrePrepare,
 			)
 
-			i.signalNewProposal(ctx, messages.ExtractProposal(msgs[0]))
+			// Extract the proposal
+			proposalMessage := msgs[0]
+			payload := proposalMessage.Payload.(*proto.Message_PreprepareData).PreprepareData
+			rcc := payload.Certificate
 
-			return
+			// Extract possible rounds and their corresponding
+			// block hashes
+			type roundHashTuple struct {
+				round uint64
+				hash  []byte
+			}
+
+			roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
+
+			for _, rcMessage := range rcc.RoundChangeMessages {
+				payload := rcMessage.Payload.(*proto.Message_RoundChangeData).RoundChangeData
+				certificate := payload.LatestPreparedCertificate
+
+				if certificate != nil && i.validPC(certificate, proposalMessage.View.Round) {
+					hash := certificate.ProposalMessage.
+						Payload.(*proto.Message_PreprepareData).PreprepareData.ProposalHash
+
+					roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
+						round: rcMessage.View.Round,
+						hash:  hash,
+					})
+				}
+			}
+
+			if len(roundsAndPreparedBlockHashes) > 0 {
+				// Find the max round
+				var (
+					maxRound     uint64 = 0
+					expectedHash []byte = nil
+				)
+
+				for _, tuple := range roundsAndPreparedBlockHashes {
+					if tuple.round > maxRound {
+						maxRound = tuple.round
+						expectedHash = tuple.hash
+					}
+				}
+
+				if bytes.Equal(expectedHash, payload.ProposalHash) {
+					// The proposal contains a verifiable old proposal, it's valid
+					i.signalNewProposal(ctx, newProposalEvent{
+						proposal: payload.Proposal,
+						round:    round,
+					})
+
+					return
+				}
+			} else {
+				if i.backend.IsValidBlock(payload.Proposal) {
+					// The proposal contains a newly created proposal, it's valid
+					i.signalNewProposal(ctx, newProposalEvent{
+						proposal: payload.Proposal,
+						round:    round,
+					})
+
+					return
+				}
+			}
 		}
 	}
 }
@@ -1122,4 +1193,78 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 //	ExtendRoundTimeout extends each round's timer by the specified amount.
 func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 	i.additionalTimeout = amount
+}
+
+// validPC verifies that  the prepared certificate is valid
+func (i *IBFT) validPC(certificate *proto.PreparedCertificate, rLimit uint64) bool {
+	if certificate == nil {
+		// PCs that are not set are valid by default
+		return true
+	}
+
+	// Make sure that either both the proposal message and the prepare messages are set together
+	if certificate.ProposalMessage == nil || certificate.PrepareMessages == nil {
+		return false
+	}
+
+	allMessages := append(
+		[]*proto.Message{certificate.ProposalMessage},
+		certificate.PrepareMessages...,
+	)
+
+	// Make sure there are at least Quorum (PP + P) messages
+	if len(allMessages) < int(i.backend.Quorum(i.state.getHeight())) {
+		return false
+	}
+
+	// Make sure the proposal message is a Preprepare message
+	if certificate.ProposalMessage.Type != proto.MessageType_PREPREPARE {
+		return false
+	}
+
+	// Make sure all messages in the PC are Prepare messages
+	for _, message := range certificate.PrepareMessages {
+		if message.Type != proto.MessageType_PREPARE {
+			return false
+		}
+	}
+
+	// Make sure the senders are unique
+	if !messages.HasUniqueSenders(allMessages) {
+		return false
+	}
+
+	// Make sure the proposal hashes match
+	if !messages.HaveSameProposalHash(allMessages) {
+		return false
+	}
+
+	// Make sure all the messages have a round number lower than rLimit
+	if !messages.AllHaveLowerRound(allMessages, rLimit) {
+		return false
+	}
+
+	// Make sure the proposal message is sent by the proposer
+	// for the round
+	proposal := certificate.ProposalMessage
+	if !i.backend.IsProposer(proposal.From, proposal.View.Height, proposal.View.Round) {
+		return false
+	}
+
+	proposer := proposal.From
+
+	// Make sure the Prepare messages are validators, apart from the proposer
+	for _, message := range certificate.PrepareMessages {
+		// Make sure the sender is part of the validator set
+		if !i.backend.IsValidSender(message) {
+			return false
+		}
+
+		// Make sure the proposer has not sent out a prepare message
+		if bytes.Equal(message.From, proposer) {
+			return false
+		}
+	}
+
+	return true
 }

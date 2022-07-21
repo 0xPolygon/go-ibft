@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/stretchr/testify/assert"
 	"sync"
@@ -46,20 +47,20 @@ func commitHashMatches(commitHash []byte, message *proto.Message) bool {
 	return bytes.Equal(commitHash, extractedCommitHash)
 }
 
-func generateRoundChangeMessages(count uint64) []*proto.Message {
-	roundChanges := make([]*proto.Message, count)
+func generateMessages(count uint64, messageType proto.MessageType) []*proto.Message {
+	messages := make([]*proto.Message, count)
 
 	for index := uint64(0); index < count; index++ {
-		roundChanges[index] = &proto.Message{
+		messages[index] = &proto.Message{
 			View: &proto.View{
 				Height: 0,
 				Round:  0,
 			},
-			Type: proto.MessageType_ROUND_CHANGE,
+			Type: messageType,
 		}
 	}
 
-	return roundChanges
+	return messages
 }
 
 func generateSeals(count int) [][]byte {
@@ -958,7 +959,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}
 			messages = mockMessages{
 				getMostRoundChangeMessagesFn: func(_ uint64, _ uint64) []*proto.Message {
-					messages := generateRoundChangeMessages(maxFaultyNodes + 1)
+					messages := generateMessages(maxFaultyNodes+1, proto.MessageType_ROUND_CHANGE)
 
 					for i := uint64(0); i < maxFaultyNodes; i++ {
 						messages[i].View.Round = suggestedRound
@@ -1016,7 +1017,7 @@ func TestIBFT_WatchForRoundHop(t *testing.T) {
 			}
 			messages = mockMessages{
 				getMostRoundChangeMessagesFn: func(_ uint64, _ uint64) []*proto.Message {
-					messages := generateRoundChangeMessages(maxFaultyNodes)
+					messages := generateMessages(maxFaultyNodes, proto.MessageType_ROUND_CHANGE)
 
 					for i := uint64(0); i < maxFaultyNodes; i++ {
 						messages[i].View.Round = suggestedRound
@@ -1143,99 +1144,277 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 }
 
 // TestIBFT_FutureProposal checks the
-// behavior when new proposal messages
-// appear
-//func TestIBFT_FutureProposal(t *testing.T) {
-//	t.Parallel()
-//
-//	t.Run("valid future proposal", func(t *testing.T) {
-//		t.Parallel()
-//
-//		ctx, cancelFn := context.WithCancel(context.Background())
-//
-//		proposer := []byte("proposer")
-//		proposal := []byte("proposal")
-//		proposalHash := []byte("proposal hash")
-//		quorum := uint64(4)
-//
-//		roundChangeMessages := generateRoundChangeMessages(quorum)
-//
-//		validProposal := &proto.Message{
-//			View: &proto.View{
-//				Height: 0,
-//				Round:  1,
-//			},
-//			From: proposer,
-//			Type: proto.MessageType_PREPREPARE,
-//			Payload: &proto.Message_PreprepareData{
-//				PreprepareData: &proto.PrePrepareMessage{
-//					Proposal:     proposal,
-//					ProposalHash: proposalHash,
-//					Certificate:  nil,
-//				},
-//			},
-//		}
-//
-//		var (
-//			wg               sync.WaitGroup
-//			receivedProposal []byte = nil
-//			notifyCh                = make(chan uint64, 1)
-//
-//			log       = mockLogger{}
-//			backend   = mockBackend{}
-//			transport = mockTransport{}
-//			messages  = mockMessages{
-//				subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-//					return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
-//				},
-//				getValidMessagesFn: func(
-//					view *proto.View,
-//					_ proto.MessageType,
-//					isValid func(message *proto.Message) bool,
-//				) []*proto.Message {
-//					return filterMessages(
-//						[]*proto.Message{
-//							{
-//								View: view,
-//								From: proposer,
-//								Type: proto.MessageType_PREPREPARE,
-//								Payload: &proto.Message_PreprepareData{
-//									PreprepareData: &proto.PrePrepareMessage{
-//										Proposal: proposal,
-//									},
-//								},
-//							},
-//						},
-//						isValid,
-//					)
-//				},
-//			}
-//		)
-//
-//		i := NewIBFT(log, backend, transport)
-//		i.messages = messages
-//
-//		wg.Add(1)
-//		go func() {
-//			defer func() {
-//				cancelFn()
-//
-//				wg.Done()
-//			}()
-//
-//			select {
-//			case <-time.After(5 * time.Second):
-//			case proposal := <-i.newProposal:
-//				receivedProposal = proposal
-//			}
-//		}()
-//
-//		i.watchForFutureProposal(ctx)
-//
-//		wg.Wait()
-//
-//		// Make sure the received proposal is the one that was expected
-//		assert.Equal(t, []byte("expected proposal"), receivedProposal)
-//	})
-//
-//}
+// behavior when new proposal messages appear
+func TestIBFT_FutureProposal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid future proposal with new block", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancelFn := context.WithCancel(context.Background())
+
+		nodeID := []byte("node ID")
+		proposer := []byte("proposer")
+		proposal := []byte("proposal")
+		proposalHash := []byte("proposal hash")
+		quorum := uint64(4)
+
+		// Generate random RC messages
+		roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
+
+		// Fill up their certificates
+		for _, message := range roundChangeMessages {
+			message.Payload = &proto.Message_RoundChangeData{
+				RoundChangeData: &proto.RoundChangeMessage{
+					LastPreparedProposedBlock: nil,
+					LatestPreparedCertificate: nil,
+				},
+			}
+		}
+
+		validProposal := &proto.Message{
+			View: &proto.View{
+				Height: 0,
+				Round:  1,
+			},
+			From: proposer,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal:     proposal,
+					ProposalHash: proposalHash,
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+				},
+			},
+		}
+
+		var (
+			wg                    sync.WaitGroup
+			receivedProposalEvent *newProposalEvent = nil
+			notifyCh                                = make(chan uint64, 1)
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				isProposerFn: func(id []byte, _ uint64, _ uint64) bool {
+					return !bytes.Equal(id, nodeID)
+				},
+				idFn: func() []byte {
+					return nodeID
+				},
+				isValidProposalHashFn: func(p []byte, hash []byte) bool {
+					return bytes.Equal(hash, proposalHash) && bytes.Equal(p, proposal)
+				},
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+			transport = mockTransport{}
+			messages  = mockMessages{
+				subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+					return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+				},
+				getValidMessagesFn: func(
+					view *proto.View,
+					_ proto.MessageType,
+					isValid func(message *proto.Message) bool,
+				) []*proto.Message {
+					return filterMessages(
+						[]*proto.Message{
+							validProposal,
+						},
+						isValid,
+					)
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+		i.messages = messages
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				cancelFn()
+
+				wg.Done()
+			}()
+
+			select {
+			case <-time.After(5 * time.Second):
+			case event := <-i.newProposal:
+				receivedProposalEvent = &event
+			}
+		}()
+
+		notifyCh <- 1
+
+		i.wg.Add(1)
+		i.watchForFutureProposal(ctx)
+
+		wg.Wait()
+
+		// Make sure the received proposal is the one that was expected
+		if receivedProposalEvent == nil {
+			t.Fatalf("no proposal event received")
+		}
+
+		assert.Equal(t, uint64(1), receivedProposalEvent.round)
+		assert.Equal(t, proposal, receivedProposalEvent.proposal)
+	})
+
+	t.Run("valid future proposal with old block", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancelFn := context.WithCancel(context.Background())
+
+		nodeID := []byte("node ID")
+		proposer := []byte("proposer")
+		proposal := []byte("proposal")
+		proposalHash := []byte("proposal hash")
+		quorum := uint64(4)
+
+		// Generate random RC messages
+		roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
+		prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
+
+		// Fill up the prepare message hashes
+		for index, message := range prepareMessages {
+			message.Payload = &proto.Message_PrepareData{
+				PrepareData: &proto.PrepareMessage{
+					ProposalHash: proposalHash,
+				},
+			}
+			message.View = &proto.View{
+				Height: 0,
+				Round:  1,
+			}
+			message.From = []byte(fmt.Sprintf("node %d", index+1))
+		}
+
+		lastPreparedCertificate := &proto.PreparedCertificate{
+			ProposalMessage: &proto.Message{
+				View: &proto.View{
+					Height: 0,
+					Round:  1,
+				},
+				From: []byte("unique node"),
+				Type: proto.MessageType_PREPREPARE,
+				Payload: &proto.Message_PreprepareData{
+					PreprepareData: &proto.PrePrepareMessage{
+						Proposal:     proposal,
+						ProposalHash: proposalHash,
+						Certificate:  nil,
+					},
+				},
+			},
+			PrepareMessages: prepareMessages,
+		}
+
+		// Fill up their certificates
+		for _, message := range roundChangeMessages {
+			message.Payload = &proto.Message_RoundChangeData{
+				RoundChangeData: &proto.RoundChangeMessage{
+					LastPreparedProposedBlock: proposal,
+					LatestPreparedCertificate: lastPreparedCertificate,
+				},
+			}
+			message.View = &proto.View{
+				Height: 0,
+				Round:  1,
+			}
+		}
+
+		validProposal := &proto.Message{
+			View: &proto.View{
+				Height: 0,
+				Round:  2,
+			},
+			From: proposer,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal:     proposal,
+					ProposalHash: proposalHash,
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+				},
+			},
+		}
+
+		var (
+			wg                    sync.WaitGroup
+			receivedProposalEvent *newProposalEvent = nil
+			notifyCh                                = make(chan uint64, 1)
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				isProposerFn: func(id []byte, _ uint64, _ uint64) bool {
+					return !bytes.Equal(id, nodeID)
+				},
+				idFn: func() []byte {
+					return nodeID
+				},
+				isValidProposalHashFn: func(p []byte, hash []byte) bool {
+					return bytes.Equal(hash, proposalHash) && bytes.Equal(p, proposal)
+				},
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
+			transport = mockTransport{}
+			messages  = mockMessages{
+				subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+					return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+				},
+				getValidMessagesFn: func(
+					view *proto.View,
+					_ proto.MessageType,
+					isValid func(message *proto.Message) bool,
+				) []*proto.Message {
+					return filterMessages(
+						[]*proto.Message{
+							validProposal,
+						},
+						isValid,
+					)
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+		i.messages = messages
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				cancelFn()
+
+				wg.Done()
+			}()
+
+			select {
+			case <-time.After(5 * time.Second):
+			case event := <-i.newProposal:
+				receivedProposalEvent = &event
+			}
+		}()
+
+		notifyCh <- 2
+
+		i.wg.Add(1)
+		i.watchForFutureProposal(ctx)
+
+		wg.Wait()
+
+		// Make sure the received proposal is the one that was expected
+		if receivedProposalEvent == nil {
+			t.Fatalf("no proposal event received")
+		}
+
+		assert.Equal(t, uint64(2), receivedProposalEvent.round)
+		assert.Equal(t, proposal, receivedProposalEvent.proposal)
+	})
+}
