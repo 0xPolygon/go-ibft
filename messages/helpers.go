@@ -71,15 +71,17 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 	var hash []byte = nil
 
 	for _, message := range messages {
-		var extractedHash []byte = nil
+		var extractedHash []byte
 
 		switch message.Type {
 		case proto.MessageType_PREPREPARE:
-			payload := message.Payload.(*proto.Message_PreprepareData).PreprepareData
+			ppData, _ := message.Payload.(*proto.Message_PreprepareData)
+			payload := ppData.PreprepareData
 
 			extractedHash = payload.ProposalHash
 		case proto.MessageType_PREPARE:
-			payload := message.Payload.(*proto.Message_PrepareData).PrepareData
+			pData, _ := message.Payload.(*proto.Message_PrepareData)
+			payload := pData.PrepareData
 
 			extractedHash = payload.ProposalHash
 		default:
