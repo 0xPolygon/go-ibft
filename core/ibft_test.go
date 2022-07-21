@@ -130,7 +130,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						cancelFn()
 
-						return messages.NewSubscription(messages.SubscriptionID(1), make(chan struct{}))
+						return messages.NewSubscription(messages.SubscriptionID(1), make(chan uint64))
 					},
 				}
 			)
@@ -271,7 +271,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						cancelFn()
 
-						return messages.NewSubscription(messages.SubscriptionID(1), make(chan struct{}))
+						return messages.NewSubscription(messages.SubscriptionID(1), make(chan uint64))
 					},
 				}
 			)
@@ -318,7 +318,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				proposalHash                      = []byte("proposal hash")
 				proposer                          = []byte("proposer")
 				multicastedPrepare *proto.Message = nil
-				notifyCh                          = make(chan struct{}, 1)
+				notifyCh                          = make(chan uint64, 1)
 
 				log       = mockLogger{}
 				transport = mockTransport{
@@ -388,7 +388,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			i.messages = messages
 
 			// Make sure the notification is sent out
-			notifyCh <- struct{}{}
+			notifyCh <- 0
 
 			i.wg.Add(1)
 			i.runRound(ctx)
@@ -417,7 +417,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 				wg            sync.WaitGroup
 				capturedRound uint64 = 0
 				proposer             = []byte("proposer")
-				notifyCh             = make(chan struct{}, 1)
+				notifyCh             = make(chan uint64, 1)
 
 				log       = mockLogger{}
 				transport = mockTransport{}
@@ -492,7 +492,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			}(i)
 
 			// Make sure the notification is sent out
-			notifyCh <- struct{}{}
+			notifyCh <- 0
 
 			i.wg.Add(1)
 			i.runRound(ctx)
@@ -525,7 +525,7 @@ func TestRunPrepare(t *testing.T) {
 				proposal                         = []byte("block proposal")
 				proposalHash                     = []byte("proposal hash")
 				multicastedCommit *proto.Message = nil
-				notifyCh                         = make(chan struct{}, 1)
+				notifyCh                         = make(chan uint64, 1)
 
 				log       = mockLogger{}
 				transport = mockTransport{func(message *proto.Message) {
@@ -589,7 +589,7 @@ func TestRunPrepare(t *testing.T) {
 			i.messages = &messages
 
 			// Make sure the notification is present
-			notifyCh <- struct{}{}
+			notifyCh <- 0
 
 			i.wg.Add(1)
 			i.runRound(ctx)
@@ -628,7 +628,7 @@ func TestRunCommit(t *testing.T) {
 				insertedCommittedSeals [][]byte = nil
 				committedSeals                  = generateSeals(1)
 				doneReceived                    = false
-				notifyCh                        = make(chan struct{}, 1)
+				notifyCh                        = make(chan uint64, 1)
 
 				log       = mockLogger{}
 				transport = mockTransport{}
@@ -696,7 +696,7 @@ func TestRunCommit(t *testing.T) {
 			}(i)
 
 			// Make sure the notification is ready
-			notifyCh <- struct{}{}
+			notifyCh <- 0
 
 			i.wg.Add(1)
 			i.runRound(ctx)
