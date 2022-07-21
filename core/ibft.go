@@ -422,7 +422,7 @@ func (i *IBFT) runRound(ctx context.Context) {
 	if i.backend.IsProposer(id, height, round) {
 		i.log.Info("we are the proposer")
 
-		if err := i.proposeBlock(height); err != nil {
+		if err := i.proposeBlock(nil, height, 0); err != nil {
 			// Proposal is unable to be submitted, move to the round change state
 			i.log.Error("unable to propose block, alerting of round change")
 
@@ -840,7 +840,12 @@ func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
 }
 
 // proposeBlock proposes a block to other peers through multicast
-func (i *IBFT) proposeBlock(height uint64) error {
+func (i *IBFT) proposeBlock(ctx context.Context, height uint64, round uint64) error {
+
+	if round == 0 {
+		//	just build the block
+	}
+
 	proposal, err := i.buildProposal(height)
 	if err != nil {
 		return err
