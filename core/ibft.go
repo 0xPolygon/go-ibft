@@ -339,7 +339,7 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 	defer i.log.Info("sequence complete", "height", h)
 
 	for {
-		i.wg.Add(5)
+		i.wg.Add(4)
 
 		currentRound := i.state.getRound()
 
