@@ -271,7 +271,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				isValidPrePrepare,
 			)
 
-			if len(msgs) < 1 {
+			if len(msgs) == 0 {
 				continue
 			}
 
