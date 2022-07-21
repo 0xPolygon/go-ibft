@@ -695,6 +695,7 @@ func (i *IBFT) runStates(ctx context.Context) {
 			}
 		}
 
+		//	TODO: timeout is the only error that can happen (simplify)
 		if errors.Is(err, errTimeoutExpired) {
 			i.log.Info("round timeout expired")
 
