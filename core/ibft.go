@@ -75,7 +75,7 @@ type IBFT struct {
 
 	// roundTimer is the channel used for signalizing
 	// round changing events
-	roundTimer chan uint64
+	roundTimer chan struct{}
 
 	newProposal chan newProposalEvent
 
@@ -138,8 +138,7 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64, baseTimeout ti
 	case <-timer.C:
 		// Timer expired, alert the round change channel to move
 		// to the next round
-		i.log.Info("round timer expired, alerting of change")
-		i.signalRoundChange(ctx, round+1)
+		i.signalRoundExpired(ctx)
 	}
 }
 
@@ -192,7 +191,7 @@ func (i *IBFT) doRoundHop(ctx context.Context, view *proto.View) bool {
 			),
 		)
 
-		i.signalRoundChange(ctx, newRound)
+		i.signalRoundExpired(ctx)
 
 		return true
 	}
@@ -200,13 +199,12 @@ func (i *IBFT) doRoundHop(ctx context.Context, view *proto.View) bool {
 	return false
 }
 
-//	signalRoundChange notifies the sequence routine (RunSequence) that it
+//	signalRoundExpired notifies the sequence routine (RunSequence) that it
 //	should move to a new round. The quit channel is used to abort this call
 //	if another routine has already signaled a round change request.
-func (i *IBFT) signalRoundChange(ctx context.Context, round uint64) {
+func (i *IBFT) signalRoundExpired(ctx context.Context) {
 	select {
-	case i.roundTimer <- round:
-		i.log.Debug("signal round change", "new round", round)
+	case i.roundTimer <- struct{}{}:
 	case <-ctx.Done():
 	}
 }
@@ -453,22 +451,17 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 		//	TODO: handle future proposal transition
 		case _ = <-i.roundCertificate:
 		//	TODO: handle round certificate transition
-		case newRound := <-i.roundTimer:
-			// Round Change request received.
-			// Stop all running worker threads
-			i.log.Info("round change received")
-
+		case <-i.roundTimer:
 			teardown()
 
-			//	Move to the new round
-			i.moveToNewRoundWithRC(newRound)
-			i.state.setLocked(false)
+			newRound := currentRound + 1
 
-			i.log.Info("going to round change...")
+			i.moveToNewRound(newRound)
 
-			// Wait to reach quorum on what the next round
-			// should be before starting the cycle again
-			i.runRoundChange()
+			i.transport.Multicast(
+				i.backend.BuildRoundChangeMessage(h, newRound),
+			)
+
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
@@ -571,8 +564,6 @@ func (i *IBFT) runRound(ctx context.Context) {
 				// Proposal is unable to be submitted, move to the round change state
 				i.log.Error("unable to propose block, alerting of round change")
 
-				i.signalRoundChange(ctx, round+1)
-
 				return
 			}
 		} else {
@@ -607,7 +598,7 @@ func (i *IBFT) runRound(ctx context.Context) {
 					// Proposal is unable to be built
 					i.log.Error("unable to build proposal")
 
-					i.signalRoundChange(ctx, round+1)
+					i.signalRoundExpired(ctx)
 
 					return
 				}
@@ -762,7 +753,7 @@ func (i *IBFT) runStates(ctx context.Context) {
 				"err", err,
 			)
 
-			i.signalRoundChange(ctx, i.state.getRound()+1)
+			i.signalRoundExpired(ctx)
 
 			return
 		}
@@ -1086,7 +1077,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 
 	i.state.setRoundStarted(false)
 	i.state.setProposal(nil)
-	i.state.changeState(roundChange)
+	i.state.changeState(newRound)
 
 	i.log.Info("moved to new round", "round", round)
 }
