@@ -207,6 +207,13 @@ func (i *IBFT) signalRoundExpired(ctx context.Context) {
 	}
 }
 
+func (i *IBFT) signalNewRCC(ctx context.Context, round uint64) {
+	select {
+	case i.roundCertificate <- round:
+	case <-ctx.Done():
+	}
+}
+
 type newProposalEvent struct {
 	proposalMessage *proto.Message
 	round           uint64
@@ -258,29 +265,16 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case round := <-sub.GetCh():
-			isValidPrePrepare := func(message *proto.Message) bool {
-				return i.validateProposal(message, view)
-			}
-
-			msgs := i.messages.GetValidMessages(
-				&proto.View{
-					Height: height,
-					Round:  round,
-				},
-				proto.MessageType_PREPREPARE,
-				isValidPrePrepare,
-			)
-
-			if len(msgs) < 1 {
+			proposal := i.handlePrePrepare(&proto.View{Height: height, Round: round})
+			if proposal == nil {
 				continue
 			}
 
-			//	TODO: accept proposal and multicast prepare in run sequence
 			// Extract the proposal
-			i.signalNewProposal(ctx, newProposalEvent{
-				proposalMessage: msgs[0],
-				round:           round,
-			})
+			i.signalNewProposal(
+				ctx,
+				newProposalEvent{proposal, round},
+			)
 
 			return
 		}
@@ -321,7 +315,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 			}
 
 			//	we received a valid RCC for a higher round
-			i.roundCertificate <- round
+			i.signalNewRCC(ctx, round)
 
 			return
 		}
