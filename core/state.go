@@ -46,9 +46,7 @@ type state struct {
 	// for which Q(N)-1 PREPARE messages were received
 	latestPreparedProposedBlock []byte
 
-	//	block proposal for current round
-	proposal []byte // TODO probably redundant field because of proposalMessage
-
+	//	accepted block proposal for current round
 	proposalMessage *proto.Message
 
 	//	validated commit seals
@@ -74,7 +72,6 @@ func (s *state) clear(height uint64) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.proposal = nil
 	s.seals = nil
 	s.roundStarted = false
 	s.name = newRound
@@ -159,7 +156,11 @@ func (s *state) getProposal() []byte {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.proposal
+	if s.proposalMessage != nil {
+		return messages.ExtractProposal(s.proposalMessage)
+	}
+
+	return nil
 }
 
 func (s *state) getCommittedSeals() [][]byte {
@@ -188,13 +189,6 @@ func (s *state) setRoundStarted(started bool) {
 	defer s.Unlock()
 
 	s.roundStarted = started
-}
-
-func (s *state) setProposal(proposal []byte) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.proposal = proposal
 }
 
 func (s *state) setView(view *proto.View) {

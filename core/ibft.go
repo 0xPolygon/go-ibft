@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"math"
@@ -104,7 +105,6 @@ func NewIBFT(
 				Height: 0,
 				Round:  0,
 			},
-			proposal:     nil,
 			seals:        make([][]byte, 0),
 			roundStarted: false,
 			name:         newRound,
@@ -190,8 +190,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				},
 				NumMessages: 1,
 				HasMinRound: true,
-			},
-		)
+			})
 	)
 
 	defer func() {
@@ -358,6 +357,8 @@ func (i *IBFT) runRound(ctx context.Context) {
 
 	// Check if any block needs to be proposed
 	if i.backend.IsProposer(id, view.Height, view.Round) {
+		i.log.Debug("we are the proposer")
+
 		proposalMessage := i.buildProposal(ctx, view)
 		if proposalMessage == nil {
 			return
@@ -365,6 +366,8 @@ func (i *IBFT) runRound(ctx context.Context) {
 
 		i.acceptProposal(proposalMessage)
 		i.log.Debug("block proposal accepted")
+
+		i.log.Debug(fmt.Sprintf("Sending out %v", proposalMessage))
 
 		i.transport.Multicast(proposalMessage)
 
@@ -530,6 +533,7 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
+			i.log.Debug("Received from channel")
 			// SubscriptionDetails conditions have been met,
 			// grab the proposal messages
 			proposalMessage := i.handlePrePrepare(view)
@@ -692,8 +696,11 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 	isValidPrePrepare := func(message *proto.Message) bool {
 		if view.Round == 0 {
+			isValid := i.validateProposal0(message, view)
+			i.log.Debug(fmt.Sprintf("validating proposal %v, IT IS %t", message, isValid))
+
 			//	proposal must be for round 0
-			return i.validateProposal0(message, view)
+			return isValid
 		}
 
 		return i.validateProposal(message, view)
@@ -729,7 +736,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPARE,
 				View:        view,
-				NumMessages: int(quorum),
+				NumMessages: int(quorum) - 1,
 			},
 		)
 	)
@@ -744,6 +751,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
+
 			if !i.handlePrepare(view, quorum) {
 				//	quorum of valid prepare messages not received, retry
 				continue
@@ -771,7 +779,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		isValidPrepare,
 	)
 
-	if len(prepareMessages) < int(quorum) {
+	if len(prepareMessages) < int(quorum)-1 {
 		//	quorum not reached, keep polling
 		return false
 	}
@@ -850,7 +858,7 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 			committedSeal = messages.ExtractCommittedSeal(message)
 		)
 		//	Verify that the proposal hash is valid
-		if !i.backend.IsValidProposalHash(i.state.getProposal(), proposalHash) {
+		if !i.backend.IsValidProposalHash(i.state.getProposalHash(), proposalHash) {
 			return false
 		}
 
@@ -903,7 +911,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 	})
 
 	i.state.setRoundStarted(false)
-	i.state.setProposal(nil)
+	i.state.setProposalMessage(nil)
 	i.state.changeState(newRound)
 }
 
@@ -922,7 +930,10 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
 			nil,
-			view,
+			&proto.View{
+				Height: height,
+				Round:  round,
+			},
 		)
 	}
 
@@ -960,14 +971,20 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
 			rcc,
-			view,
+			&proto.View{
+				Height: height,
+				Round:  round,
+			},
 		)
 	}
 
 	return i.backend.BuildPrePrepareMessage(
 		previousProposal,
 		rcc,
-		view,
+		&proto.View{
+			Height: height,
+			Round:  round,
+		},
 	)
 }
 
@@ -975,12 +992,13 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 func (i *IBFT) acceptProposal(proposalMessage *proto.Message) {
 	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposalMessage(proposalMessage)
-	i.state.setProposal(messages.ExtractProposalHash(proposalMessage))
 	i.state.changeState(prepare)
 }
 
 // AddMessage adds a new message to the IBFT message system
 func (i *IBFT) AddMessage(message *proto.Message) {
+	i.log.Debug(fmt.Sprintf("Received message %v", message))
+
 	// Make sure the message is present
 	if message == nil {
 		return

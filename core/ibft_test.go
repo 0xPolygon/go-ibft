@@ -217,7 +217,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the accepted proposal is the one proposed to other nodes
-			assert.Equal(t, newProposal, i.state.proposal)
+			assert.Equal(t, multicastedProposal, i.state.proposalMessage)
 
 			// Make sure the accepted proposal matches what was built
 			assert.True(t, proposalMatches(newProposal, multicastedProposal))
@@ -328,10 +328,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			// Make sure the node changed the state to prepare
 			assert.Equal(t, prepare, i.state.name)
 
-			// Make sure the locked proposal is the accepted proposal
-			assert.Equal(t, proposal, i.state.proposal)
+			// Make sure the multicasted proposal is the accepted proposal
+			assert.Equal(t, multicastedPreprepare, i.state.proposalMessage)
 
-			// Make sure the locked proposal was multicasted
+			// Make sure the correct proposal value was multicasted
 			assert.True(t, proposalMatches(proposal, multicastedPreprepare))
 
 			// Make sure the prepare message was not multicasted
@@ -482,10 +482,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			// Make sure the node changed the state to prepare
 			assert.Equal(t, prepare, i.state.name)
 
-			// Make sure the locked proposal is the accepted proposal
-			assert.Equal(t, lastPreparedProposedBlock, i.state.proposal)
+			// Make sure the multicasted proposal is the accepted proposal
+			assert.Equal(t, multicastedPreprepare, i.state.proposalMessage)
 
-			// Make sure the locked proposal was multicasted
+			// Make sure the correct proposal was multicasted
 			assert.True(t, proposalMatches(lastPreparedProposedBlock, multicastedPreprepare))
 
 			// Make sure the prepare message was not multicasted
@@ -592,7 +592,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the accepted proposal is the one that was sent out
-			assert.Equal(t, proposal, i.state.proposal)
+			assert.Equal(t, proposal, i.state.getProposal())
 
 			// Make sure the correct proposal hash was multicasted
 			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
@@ -709,7 +709,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the accepted proposal is the one that was sent out
-			assert.Equal(t, proposal, i.state.proposal)
+			assert.Equal(t, proposal, i.state.getProposal())
 
 			// Make sure the correct proposal hash was multicasted
 			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
@@ -879,7 +879,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the accepted proposal is the one that was sent out
-			assert.Equal(t, proposal, i.state.proposal)
+			assert.Equal(t, proposal, i.state.getProposal())
 
 			// Make sure the correct proposal hash was multicasted
 			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
@@ -963,7 +963,14 @@ func TestRunPrepare(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			i.state.name = prepare
 			i.state.roundStarted = true
-			i.state.proposal = proposal
+			i.state.proposalMessage = &proto.Message{
+				Payload: &proto.Message_PreprepareData{
+					PreprepareData: &proto.PrePrepareMessage{
+						Proposal:     proposal,
+						ProposalHash: proposalHash,
+					},
+				},
+			}
 			i.messages = &messages
 
 			// Make sure the notification is present
@@ -978,7 +985,7 @@ func TestRunPrepare(t *testing.T) {
 			assert.Equal(t, commit, i.state.name)
 
 			// Make sure the proposal didn't change
-			assert.Equal(t, proposal, i.state.proposal)
+			assert.Equal(t, proposal, i.state.getProposal())
 
 			// Make sure the proper proposal hash was multicasted
 			assert.True(t, commitHashMatches(proposalHash, multicastedCommit))
@@ -1051,7 +1058,14 @@ func TestRunCommit(t *testing.T) {
 
 			i := NewIBFT(log, backend, transport)
 			i.messages = messages
-			i.state.proposal = proposal
+			i.state.proposalMessage = &proto.Message{
+				Payload: &proto.Message_PreprepareData{
+					PreprepareData: &proto.PrePrepareMessage{
+						Proposal:     proposal,
+						ProposalHash: proposalHash,
+					},
+				},
+			}
 			i.state.roundStarted = true
 			i.state.name = commit
 
@@ -1335,7 +1349,7 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		assert.Equal(t, expectedNewRound, i.state.getRound())
 
 		// Make sure the proposal is not present
-		assert.Nil(t, i.state.proposal)
+		assert.Nil(t, i.state.getProposal())
 
 		// Make sure the state is correct
 		assert.Equal(t, newRound, i.state.name)
