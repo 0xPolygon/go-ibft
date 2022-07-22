@@ -1877,6 +1877,9 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				isValidProposalHashFn: func(_ []byte, _ []byte) bool {
 					return false
 				},
+				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+					return true
+				},
 			}
 			transport = mockTransport{}
 		)
@@ -1902,8 +1905,12 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		t.Parallel()
 
 		var (
-			log       = mockLogger{}
-			backend   = mockBackend{}
+			log     = mockLogger{}
+			backend = mockBackend{
+				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+					return true
+				},
+			}
 			transport = mockTransport{}
 		)
 
@@ -1932,8 +1939,15 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		var (
 			quorum = uint64(4)
 
-			log       = mockLogger{}
-			backend   = mockBackend{}
+			log     = mockLogger{}
+			backend = mockBackend{
+				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+					return true
+				},
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+			}
 			transport = mockTransport{}
 		)
 
@@ -1962,8 +1976,9 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		t.Parallel()
 
 		var (
-			quorum = uint64(4)
-			id     = []byte("node id")
+			quorum     = uint64(4)
+			id         = []byte("node id")
+			uniqueNode = []byte("unique node")
 
 			log     = mockLogger{}
 			backend = mockBackend{
@@ -1971,6 +1986,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 					return id
 				},
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					if bytes.Equal(proposer, uniqueNode) {
+						return true
+					}
+
 					return bytes.Equal(proposer, id)
 				},
 			}
@@ -1985,6 +2004,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		}
 		proposal := &proto.Message{
 			View: baseView,
+			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
