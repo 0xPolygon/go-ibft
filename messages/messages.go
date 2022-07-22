@@ -3,7 +3,7 @@ package messages
 import (
 	"sync"
 
-	"github.com/Trapesys/go-ibft/messages/proto"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 // Messages contains the relevant messages for each view (height, round)

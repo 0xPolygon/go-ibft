@@ -1,8 +1,8 @@
 package core
 
 import (
-	"github.com/Trapesys/go-ibft/messages"
-	"github.com/Trapesys/go-ibft/messages/proto"
+	"github.com/0xPolygon/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 	"sync"
 )
 

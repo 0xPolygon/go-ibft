@@ -1,4 +1,4 @@
-module github.com/Trapesys/go-ibft
+module github.com/0xPolygon/go-ibft
 
 go 1.17
 

@@ -2,7 +2,7 @@ package messages
 
 import (
 	"bytes"
-	"github.com/Trapesys/go-ibft/messages/proto"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 // ExtractCommittedSeals extracts the committed seals from the passed in messages

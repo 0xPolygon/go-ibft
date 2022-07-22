@@ -3,7 +3,7 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"github.com/Trapesys/go-ibft/messages/proto"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"

@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/Trapesys/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/Trapesys/go-ibft/messages/proto"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 func proposalMatches(proposal []byte, message *proto.Message) bool {
