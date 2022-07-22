@@ -377,7 +377,7 @@ func (i *IBFT) runRound(ctx context.Context) {
 
 	// Check if any block needs to be proposed
 	if i.backend.IsProposer(id, view.Height, view.Round) {
-		i.log.Debug("we are the proposer")
+		i.log.Info("we are the proposer")
 
 		proposalMessage := i.buildProposal(ctx, view)
 		if proposalMessage == nil {
