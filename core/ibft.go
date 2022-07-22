@@ -779,7 +779,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	// Multicast the COMMIT message
 	i.transport.Multicast(
 		i.backend.BuildCommitMessage(
-			messages.ExtractProposalHash(i.state.getProposalMessage()),
+			i.state.getProposalHash(),
 			view,
 		),
 	)
