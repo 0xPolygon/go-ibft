@@ -464,74 +464,31 @@ func (i *IBFT) runRound(ctx context.Context) {
 	}
 
 	var (
-		id     = i.backend.ID()
-		height = i.state.getHeight()
-		round  = i.state.getRound()
+		id   = i.backend.ID()
+		view = i.state.getView()
 	)
 
 	// Check if any block needs to be proposed
-	if i.backend.IsProposer(id, height, round) {
-		i.log.Info("we are the proposer")
-
-		if round == 0 {
-			// TODO see which context to use
-			if err := i.proposeBlock(context.TODO(), height, 0); err != nil {
-				// Proposal is unable to be submitted, move to the round change state
-				i.log.Error("unable to propose block, alerting of round change")
-
-				return
-			}
-		} else {
-			//	round > 0 -> needs RCC
-			rcc := i.waitForRCC(ctx, height, round)
-			if rcc == nil {
-				// Timeout occurred
-				return
-			}
-
-			//	check the messages for any previous proposal (if they have any, it's the same proposal)
-			var previousProposal []byte
-
-			for _, msg := range rcc.RoundChangeMessages {
-				//	if message contains block, break
-				latestPC := messages.ExtractLatestPC(msg)
-
-				if latestPC != nil {
-					previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
-
-					break
-				}
-			}
-
-			var proposal []byte
-			if previousProposal == nil {
-				//	build new proposal
-				var err error
-
-				proposal, err = i.buildProposal(height)
-				if err != nil {
-					// Proposal is unable to be built
-					i.log.Error("unable to build proposal")
-
-					return
-				}
-			} else {
-				proposal = previousProposal
-			}
-
-			i.acceptProposal(proposal)
-			i.log.Debug("block proposal accepted")
-
-			i.transport.Multicast(
-				i.backend.BuildPrePrepareMessage(
-					proposal,
-					i.state.getView(),
-				),
-			)
-
-			i.log.Debug("pre-prepare message multicasted")
-		}
+	var proposal []byte
+	if i.backend.IsProposer(id, view.Height, view.Round) {
+		proposal = i.buildProposal(ctx, view)
 	}
+
+	if proposal == nil {
+		return
+	}
+
+	i.acceptProposal(proposal)
+	i.log.Debug("block proposal accepted")
+
+	i.transport.Multicast(
+		i.backend.BuildPrePrepareMessage(
+			proposal,
+			i.state.getView(),
+		),
+	)
+
+	i.log.Debug("pre-prepare message multicasted")
 
 	i.runStates(ctx)
 }
@@ -1139,44 +1096,55 @@ func (i *IBFT) moveToNewRoundWithRC(round uint64) {
 	)
 }
 
-// buildProposal builds a new proposal
-func (i *IBFT) buildProposal(height uint64) ([]byte, error) {
-	if i.state.isLocked() {
-		return i.state.getProposal(), nil
-	}
-
-	proposal, err := i.backend.BuildProposal(height)
-	if err != nil {
-		return nil, errBuildProposal
-	}
-
-	return proposal, nil
-}
-
-//	TODO: revise this
-// proposeBlock proposes a block to other peers through multicast
-func (i *IBFT) proposeBlock(ctx context.Context, height uint64, round uint64) error {
-	proposal, err := i.buildProposal(height)
-	if err != nil {
-		return err
-	}
-
-	i.acceptProposal(proposal)
-	i.log.Debug("block proposal accepted")
-
-	i.transport.Multicast(
-		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
+func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) []byte {
+	var (
+		height = view.Height
+		round  = view.Round
 	)
 
-	i.log.Debug("pre-prepare message multicasted")
+	if round == 0 {
+		proposal, err := i.backend.BuildProposal(height)
+		if err != nil {
+			return nil
+		}
+		return proposal
+	}
 
-	i.transport.Multicast(
-		i.backend.BuildPrepareMessage(proposal, i.state.getView()),
-	)
+	//	round > 0 -> needs RCC
+	rcc := i.waitForRCC(ctx, height, round)
+	if rcc == nil {
+		// Timeout occurred
+		return nil
+	}
 
-	i.log.Debug("prepare message multicasted")
+	//	check the messages for any previous proposal (if they have any, it's the same proposal)
+	var previousProposal []byte
 
-	return nil
+	for _, msg := range rcc.RoundChangeMessages {
+		//	if message contains block, break
+		latestPC := messages.ExtractLatestPC(msg)
+
+		if latestPC != nil {
+			previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
+
+			break
+		}
+	}
+
+	if previousProposal == nil {
+		//	build new proposal
+		proposal, err := i.backend.BuildProposal(height)
+		if err != nil {
+			// Proposal is unable to be built
+			i.log.Error("unable to build proposal")
+
+			return nil
+		}
+
+		return proposal
+	}
+
+	return previousProposal
 }
 
 // acceptProposal accepts the proposal and moves the state
