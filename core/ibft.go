@@ -417,26 +417,19 @@ func (i *IBFT) runRound(ctx context.Context) {
 	)
 
 	// Check if any block needs to be proposed
-	var proposal []byte
 	if i.backend.IsProposer(id, view.Height, view.Round) {
-		proposal = i.buildProposal(ctx, view)
+		proposalMessage := i.buildProposal(ctx, view)
+		if proposalMessage == nil {
+			return
+		}
+
+		i.acceptProposal(proposalMessage)
+		i.log.Debug("block proposal accepted")
+
+		i.transport.Multicast(proposalMessage)
+
+		i.log.Debug("pre-prepare message multicasted")
 	}
-
-	if proposal == nil {
-		return
-	}
-
-	i.acceptProposal(proposal)
-	i.log.Debug("block proposal accepted")
-
-	i.transport.Multicast(
-		i.backend.BuildPrePrepareMessage(
-			proposal,
-			i.state.getView(),
-		),
-	)
-
-	i.log.Debug("pre-prepare message multicasted")
 
 	i.runStates(ctx)
 }
@@ -981,9 +974,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.changeState(newRound)
 }
 
-
-
-func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) []byte {
+func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Message {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -994,7 +985,12 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) []byte {
 		if err != nil {
 			return nil
 		}
-		return proposal
+
+		return i.backend.BuildPrePrepareMessage(
+			proposal,
+			nil,
+			view,
+		)
 	}
 
 	//	round > 0 -> needs RCC
@@ -1028,10 +1024,18 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) []byte {
 			return nil
 		}
 
-		return proposal
+		return i.backend.BuildPrePrepareMessage(
+			proposal,
+			rcc,
+			view,
+		)
 	}
 
-	return previousProposal
+	return i.backend.BuildPrePrepareMessage(
+		previousProposal,
+		rcc,
+		view,
+	)
 }
 
 // acceptProposal accepts the proposal and moves the state
