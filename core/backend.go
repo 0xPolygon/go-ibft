@@ -8,8 +8,7 @@ import (
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
 	BuildPrePrepareMessage(
-		proposal,
-		proposalHash []byte,
+		proposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
 	) *proto.Message

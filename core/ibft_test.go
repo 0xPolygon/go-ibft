@@ -181,7 +181,6 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 					buildPrePrepareMessageFn: func(
 						proposal []byte,
-						proposalHash []byte,
 						certificate *proto.RoundChangeCertificate,
 						view *proto.View,
 					) *proto.Message {
@@ -190,9 +189,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							Type: proto.MessageType_PREPREPARE,
 							Payload: &proto.Message_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
-									Proposal:     proposal,
-									ProposalHash: proposalHash,
-									Certificate:  certificate,
+									Proposal:    proposal,
+									Certificate: certificate,
 								},
 							},
 						}
@@ -277,7 +275,6 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						}
 					},
 					buildPrePrepareMessageFn: func(
-						_ []byte,
 						_ []byte,
 						_ *proto.RoundChangeCertificate,
 						view *proto.View,
@@ -432,7 +429,6 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 					buildPrePrepareMessageFn: func(
 						proposal []byte,
-						proposalHash []byte,
 						certificate *proto.RoundChangeCertificate,
 						view *proto.View,
 					) *proto.Message {
@@ -1350,49 +1346,6 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 		// Make sure the state is correct
 		assert.Equal(t, newRound, i.state.name)
 	})
-
-	t.Run("move to new round with RC", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			expectedNewRound   uint64         = 1
-			multicastedMessage *proto.Message = nil
-
-			log       = mockLogger{}
-			transport = mockTransport{
-				multicastFn: func(message *proto.Message) {
-					if message != nil && message.Type == proto.MessageType_ROUND_CHANGE {
-						multicastedMessage = message
-					}
-				},
-			}
-			backend = mockBackend{}
-		)
-
-		i := NewIBFT(log, backend, transport)
-
-		i.moveToNewRoundWithRC(expectedNewRound)
-
-		// Make sure the view has changed
-		assert.Equal(t, expectedNewRound, i.state.getRound())
-
-		// Make sure the state is unlocked
-		assert.False(t, i.state.locked)
-
-		// Make sure the proposal is not present
-		assert.Nil(t, i.state.proposal)
-
-		// Make sure the state is correct
-		assert.Equal(t, newRound, i.state.name)
-
-		if multicastedMessage == nil {
-			t.Fatalf("message not multicasted")
-		}
-
-		// Make sure the multicasted message is correct
-		assert.Equal(t, expectedNewRound, multicastedMessage.View.Round)
-		assert.Equal(t, uint64(0), multicastedMessage.View.Height)
-	})
 }
 
 // TestIBFT_FutureProposal checks the
@@ -1548,7 +1501,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 					},
 				}
 				transport = mockTransport{}
-				messages  = mockMessages{
+				mMessages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
 					},
@@ -1568,7 +1521,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			i.messages = messages
+			i.messages = mMessages
 
 			wg.Add(1)
 			go func() {
@@ -1598,7 +1551,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			}
 
 			assert.Equal(t, testCase.notifyRound, receivedProposalEvent.round)
-			assert.Equal(t, proposal, receivedProposalEvent.proposal)
+			assert.Equal(t, proposal, messages.ExtractProposal(receivedProposalEvent.proposalMessage))
 		})
 	}
 }
