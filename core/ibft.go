@@ -747,7 +747,6 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-
 			if !i.handlePrepare(view, quorum) {
 				//	quorum of valid prepare messages not received, retry
 				continue

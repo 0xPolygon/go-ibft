@@ -149,6 +149,64 @@ func filterMessages(messages []*proto.Message, isValid func(message *proto.Messa
 	return newMessages
 }
 
+func generateFilledRCMessages(
+	quorum uint64,
+	proposal,
+	proposalHash []byte) []*proto.Message {
+	// Generate random RC messages
+	roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
+	prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
+
+	// Fill up the prepare message hashes
+	for index, message := range prepareMessages {
+		message.Payload = &proto.Message_PrepareData{
+			PrepareData: &proto.PrepareMessage{
+				ProposalHash: proposalHash,
+			},
+		}
+		message.View = &proto.View{
+			Height: 0,
+			Round:  1,
+		}
+		message.From = []byte(fmt.Sprintf("node %d", index+1))
+	}
+
+	lastPreparedCertificate := &proto.PreparedCertificate{
+		ProposalMessage: &proto.Message{
+			View: &proto.View{
+				Height: 0,
+				Round:  1,
+			},
+			From: []byte("unique node"),
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal:     proposal,
+					ProposalHash: proposalHash,
+					Certificate:  nil,
+				},
+			},
+		},
+		PrepareMessages: prepareMessages,
+	}
+
+	// Fill up their certificates
+	for _, message := range roundChangeMessages {
+		message.Payload = &proto.Message_RoundChangeData{
+			RoundChangeData: &proto.RoundChangeMessage{
+				LastPreparedProposedBlock: proposal,
+				LatestPreparedCertificate: lastPreparedCertificate,
+			},
+		}
+		message.View = &proto.View{
+			Height: 0,
+			Round:  1,
+		}
+	}
+
+	return roundChangeMessages
+}
+
 // TestRunNewRound_Proposer checks that the node functions
 // correctly as the proposer for a block
 func TestRunNewRound_Proposer(t *testing.T) {
@@ -728,61 +786,6 @@ func TestRunNewRound_Validator(t *testing.T) {
 			proposal := []byte("new block")
 			proposer := []byte("proposer")
 
-			generateFilledRCMessages := func(count uint64) []*proto.Message {
-				// Generate random RC messages
-				roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
-				prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
-
-				// Fill up the prepare message hashes
-				for index, message := range prepareMessages {
-					message.Payload = &proto.Message_PrepareData{
-						PrepareData: &proto.PrepareMessage{
-							ProposalHash: proposalHash,
-						},
-					}
-					message.View = &proto.View{
-						Height: 0,
-						Round:  1,
-					}
-					message.From = []byte(fmt.Sprintf("node %d", index+1))
-				}
-
-				lastPreparedCertificate := &proto.PreparedCertificate{
-					ProposalMessage: &proto.Message{
-						View: &proto.View{
-							Height: 0,
-							Round:  1,
-						},
-						From: []byte("unique node"),
-						Type: proto.MessageType_PREPREPARE,
-						Payload: &proto.Message_PreprepareData{
-							PreprepareData: &proto.PrePrepareMessage{
-								Proposal:     proposal,
-								ProposalHash: proposalHash,
-								Certificate:  nil,
-							},
-						},
-					},
-					PrepareMessages: prepareMessages,
-				}
-
-				// Fill up their certificates
-				for _, message := range roundChangeMessages {
-					message.Payload = &proto.Message_RoundChangeData{
-						RoundChangeData: &proto.RoundChangeMessage{
-							LastPreparedProposedBlock: proposal,
-							LatestPreparedCertificate: lastPreparedCertificate,
-						},
-					}
-					message.View = &proto.View{
-						Height: 0,
-						Round:  1,
-					}
-				}
-
-				return roundChangeMessages
-			}
-
 			proposalMessage := &proto.Message{
 				View: &proto.View{
 					Height: 0,
@@ -795,7 +798,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 						Proposal:     proposal,
 						ProposalHash: proposalHash,
 						Certificate: &proto.RoundChangeCertificate{
-							RoundChangeMessages: generateFilledRCMessages(quorum),
+							RoundChangeMessages: generateFilledRCMessages(quorum, proposal, proposalHash),
 						},
 					},
 				},
@@ -1105,61 +1108,6 @@ func TestRunCommit(t *testing.T) {
 			assert.True(t, doneReceived)
 		},
 	)
-
-	// TODO Discuss this with @dbrajovic
-	//t.Run(
-	//	"validator failed to insert the finalized block",
-	//	func(t *testing.T) {
-	//		t.Parallel()
-	//
-	//		var (
-	//			capturedRound uint64 = 0
-	//
-	//			log       = mockLogger{}
-	//			transport = mockTransport{}
-	//			backend   = mockBackend{
-	//				insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
-	//					return errInsertBlock
-	//				},
-	//				buildRoundChangeMessageFn: func(height uint64, round uint64) *proto.Message {
-	//					return &proto.Message{
-	//						View: &proto.View{
-	//							Height: height,
-	//							Round:  round,
-	//						},
-	//						Type: proto.MessageType_ROUND_CHANGE,
-	//					}
-	//				},
-	//			}
-	//		)
-	//
-	//		i := NewIBFT(log, backend, transport)
-	//		i.messages = mockMessages{}
-	//		i.state.name = fin
-	//		i.state.roundStarted = true
-	//
-	//		ctx, cancelFn := context.WithCancel(context.Background())
-	//
-	//		go func(i *IBFT) {
-	//			defer cancelFn()
-	//
-	//			select {
-	//			case newRound := <-i.roundExpired:
-	//				capturedRound = newRound
-	//			case <-time.After(5 * time.Second):
-	//				return
-	//			}
-	//		}(i)
-	//
-	//		i.wg.Add(1)
-	//		i.runRound(ctx)
-	//
-	//		i.wg.Wait()
-	//
-	//		// Make sure the captured round change number is captured
-	//		assert.Equal(t, uint64(1), capturedRound)
-	//	},
-	//)
 }
 
 // TestIBFT_IsAcceptableMessage makes sure invalid messages
@@ -1385,61 +1333,6 @@ func TestIBFT_FutureProposal(t *testing.T) {
 		return roundChangeMessages
 	}
 
-	generateFilledRCMessages := func(count uint64) []*proto.Message {
-		// Generate random RC messages
-		roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
-		prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
-
-		// Fill up the prepare message hashes
-		for index, message := range prepareMessages {
-			message.Payload = &proto.Message_PrepareData{
-				PrepareData: &proto.PrepareMessage{
-					ProposalHash: proposalHash,
-				},
-			}
-			message.View = &proto.View{
-				Height: 0,
-				Round:  1,
-			}
-			message.From = []byte(fmt.Sprintf("node %d", index+1))
-		}
-
-		lastPreparedCertificate := &proto.PreparedCertificate{
-			ProposalMessage: &proto.Message{
-				View: &proto.View{
-					Height: 0,
-					Round:  1,
-				},
-				From: []byte("unique node"),
-				Type: proto.MessageType_PREPREPARE,
-				Payload: &proto.Message_PreprepareData{
-					PreprepareData: &proto.PrePrepareMessage{
-						Proposal:     proposal,
-						ProposalHash: proposalHash,
-						Certificate:  nil,
-					},
-				},
-			},
-			PrepareMessages: prepareMessages,
-		}
-
-		// Fill up their certificates
-		for _, message := range roundChangeMessages {
-			message.Payload = &proto.Message_RoundChangeData{
-				RoundChangeData: &proto.RoundChangeMessage{
-					LastPreparedProposedBlock: proposal,
-					LatestPreparedCertificate: lastPreparedCertificate,
-				},
-			}
-			message.View = &proto.View{
-				Height: 0,
-				Round:  1,
-			}
-		}
-
-		return roundChangeMessages
-	}
-
 	testTable := []struct {
 		name                string
 		proposalView        *proto.View
@@ -1461,7 +1354,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 				Height: 0,
 				Round:  2,
 			},
-			generateFilledRCMessages(quorum),
+			generateFilledRCMessages(quorum, proposal, proposalHash),
 			2,
 		},
 	}
