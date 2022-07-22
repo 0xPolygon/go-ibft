@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"math"
@@ -40,7 +39,6 @@ type Messages interface {
 }
 
 var (
-	errBuildProposal  = errors.New("failed to build proposal")
 	errInsertBlock    = errors.New("failed to insert block")
 	errTimeoutExpired = errors.New("round timeout expired")
 
@@ -109,7 +107,6 @@ func NewIBFT(
 			proposal:     nil,
 			seals:        make([][]byte, 0),
 			roundStarted: false,
-			locked:       false,
 			name:         newRound,
 		},
 	}
@@ -138,63 +135,6 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64, baseTimeout ti
 		// to the next round
 		i.signalRoundExpired(ctx)
 	}
-}
-
-// watchForRoundHop checks if there are F+1 Round Change messages
-// at any point in time to trigger a round hop to the highest round
-// which has F+1 Round Change messages
-func (i *IBFT) watchForRoundHop(ctx context.Context) {
-	defer i.wg.Done()
-
-	view := i.state.getView()
-
-	for {
-		select {
-		case <-ctx.Done():
-			// Quit signal received, teardown the worker
-			return
-		default:
-			//	quorum of round change messages reached, teardown the worker
-			if i.doRoundHop(ctx, view) {
-				i.log.Debug("quitting round after signal", "round", view.Round)
-
-				return
-			}
-		}
-	}
-}
-
-//	doRoundHop signals a round change if a quorum of round change messages was received
-func (i *IBFT) doRoundHop(ctx context.Context, view *proto.View) bool {
-	var (
-		currentRound = view.Round
-		height       = view.Height
-		hopQuorum    = i.backend.MaximumFaultyNodes() + 1
-	)
-
-	// Get round change messages with the highest count from a future round
-	rcMessages := i.messages.GetMostRoundChangeMessages(currentRound+1, height)
-
-	//	Signal round hop if quorum is reached
-	if len(rcMessages) >= int(hopQuorum) {
-		// The round in the Round Change messages should be the highest
-		// round for which there are F+1 RC messages
-		newRound := rcMessages[0].View.Round
-
-		i.log.Info(
-			fmt.Sprintf(
-				"round hop detected, alerting round change, current=%d new=%d",
-				currentRound,
-				newRound,
-			),
-		)
-
-		i.signalRoundExpired(ctx)
-
-		return true
-	}
-
-	return false
 }
 
 //	signalRoundExpired notifies the sequence routine (RunSequence) that it
@@ -744,11 +684,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		}
 	}
 
-	if !bytes.Equal(expectedHash, proposalHash) {
-		return false
-	}
-
-	return true
+	return bytes.Equal(expectedHash, proposalHash)
 }
 
 //	handlePrePrepare parses the received proposal and performs
@@ -849,9 +785,6 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	)
 
 	i.log.Debug("commit message multicasted")
-
-	// Make sure the node is locked
-	i.state.setLocked(true)
 
 	i.state.setLatestPC(&proto.PreparedCertificate{
 		ProposalMessage: i.state.getProposalMessage(),

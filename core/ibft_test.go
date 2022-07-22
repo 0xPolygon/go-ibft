@@ -977,9 +977,6 @@ func TestRunPrepare(t *testing.T) {
 			// Make sure the node moves to the commit state
 			assert.Equal(t, commit, i.state.name)
 
-			// Make sure the node stays locked on a block
-			assert.True(t, i.state.locked)
-
 			// Make sure the proposal didn't change
 			assert.Equal(t, proposal, i.state.proposal)
 
@@ -1336,9 +1333,6 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 
 		// Make sure the view has changed
 		assert.Equal(t, expectedNewRound, i.state.getRound())
-
-		// Make sure the state is unlocked
-		assert.False(t, i.state.locked)
 
 		// Make sure the proposal is not present
 		assert.Nil(t, i.state.proposal)

@@ -55,7 +55,7 @@ type state struct {
 	seals [][]byte
 
 	//	flags for different states
-	roundStarted, locked bool
+	roundStarted bool
 
 	name stateType
 }
@@ -77,7 +77,6 @@ func (s *state) clear(height uint64) {
 	s.proposal = nil
 	s.seals = nil
 	s.roundStarted = false
-	s.locked = false
 	s.name = newRound
 
 	s.view = &proto.View{
@@ -170,25 +169,11 @@ func (s *state) getCommittedSeals() [][]byte {
 	return s.seals
 }
 
-func (s *state) isLocked() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.locked
-}
-
 func (s *state) getStateName() stateType {
 	s.RLock()
 	defer s.RUnlock()
 
 	return s.name
-}
-
-func (s *state) setLocked(locked bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.locked = locked
 }
 
 func (s *state) changeState(name stateType) {
