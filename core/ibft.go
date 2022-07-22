@@ -72,18 +72,25 @@ type IBFT struct {
 	// round changing events
 	roundExpired chan struct{}
 
+	// newProposal is the channel used for signalizing
+	// when new proposals for a view greater than the current
+	// one arrive
 	newProposal chan newProposalEvent
 
+	// roundCertificate is the channel used for signalizing
+	// when a valid RCC for a greater round than the current
+	// one is present
 	roundCertificate chan uint64
 
 	//	User configured additional timeout for each round of consensus
 	additionalTimeout time.Duration
 
+	// baseRoundTimeout is the base round timeout for each round of consensus
+	baseRoundTimeout time.Duration
+
 	// wg is a simple barrier used for synchronizing
 	// state modification routines
 	wg sync.WaitGroup
-
-	baseRoundTimeout time.Duration
 }
 
 // NewIBFT creates a new instance of the IBFT consensus protocol
@@ -169,12 +176,6 @@ func (i *IBFT) signalNewProposal(ctx context.Context, event newProposalEvent) {
 	}
 }
 
-func (i *IBFT) CancelSequence() {
-	//	pre-emptively send a signal to roundDone
-	//	so the thread can finish early
-	i.roundDone <- struct{}{}
-}
-
 // watchForFutureProposal listens for new proposal messages
 // that are intended for higher rounds
 func (i *IBFT) watchForFutureProposal(ctx context.Context) {
@@ -222,6 +223,9 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 	}
 }
 
+// watchForRoundChangeCertificates is a routine that waits
+// for future valid Round Change Certificates that could
+// trigger a round hop
 func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 	defer i.wg.Done()
 
@@ -263,10 +267,11 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 	}
 }
 
+// RunSequence runs the IBFT sequence for the specified height
 func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
-	i.messages.PruneByHeight(i.state.getHeight())
+	i.messages.PruneByHeight(h)
 
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence complete", "height", h)
@@ -342,6 +347,13 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	}
 }
 
+// CancelSequence stops the running IBFT sequence
+func (i *IBFT) CancelSequence() {
+	//	pre-emptively send a signal to roundDone
+	//	so the thread can finish early
+	i.roundDone <- struct{}{}
+}
+
 // runRound runs the state machine loop for the current round
 func (i *IBFT) runRound(ctx context.Context) {
 	// Register this worker thread with the barrier
@@ -380,19 +392,26 @@ func (i *IBFT) runRound(ctx context.Context) {
 	i.runStates(ctx)
 }
 
-func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) *proto.RoundChangeCertificate {
-	quorum := i.backend.Quorum(height)
-	view := &proto.View{
-		Height: height,
-		Round:  round,
-	}
+// waitForRCC waits for valid RCC for the specified height and round
+func (i *IBFT) waitForRCC(
+	ctx context.Context,
+	height,
+	round uint64,
+) *proto.RoundChangeCertificate {
+	var (
+		quorum = i.backend.Quorum(height)
+		view   = &proto.View{
+			Height: height,
+			Round:  round,
+		}
 
-	sub := i.messages.Subscribe(
-		messages.SubscriptionDetails{
-			MessageType: proto.MessageType_ROUND_CHANGE,
-			View:        view,
-			NumMessages: int(quorum),
-		},
+		sub = i.messages.Subscribe(
+			messages.SubscriptionDetails{
+				MessageType: proto.MessageType_ROUND_CHANGE,
+				View:        view,
+				NumMessages: int(quorum),
+			},
+		)
 	)
 
 	defer i.messages.Unsubscribe(sub.GetID())
@@ -412,16 +431,20 @@ func (i *IBFT) waitForRCC(ctx context.Context, height, round uint64) *proto.Roun
 	}
 }
 
+// handleRoundChangeMessage validates the round change message
+// and constructs a RCC if possible
 func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.RoundChangeCertificate {
 	isValidFn := func(msg *proto.Message) bool {
 		proposal := messages.ExtractLastPreparedProposedBlock(msg)
 		certificate := messages.ExtractLatestPC(msg)
 
+		// Check if the prepared certificate is valid
 		if !i.validPC(certificate, view.Round) {
 			return false
 		}
 
-		return i.matchProposalWithCertificate(proposal, certificate)
+		// Make sure the certificate matches the proposal
+		return i.proposalMatchesCertificate(proposal, certificate)
 	}
 
 	msgs := i.messages.GetValidMessages(
@@ -439,11 +462,18 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.
 	}
 }
 
-func (i *IBFT) matchProposalWithCertificate(proposal []byte, certificate *proto.PreparedCertificate) bool {
+// proposalMatchesCertificate checks a prepared certificate
+// against a proposal
+func (i *IBFT) proposalMatchesCertificate(
+	proposal []byte,
+	certificate *proto.PreparedCertificate,
+) bool {
+	// Both the certificate and proposal need to be set
 	if proposal == nil && certificate == nil {
 		return true
 	}
 
+	// If the proposal is set, the certificate also must be set
 	if certificate == nil {
 		return false
 	}
@@ -562,6 +592,7 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 	}
 }
 
+// validateProposal0 validates the proposal for round 0
 func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
 	var (
 		height = view.Height
@@ -599,6 +630,7 @@ func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
 	return true
 }
 
+// validateProposal validates a proposal for round > 0
 func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	var (
 		height = view.Height
