@@ -552,142 +552,180 @@ func TestRunNewRound_Proposer(t *testing.T) {
 	)
 }
 
-// TestRunNewRound_Validator checks that the node functions correctly
-// when receiving a proposal from another node
-func TestRunNewRound_Validator(t *testing.T) {
+// TestRunNewRound_Validator_Zero validates the behavior
+// of a non-proposer when receiving the proposal for round 0
+func TestRunNewRound_Validator_Zero(t *testing.T) {
 	t.Parallel()
 
-	t.Run(
-		"validator receives valid block proposal (round 0)",
-		func(t *testing.T) {
-			t.Parallel()
+	ctx, cancelFn := context.WithCancel(context.Background())
 
-			ctx, cancelFn := context.WithCancel(context.Background())
+	var (
+		proposal                          = []byte("new block")
+		proposalHash                      = []byte("proposal hash")
+		proposer                          = []byte("proposer")
+		multicastedPrepare *proto.Message = nil
+		notifyCh                          = make(chan uint64, 1)
 
-			var (
-				proposal                          = []byte("new block")
-				proposalHash                      = []byte("proposal hash")
-				proposer                          = []byte("proposer")
-				multicastedPrepare *proto.Message = nil
-				notifyCh                          = make(chan uint64, 1)
-
-				log       = mockLogger{}
-				transport = mockTransport{
-					func(message *proto.Message) {
-						if message != nil && message.Type == proto.MessageType_PREPARE {
-							multicastedPrepare = message
-						}
-					},
+		log       = mockLogger{}
+		transport = mockTransport{
+			func(message *proto.Message) {
+				if message != nil && message.Type == proto.MessageType_PREPARE {
+					multicastedPrepare = message
 				}
-				backend = mockBackend{
-					idFn: func() []byte {
-						return []byte("non proposer")
-					},
-					quorumFn: func(_ uint64) uint64 {
-						return 1
-					},
-					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
-						return &proto.Message{
-							View: view,
-							Type: proto.MessageType_PREPARE,
-							Payload: &proto.Message_PrepareData{
-								PrepareData: &proto.PrepareMessage{
-									ProposalHash: proposalHash,
-								},
-							},
-						}
-					},
-					isProposerFn: func(from []byte, _, _ uint64) bool {
-						return bytes.Equal(from, proposer)
-					},
-					isValidBlockFn: func(_ []byte) bool {
-						return true
-					},
-				}
-				messages = mockMessages{
-					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
-					},
-					unsubscribeFn: func(_ messages.SubscriptionID) {
-						cancelFn()
-					},
-					getValidMessagesFn: func(
-						view *proto.View,
-						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
-						return filterMessages(
-							[]*proto.Message{
-								{
-									View: view,
-									From: proposer,
-									Type: proto.MessageType_PREPREPARE,
-									Payload: &proto.Message_PreprepareData{
-										PreprepareData: &proto.PrePrepareMessage{
-											Proposal: proposal,
-										},
-									},
-								},
-							},
-							isValid,
-						)
-					},
-				}
-			)
-
-			i := NewIBFT(log, backend, transport)
-			i.messages = messages
-
-			// Make sure the notification is sent out
-			notifyCh <- 0
-
-			i.wg.Add(1)
-			i.runRound(ctx)
-
-			i.wg.Wait()
-
-			// Make sure the node moves to prepare state
-			assert.Equal(t, prepare, i.state.name)
-
-			// Make sure the accepted proposal is the one that was sent out
-			assert.Equal(t, proposal, i.state.getProposal())
-
-			// Make sure the correct proposal hash was multicasted
-			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
-		},
-	)
-
-	t.Run(
-		"validator receives valid block proposal (round > 0, new block)",
-		func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancelFn := context.WithCancel(context.Background())
-
-			quorum := uint64(4)
-			roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
-			setRoundForMessages(roundChangeMessages, 1)
-
-			proposal := []byte("new block")
-			proposalHash := []byte("proposal hash")
-			proposer := []byte("proposer")
-			proposalMessage := &proto.Message{
-				View: &proto.View{
-					Height: 0,
-					Round:  1,
-				},
-				From: proposer,
-				Type: proto.MessageType_PREPREPARE,
-				Payload: &proto.Message_PreprepareData{
-					PreprepareData: &proto.PrePrepareMessage{
-						Proposal:     proposal,
-						ProposalHash: proposalHash,
-						Certificate: &proto.RoundChangeCertificate{
-							RoundChangeMessages: roundChangeMessages,
+			},
+		}
+		backend = mockBackend{
+			idFn: func() []byte {
+				return []byte("non proposer")
+			},
+			quorumFn: func(_ uint64) uint64 {
+				return 1
+			},
+			buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
+				return &proto.Message{
+					View: view,
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: proposalHash,
 						},
 					},
+				}
+			},
+			isProposerFn: func(from []byte, _, _ uint64) bool {
+				return bytes.Equal(from, proposer)
+			},
+			isValidBlockFn: func(_ []byte) bool {
+				return true
+			},
+		}
+		messages = mockMessages{
+			subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+				return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+			},
+			unsubscribeFn: func(_ messages.SubscriptionID) {
+				cancelFn()
+			},
+			getValidMessagesFn: func(
+				view *proto.View,
+				_ proto.MessageType,
+				isValid func(message *proto.Message) bool,
+			) []*proto.Message {
+				return filterMessages(
+					[]*proto.Message{
+						{
+							View: view,
+							From: proposer,
+							Type: proto.MessageType_PREPREPARE,
+							Payload: &proto.Message_PreprepareData{
+								PreprepareData: &proto.PrePrepareMessage{
+									Proposal: proposal,
+								},
+							},
+						},
+					},
+					isValid,
+				)
+			},
+		}
+	)
+
+	i := NewIBFT(log, backend, transport)
+	i.messages = messages
+
+	// Make sure the notification is sent out
+	notifyCh <- 0
+
+	i.wg.Add(1)
+	i.runRound(ctx)
+
+	i.wg.Wait()
+
+	// Make sure the node moves to prepare state
+	assert.Equal(t, prepare, i.state.name)
+
+	// Make sure the accepted proposal is the one that was sent out
+	assert.Equal(t, proposal, i.state.getProposal())
+
+	// Make sure the correct proposal hash was multicasted
+	assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
+}
+
+// TestRunNewRound_Validator_NonZero validates the behavior
+// of a non-proposer when receiving proposals for rounds > 0
+func TestRunNewRound_Validator_NonZero(t *testing.T) {
+	t.Parallel()
+
+	quorum := uint64(4)
+	proposalHash := []byte("proposal hash")
+	proposal := []byte("new block")
+	proposer := []byte("proposer")
+
+	generateProposalWithNoPrevious := func() *proto.Message {
+		roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
+		setRoundForMessages(roundChangeMessages, 1)
+
+		return &proto.Message{
+			View: &proto.View{
+				Height: 0,
+				Round:  1,
+			},
+			From: proposer,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal:     proposal,
+					ProposalHash: proposalHash,
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
 				},
-			}
+			},
+		}
+	}
+
+	generateProposalWithPrevious := func() *proto.Message {
+		return &proto.Message{
+			View: &proto.View{
+				Height: 0,
+				Round:  1,
+			},
+			From: proposer,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal:     proposal,
+					ProposalHash: proposalHash,
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: generateFilledRCMessages(quorum, proposal, proposalHash),
+					},
+				},
+			},
+		}
+	}
+
+	testTable := []struct {
+		name            string
+		proposalMessage *proto.Message
+	}{
+		{
+			"validator receives valid block proposal (round > 0, new block)",
+			generateProposalWithNoPrevious(),
+		},
+		{
+			"validator receives valid block proposal (round > 0, old block)",
+			generateProposalWithPrevious(),
+		},
+	}
+
+	for _, testCase := range testTable {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancelFn := context.WithCancel(context.Background())
+			defer cancelFn()
 
 			var (
 				multicastedPrepare *proto.Message = nil
@@ -740,7 +778,7 @@ func TestRunNewRound_Validator(t *testing.T) {
 					) []*proto.Message {
 						return filterMessages(
 							[]*proto.Message{
-								proposalMessage,
+								testCase.proposalMessage,
 							},
 							isValid,
 						)
@@ -771,123 +809,8 @@ func TestRunNewRound_Validator(t *testing.T) {
 
 			// Make sure the correct proposal hash was multicasted
 			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
-		},
-	)
-
-	t.Run(
-		"validator receives valid block proposal (round > 0, old block)",
-		func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancelFn := context.WithCancel(context.Background())
-
-			quorum := uint64(4)
-			proposalHash := []byte("proposal hash")
-			proposal := []byte("new block")
-			proposer := []byte("proposer")
-
-			proposalMessage := &proto.Message{
-				View: &proto.View{
-					Height: 0,
-					Round:  1,
-				},
-				From: proposer,
-				Type: proto.MessageType_PREPREPARE,
-				Payload: &proto.Message_PreprepareData{
-					PreprepareData: &proto.PrePrepareMessage{
-						Proposal:     proposal,
-						ProposalHash: proposalHash,
-						Certificate: &proto.RoundChangeCertificate{
-							RoundChangeMessages: generateFilledRCMessages(quorum, proposal, proposalHash),
-						},
-					},
-				},
-			}
-
-			var (
-				multicastedPrepare *proto.Message = nil
-				notifyCh                          = make(chan uint64, 1)
-
-				log       = mockLogger{}
-				transport = mockTransport{
-					func(message *proto.Message) {
-						if message != nil && message.Type == proto.MessageType_PREPARE {
-							multicastedPrepare = message
-						}
-					},
-				}
-				backend = mockBackend{
-					idFn: func() []byte {
-						return []byte("non proposer")
-					},
-					quorumFn: func(_ uint64) uint64 {
-						return 1
-					},
-					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
-						return &proto.Message{
-							View: view,
-							Type: proto.MessageType_PREPARE,
-							Payload: &proto.Message_PrepareData{
-								PrepareData: &proto.PrepareMessage{
-									ProposalHash: proposalHash,
-								},
-							},
-						}
-					},
-					isProposerFn: func(from []byte, _, _ uint64) bool {
-						return bytes.Equal(from, proposer)
-					},
-					isValidBlockFn: func(_ []byte) bool {
-						return true
-					},
-				}
-				messages = mockMessages{
-					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
-					},
-					unsubscribeFn: func(_ messages.SubscriptionID) {
-						cancelFn()
-					},
-					getValidMessagesFn: func(
-						view *proto.View,
-						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
-						return filterMessages(
-							[]*proto.Message{
-								proposalMessage,
-							},
-							isValid,
-						)
-					},
-				}
-			)
-
-			i := NewIBFT(log, backend, transport)
-			i.messages = messages
-			i.state.setView(&proto.View{
-				Height: 0,
-				Round:  1,
-			})
-
-			// Make sure the notification is sent out
-			notifyCh <- 1
-
-			i.wg.Add(1)
-			i.runRound(ctx)
-
-			i.wg.Wait()
-
-			// Make sure the node moves to prepare state
-			assert.Equal(t, prepare, i.state.name)
-
-			// Make sure the accepted proposal is the one that was sent out
-			assert.Equal(t, proposal, i.state.getProposal())
-
-			// Make sure the correct proposal hash was multicasted
-			assert.True(t, prepareHashMatches(proposalHash, multicastedPrepare))
-		},
-	)
+		})
+	}
 }
 
 // TestRunPrepare checks that the node behaves correctly
