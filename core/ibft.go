@@ -264,7 +264,10 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			}
 
 			// Extract the proposal
-			i.signalNewProposal(ctx, newProposalEvent{proposal, round})
+			i.signalNewProposal(
+				ctx,
+				newProposalEvent{proposal, round},
+			)
 
 			return
 		}
