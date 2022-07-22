@@ -207,6 +207,13 @@ func (i *IBFT) signalRoundExpired(ctx context.Context) {
 	}
 }
 
+func (i *IBFT) signalNewRCC(ctx context.Context, round uint64) {
+	select {
+	case i.roundCertificate <- round:
+	case <-ctx.Done():
+	}
+}
+
 type newProposalEvent struct {
 	proposal []byte
 	round    uint64
@@ -308,7 +315,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 			}
 
 			//	we received a valid RCC for a higher round
-			i.roundCertificate <- round
+			i.signalNewRCC(ctx, round)
 
 			return
 		}
