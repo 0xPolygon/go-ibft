@@ -853,7 +853,7 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 			committedSeal = messages.ExtractCommittedSeal(message)
 		)
 		//	Verify that the proposal hash is valid
-		if !i.backend.IsValidProposalHash(i.state.getProposalHash(), proposalHash) {
+		if !i.backend.IsValidProposalHash(i.state.getProposal(), proposalHash) {
 			return false
 		}
 
