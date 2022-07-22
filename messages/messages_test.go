@@ -158,7 +158,7 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	// Prune out the messages from this view
-	messages.PruneByHeight(views[1].Height)
+	messages.PruneByHeight(views[1].Height + 1)
 
 	// Make sure the round 1 messages are pruned out
 	assert.Equal(t, 0, messages.numMessages(views[0], messageType))

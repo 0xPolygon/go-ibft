@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"fmt"
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
@@ -81,14 +80,11 @@ func (es *eventSubscription) pushEvent(
 	totalMessages int,
 ) {
 	if !es.eventSupported(messageType, view, totalMessages) {
-		fmt.Printf("EVENT NOT SUPPORTED %s %+v\n", messageType, view)
 		return
 	}
 
 	select {
 	case es.notifyCh <- view.Round: // Notify the worker thread
-		fmt.Printf("EVENT SIGNALLED %s %+v\n", messageType, view)
 	default:
-		fmt.Printf("EVENT NOT SENT %s %+v\n", messageType, view)
 	}
 }

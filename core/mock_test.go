@@ -5,6 +5,7 @@ import (
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"sync"
+	"time"
 )
 
 // Define delegation methods
@@ -282,6 +283,12 @@ func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.
 	return nil
 }
 
+// TODO remove
+func (m mockMessages) NumMsg(view *proto.View,
+	messageType proto.MessageType) int {
+	return -20
+}
+
 type backendConfigCallback func(*mockBackend)
 type loggerConfigCallback func(*mockLogger)
 type transportConfigCallback func(*mockTransport)
@@ -329,10 +336,6 @@ func newMockCluster(
 
 		// Create a new instance of the IBFT node
 		i := NewIBFT(logger, backend, transport)
-
-		// Make sure the node uses real message queue
-		// implementations
-		i.messages = messages.NewMessages()
 
 		// Instantiate quit channels for node routines
 		quitChannels[index] = make(chan struct{})
@@ -394,4 +397,11 @@ func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
 	}
 
 	return true
+}
+
+// setBaseTimeout sets the base timeout for rounds
+func (m *mockCluster) setBaseTimeout(timeout time.Duration) {
+	for _, node := range m.nodes {
+		node.baseRoundTimeout = timeout
+	}
 }

@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/Trapesys/go-ibft/messages/proto"
@@ -27,15 +26,11 @@ func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 	// Create the subscription
 	subscription := ms.eventManager.subscribe(details)
 
-	fmt.Printf("\nCREATED SUB %+v\n", details)
-
 	// Check if any condition is already met
 	if numMessages := ms.numMessages(
 		details.View,
 		details.MessageType,
 	); numMessages >= details.NumMessages {
-		fmt.Printf("\nHAVE ENOUGH %+v, %d\n", details, numMessages)
-
 		// Conditions are already met, alert the event manager
 		ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
 	}
@@ -153,10 +148,10 @@ func (ms *Messages) PruneByHeight(height uint64) {
 
 		messageMap := ms.getMessageMap(messageType)
 
-		// Delete all height maps up until and including the specified
+		// Delete all height maps up until the specified
 		// view height
 		for msgHeight := range messageMap {
-			if msgHeight <= height {
+			if msgHeight < height {
 				delete(messageMap, msgHeight)
 			}
 		}

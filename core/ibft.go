@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"math"
@@ -83,6 +82,8 @@ type IBFT struct {
 	// wg is a simple barrier used for synchronizing
 	// state modification routines
 	wg sync.WaitGroup
+
+	baseRoundTimeout time.Duration
 }
 
 // NewIBFT creates a new instance of the IBFT consensus protocol
@@ -109,16 +110,17 @@ func NewIBFT(
 			roundStarted: false,
 			name:         newRound,
 		},
+		baseRoundTimeout: roundZeroTimeout,
 	}
 }
 
 // startRoundTimer starts the exponential round timer, based on the
 // passed in round number
-func (i *IBFT) startRoundTimer(ctx context.Context, round uint64, baseTimeout time.Duration) {
+func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 	defer i.wg.Done()
 
 	var (
-		duration     = int(baseTimeout)
+		duration     = int(i.baseRoundTimeout)
 		roundFactor  = int(math.Pow(float64(2), float64(round)))
 		roundTimeout = time.Duration(duration * roundFactor)
 	)
@@ -277,7 +279,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		ctxRound, cancelRound := context.WithCancel(ctx)
 
 		// Start the round timer worker
-		go i.startRoundTimer(ctxRound, currentRound, roundZeroTimeout)
+		go i.startRoundTimer(ctxRound, currentRound)
 
 		//	Jump round on proposals from higher rounds
 		go i.watchForFutureProposal(ctxRound)
@@ -366,8 +368,6 @@ func (i *IBFT) runRound(ctx context.Context) {
 
 		i.acceptProposal(proposalMessage)
 		i.log.Debug("block proposal accepted")
-
-		i.log.Debug(fmt.Sprintf("Sending out %v", proposalMessage))
 
 		i.transport.Multicast(proposalMessage)
 
@@ -533,7 +533,6 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.GetCh():
-			i.log.Debug("Received from channel")
 			// SubscriptionDetails conditions have been met,
 			// grab the proposal messages
 			proposalMessage := i.handlePrePrepare(view)
@@ -696,11 +695,8 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 	isValidPrePrepare := func(message *proto.Message) bool {
 		if view.Round == 0 {
-			isValid := i.validateProposal0(message, view)
-			i.log.Debug(fmt.Sprintf("validating proposal %v, IT IS %t", message, isValid))
-
 			//	proposal must be for round 0
-			return isValid
+			return i.validateProposal0(message, view)
 		}
 
 		return i.validateProposal(message, view)
@@ -997,8 +993,6 @@ func (i *IBFT) acceptProposal(proposalMessage *proto.Message) {
 
 // AddMessage adds a new message to the IBFT message system
 func (i *IBFT) AddMessage(message *proto.Message) {
-	i.log.Debug(fmt.Sprintf("Received message %v", message))
-
 	// Make sure the message is present
 	if message == nil {
 		return

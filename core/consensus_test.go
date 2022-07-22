@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
+	"time"
 )
 
 // generateNodeAddresses generates dummy node addresses
@@ -100,13 +101,6 @@ func buildBasicRoundChangeMessage(
 	}
 }
 
-func TestDummy(t *testing.T) {
-	for i := 0; i < 100000; i++ {
-		fmt.Printf("\n\nIteration %d\n\n", i)
-		TestConsensus_ValidFlow(t)
-	}
-}
-
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
@@ -114,7 +108,7 @@ func TestDummy(t *testing.T) {
 // - Node 0 proposes a valid block B
 // - All nodes go through the consensus states to insert the valid block B
 func TestConsensus_ValidFlow(t *testing.T) {
-	//t.Parallel() TODO uncomment
+	t.Parallel()
 
 	var multicastFn func(message *proto.Message)
 
@@ -225,59 +219,13 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			2: commonTransportCallback,
 			3: commonTransportCallback,
 		}
-		logCallbackMap = map[int]loggerConfigCallback{
-			0: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 0]: %s\n", s)
-				}
-				logger.debugFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 0]: %s\n", s)
-				}
-				logger.errorFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 0]: %s\n", s)
-				}
-			},
-			1: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 1]: %s\n", s)
-				}
-				logger.debugFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 1]: %s\n", s)
-				}
-				logger.errorFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 1]: %s\n", s)
-				}
-			},
-			2: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 2]: %s\n", s)
-				}
-				logger.debugFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 2]: %s\n", s)
-				}
-				logger.errorFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 2]: %s\n", s)
-				}
-			},
-			3: func(logger *mockLogger) {
-				logger.infoFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 3]: %s\n", s)
-				}
-				logger.debugFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 3]: %s\n", s)
-				}
-				logger.errorFn = func(s string, i ...interface{}) {
-					fmt.Printf("[Node 3]: %s\n", s)
-				}
-			},
-		}
 	)
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
 		backendCallbackMap,
-		logCallbackMap,
+		nil,
 		transportCallbackMap,
 	)
 
@@ -310,9 +258,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 // - Node 1 proposes a valid block B'
 // - All nodes go through the consensus states to insert the valid block B'
 func TestConsensus_InvalidBlock(t *testing.T) {
-	// TODO undo skip
-	t.SkipNow()
-
 	t.Parallel()
 
 	var multicastFn func(message *proto.Message)
@@ -459,6 +404,9 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		nil,
 		transportCallbackMap,
 	)
+
+	// Set the base timeout to be lower than usual
+	cluster.setBaseTimeout(2 * time.Second)
 
 	// Set the multicast callback to relay the message
 	// to the entire cluster

@@ -1274,7 +1274,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		wg.Add(1)
 		i.wg.Add(1)
 		go func() {
-			i.startRoundTimer(ctx, 0, roundZeroTimeout)
+			i.startRoundTimer(ctx, 0)
 
 			wg.Done()
 		}()
@@ -1297,6 +1297,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		)
 
 		i := NewIBFT(log, backend, transport)
+		i.baseRoundTimeout = 0 * time.Second
 
 		ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -1316,7 +1317,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		}()
 
 		i.wg.Add(1)
-		i.startRoundTimer(ctx, 0, 0*time.Second)
+		i.startRoundTimer(ctx, 0)
 
 		wg.Wait()
 
