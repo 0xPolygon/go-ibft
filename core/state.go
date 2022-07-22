@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"sync"
 )
@@ -38,8 +39,17 @@ type state struct {
 	//	current view (sequence, round)
 	view *proto.View
 
+	// latestPC is the latest prepared certificate
+	latestPC *proto.PreparedCertificate
+
+	// latestPreparedProposedBlock is the block
+	// for which Q(N)-1 PREPARE messages were received
+	latestPreparedProposedBlock []byte
+
 	//	block proposal for current round
-	proposal []byte
+	proposal []byte // TODO probably redundant field because of proposalMessage
+
+	proposalMessage *proto.Message
 
 	//	validated commit seals
 	seals [][]byte
@@ -74,6 +84,55 @@ func (s *state) clear(height uint64) {
 		Height: height,
 		Round:  0,
 	}
+}
+
+func (s *state) getLatestPC() *proto.PreparedCertificate {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.latestPC
+}
+
+func (s *state) setLatestPC(certificate *proto.PreparedCertificate) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.latestPC = certificate
+}
+
+func (s *state) getLatestPreparedProposedBlock() []byte {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.latestPreparedProposedBlock
+}
+
+func (s *state) setLatestPPB(block []byte) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.latestPreparedProposedBlock = block
+}
+
+func (s *state) getProposalMessage() *proto.Message {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.proposalMessage
+}
+
+func (s *state) getProposalHash() []byte {
+	s.RLock()
+	defer s.RUnlock()
+
+	return messages.ExtractProposalHash(s.proposalMessage)
+}
+
+func (s *state) setProposalMessage(proposalMessage *proto.Message) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.proposalMessage = proposalMessage
 }
 
 func (s *state) getRound() uint64 {

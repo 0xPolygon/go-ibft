@@ -22,7 +22,9 @@ func generateNodeAddresses(count int) [][]byte {
 
 // buildBasicPreprepareMessage builds a simple preprepare message
 func buildBasicPreprepareMessage(
-	proposal,
+	proposal []byte,
+	proposalHash []byte,
+	certificate *proto.RoundChangeCertificate,
 	from []byte,
 	view *proto.View,
 ) *proto.Message {
@@ -32,7 +34,9 @@ func buildBasicPreprepareMessage(
 		Type: proto.MessageType_PREPREPARE,
 		Payload: &proto.Message_PreprepareData{
 			PreprepareData: &proto.PrePrepareMessage{
-				Proposal: proposal,
+				Proposal:     proposal,
+				Certificate:  certificate,
+				ProposalHash: proposalHash,
 			},
 		},
 	}
@@ -78,18 +82,21 @@ func buildBasicCommitMessage(
 
 // buildBasicRoundChangeMessage builds a simple round change message
 func buildBasicRoundChangeMessage(
-	height,
-	round uint64,
+	proposal []byte,
+	certificate *proto.PreparedCertificate,
+	view *proto.View,
 	from []byte,
 ) *proto.Message {
 	return &proto.Message{
-		View: &proto.View{
-			Height: height,
-			Round:  round,
+		View: view,
+		From: from,
+		Type: proto.MessageType_ROUND_CHANGE,
+		Payload: &proto.Message_RoundChangeData{
+			RoundChangeData: &proto.RoundChangeMessage{
+				LastPreparedProposedBlock: proposal,
+				LatestPreparedCertificate: certificate,
+			},
 		},
-		From:    from,
-		Type:    proto.MessageType_ROUND_CHANGE,
-		Payload: nil,
 	}
 }
 
@@ -143,8 +150,17 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the preprepare message is built correctly
-		backend.buildPrePrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			return buildBasicPreprepareMessage(proposal, nodes[nodeIndex], view)
+		backend.buildPrePrepareMessageFn = func(
+			proposal []byte,
+			certificate *proto.RoundChangeCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicPreprepareMessage(
+				proposal,
+				proposalHash,
+				certificate,
+				nodes[nodeIndex],
+				view)
 		}
 
 		// Make sure the prepare message is built correctly
@@ -158,8 +174,12 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the round change message is built correctly
-		backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-			return buildBasicRoundChangeMessage(height, round, nodes[nodeIndex])
+		backend.buildRoundChangeMessageFn = func(
+			proposal []byte,
+			certificate *proto.PreparedCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 		}
 
 		// Make sure the inserted proposal is noted
@@ -307,8 +327,18 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the preprepare message is built correctly
-		backend.buildPrePrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			return buildBasicPreprepareMessage(proposal, nodes[nodeIndex], view)
+		backend.buildPrePrepareMessageFn = func(
+			proposal []byte,
+			certificate *proto.RoundChangeCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicPreprepareMessage(
+				proposal,
+				proposalHashes[view.Round],
+				certificate,
+				nodes[nodeIndex],
+				view,
+			)
 		}
 
 		// Make sure the prepare message is built correctly
@@ -322,8 +352,12 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the round change message is built correctly
-		backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-			return buildBasicRoundChangeMessage(height, round, nodes[nodeIndex])
+		backend.buildRoundChangeMessageFn = func(
+			proposal []byte,
+			certificate *proto.PreparedCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 		}
 
 		// Make sure the inserted proposal is noted

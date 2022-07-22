@@ -208,8 +208,8 @@ func (i *IBFT) signalRoundExpired(ctx context.Context) {
 }
 
 type newProposalEvent struct {
-	proposal []byte
-	round    uint64
+	proposalMessage *proto.Message
+	round           uint64
 }
 
 func (i *IBFT) signalNewProposal(ctx context.Context, event newProposalEvent) {
@@ -278,8 +278,8 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 			//	TODO: accept proposal and multicast prepare in run sequence
 			// Extract the proposal
 			i.signalNewProposal(ctx, newProposalEvent{
-				proposal: messages.ExtractProposal(msgs[0]),
-				round:    round,
+				proposalMessage: msgs[0],
+				round:           round,
 			})
 
 			return
@@ -328,7 +328,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 	}
 }
 
-func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
+func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	// Set the starting state data
 	i.state.clear(h)
 	i.messages.PruneByHeight(i.state.getHeight())
@@ -365,7 +365,7 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 			teardown()
 
 			i.moveToNewRound(ev.round)
-			i.acceptProposal(ev.proposal)
+			i.acceptProposal(ev.proposalMessage)
 			i.state.setRoundStarted(true) //	TODO
 
 		case round := <-i.roundCertificate:
@@ -380,7 +380,14 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 			i.moveToNewRound(newRound)
 
 			i.transport.Multicast(
-				i.backend.BuildRoundChangeMessage(h, newRound),
+				i.backend.BuildRoundChangeMessage(
+					i.state.getLatestPreparedProposedBlock(),
+					i.state.getLatestPC(),
+					&proto.View{
+						Height: h,
+						Round:  newRound,
+					},
+				),
 			)
 
 		case <-i.roundDone:
@@ -391,65 +398,6 @@ func (i *IBFT) RunSequencee(ctx context.Context, h uint64) {
 			return
 		case <-ctx.Done():
 			teardown()
-
-			return
-		}
-	}
-}
-
-// RunSequence runs the consensus cycle for the specified block height
-func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
-	// Set the starting state data
-	i.state.clear(h)
-	i.messages.PruneByHeight(i.state.getHeight())
-
-	i.log.Info("sequence started", "height", h)
-	defer i.log.Info("sequence complete", "height", h)
-
-	for {
-		i.wg.Add(3)
-
-		currentRound := i.state.getRound()
-
-		ctxRound, cancelRound := context.WithCancel(ctx)
-
-		// Start the round timer worker
-		go i.startRoundTimer(ctxRound, currentRound, roundZeroTimeout)
-
-		// Start the state machine worker
-		go i.runRound(ctxRound)
-
-		// Start the round hop worker
-		go i.watchForRoundHop(ctxRound)
-
-		select {
-		case <-i.roundExpired:
-			// Round Change request received.
-			// Stop all running worker threads
-			i.log.Info("round change received")
-
-			cancelRound()
-			i.wg.Wait()
-
-			//	Move to the new round
-			//i.moveToNewRoundWithRC(newRound)
-			i.state.setLocked(false)
-
-			i.log.Info("going to round change...")
-
-			// Wait to reach quorum on what the next round
-			// should be before starting the cycle again
-			i.runRoundChange()
-		case <-i.roundDone:
-			// The consensus cycle for the block height is finished.
-			// Stop all running worker threads
-			cancelRound()
-			i.wg.Wait()
-
-			return
-		case <-ctx.Done():
-			cancelRound()
-			i.wg.Wait()
 
 			return
 		}
@@ -496,21 +444,21 @@ func (i *IBFT) runRound(ctx context.Context) {
 			}
 
 			//	check the messages for any previous proposal (if they have any, it's the same proposal)
-			var previousProposal []byte
+			var previousProposalMessage *proto.Message
 
 			for _, msg := range rcc.RoundChangeMessages {
 				//	if message contains block, break
 				latestPC := messages.ExtractLatestPC(msg)
 
 				if latestPC != nil {
-					previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
+					previousProposalMessage = latestPC.ProposalMessage
 
 					break
 				}
 			}
 
 			var proposal []byte
-			if previousProposal == nil {
+			if previousProposalMessage == nil {
 				//	build new proposal
 				var err error
 
@@ -522,15 +470,16 @@ func (i *IBFT) runRound(ctx context.Context) {
 					return
 				}
 			} else {
-				proposal = previousProposal
+				proposal = messages.ExtractProposal(previousProposalMessage)
 			}
 
-			i.acceptProposal(proposal)
+			i.acceptProposal(previousProposalMessage)
 			i.log.Debug("block proposal accepted")
 
 			i.transport.Multicast(
 				i.backend.BuildPrePrepareMessage(
 					proposal,
+					rcc,
 					i.state.getView(),
 				),
 			)
@@ -700,17 +649,20 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 		case <-sub.GetCh():
 			// SubscriptionDetails conditions have been met,
 			// grab the proposal messages
-			proposal := i.handlePrePrepare(view)
-			if proposal == nil {
+			proposalMessage := i.handlePrePrepare(view)
+			if proposalMessage == nil {
 				continue
 			}
 
 			// Accept the proposal since it's valid
-			i.acceptProposal(proposal)
+			i.acceptProposal(proposalMessage)
 
 			// Multicast the PREPARE message
 			i.transport.Multicast(
-				i.backend.BuildPrepareMessage(proposal, view),
+				i.backend.BuildPrepareMessage(
+					i.state.getProposalHash(),
+					view,
+				),
 			)
 
 			i.log.Debug("prepare message multicasted")
@@ -858,7 +810,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 
 //	handlePrePrepare parses the received proposal and performs
 //	a transition to PREPARE state, if the proposal is valid
-func (i *IBFT) handlePrePrepare(view *proto.View) []byte {
+func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 	isValidPrePrepare := func(message *proto.Message) bool {
 		if view.Round == 0 {
 			//	proposal must be for round 0
@@ -878,7 +830,7 @@ func (i *IBFT) handlePrePrepare(view *proto.View) []byte {
 		return nil
 	}
 
-	return messages.ExtractProposal(msgs[0])
+	return msgs[0]
 }
 
 // runPrepare runs the Prepare IBFT state
@@ -934,20 +886,23 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		)
 	}
 
-	if len(
-		i.messages.GetValidMessages(
-			view,
-			proto.MessageType_PREPARE,
-			isValidPrepare,
-		),
-	) < int(quorum) {
+	prepareMessages := i.messages.GetValidMessages(
+		view,
+		proto.MessageType_PREPARE,
+		isValidPrepare,
+	)
+
+	if len(prepareMessages) < int(quorum) {
 		//	quorum not reached, keep polling
 		return false
 	}
 
 	// Multicast the COMMIT message
 	i.transport.Multicast(
-		i.backend.BuildCommitMessage(i.state.getProposal(), view),
+		i.backend.BuildCommitMessage(
+			messages.ExtractProposalHash(i.state.getProposalMessage()),
+			view,
+		),
 	)
 
 	i.log.Debug("commit message multicasted")
@@ -955,7 +910,12 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	// Make sure the node is locked
 	i.state.setLocked(true)
 
-	// TODO add latestPC...
+	i.state.setLatestPC(&proto.PreparedCertificate{
+		ProposalMessage: i.state.getProposalMessage(),
+		PrepareMessages: prepareMessages,
+	})
+
+	i.state.setLatestPPB(i.state.getProposal())
 
 	// Move to the commit state
 	i.state.changeState(commit)
@@ -1059,61 +1019,6 @@ func (i *IBFT) runFin() error {
 	return nil
 }
 
-// runRoundChange runs the Round Change IBFT state
-func (i *IBFT) runRoundChange() {
-	i.log.Debug("enter: round change state")
-	defer i.log.Debug("exit: round change state")
-
-	var (
-		// Grab the current view
-		view = i.state.getView()
-
-		// Grab quorum information
-		quorum = i.backend.Quorum(view.Height)
-
-		// Subscribe to ROUND CHANGE messages
-		sub = i.messages.Subscribe(
-			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_ROUND_CHANGE,
-				View:        view,
-				NumMessages: int(quorum),
-			},
-		)
-	)
-
-	// The subscription is not needed anymore after
-	// this state is done executing
-	defer i.messages.Unsubscribe(sub.GetID())
-
-	i.log.Debug(
-		"waiting on quorum of round change messages",
-		"height", view.Height,
-		"round", view.Round,
-		"quorum", quorum,
-	)
-
-	ticker := time.NewTicker(roundZeroTimeout / 3)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			//	periodically send the same round change message
-			//	to ensure reconnecting nodes are able to catch up
-			i.transport.Multicast(
-				i.backend.BuildRoundChangeMessage(
-					view.Height,
-					view.Round,
-				),
-			)
-		case <-sub.GetCh():
-			i.log.Debug("received quorum of round change messages")
-
-			return
-		}
-	}
-}
-
 // moveToNewRound moves the state to the new round
 func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setView(&proto.View{
@@ -1124,25 +1029,6 @@ func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setRoundStarted(false)
 	i.state.setProposal(nil)
 	i.state.changeState(newRound)
-}
-
-// moveToNewRoundWithRC moves the state to the new round change
-// and multicasts an appropriate Round Change message
-func (i *IBFT) moveToNewRoundWithRC(round uint64) {
-	i.moveToNewRound(round)
-
-	i.transport.Multicast(
-		i.backend.BuildRoundChangeMessage(
-			i.state.getHeight(),
-			round,
-		),
-	)
-
-	i.log.Info(
-		"round change message multicasted",
-		"sequence", i.state.getHeight(),
-		"round", round,
-	)
 }
 
 // buildProposal builds a new proposal
@@ -1167,11 +1053,18 @@ func (i *IBFT) proposeBlock(ctx context.Context, height uint64, round uint64) er
 		return err
 	}
 
-	i.acceptProposal(proposal)
 	i.log.Debug("block proposal accepted")
 
+	preprepareMessage := i.backend.BuildPrePrepareMessage(
+		proposal,
+		nil,
+		i.state.getView(),
+	)
+
+	i.acceptProposal(preprepareMessage)
+
 	i.transport.Multicast(
-		i.backend.BuildPrePrepareMessage(proposal, i.state.getView()),
+		preprepareMessage,
 	)
 
 	i.log.Debug("pre-prepare message multicasted")
@@ -1186,9 +1079,10 @@ func (i *IBFT) proposeBlock(ctx context.Context, height uint64, round uint64) er
 }
 
 // acceptProposal accepts the proposal and moves the state
-func (i *IBFT) acceptProposal(proposal []byte) {
+func (i *IBFT) acceptProposal(proposalMessage *proto.Message) {
 	//	accept newly proposed block and move to PREPARE state
-	i.state.setProposal(proposal)
+	i.state.setProposalMessage(proposalMessage)
+	i.state.setProposal(messages.ExtractProposalHash(proposalMessage))
 	i.state.changeState(prepare)
 }
 

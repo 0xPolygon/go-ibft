@@ -17,7 +17,6 @@ type isValidCommittedSealDelegate func([]byte, []byte) bool
 
 type buildPrePrepareMessageDelegate func(
 	[]byte,
-	[]byte,
 	*proto.RoundChangeCertificate,
 	*proto.View,
 ) *proto.Message
@@ -135,12 +134,11 @@ func (m mockBackend) MaximumFaultyNodes() uint64 {
 
 func (m mockBackend) BuildPrePrepareMessage(
 	proposal []byte,
-	proposalHash []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	if m.buildPrePrepareMessageFn != nil {
-		return m.buildPrePrepareMessageFn(proposal, proposalHash, certificate, view)
+		return m.buildPrePrepareMessageFn(proposal, certificate, view)
 	}
 
 	return nil
@@ -154,9 +152,9 @@ func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *pro
 	return nil
 }
 
-func (m mockBackend) BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message {
+func (m mockBackend) BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message {
 	if m.buildCommitMessageFn != nil {
-		return m.buildCommitMessageFn(proposal, view)
+		return m.buildCommitMessageFn(proposalHash, view)
 	}
 
 	return nil
