@@ -298,6 +298,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		select {
 		case ev := <-i.newProposal:
 			teardown()
+			i.log.Info("received higher proposal", "round", ev.round)
 
 			i.moveToNewRound(ev.round)
 			i.acceptProposal(ev.proposalMessage)
@@ -305,6 +306,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 
 		case round := <-i.roundCertificate:
 			teardown()
+			i.log.Info("received higher RCC", "round", round)
 
 			i.moveToNewRound(round)
 		case <-i.roundExpired:
