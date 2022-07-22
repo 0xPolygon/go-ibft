@@ -1743,3 +1743,213 @@ func TestIBFT_ValidPC(t *testing.T) {
 		assert.True(t, i.validPC(certificate, rLimit))
 	})
 }
+
+func TestIBFT_ValidateProposal(t *testing.T) {
+	t.Parallel()
+
+	/*
+
+			Payload: &proto.Message_PreprepareData{
+			PreprepareData: &proto.PrePrepareMessage{
+				Proposal:     nil,
+				ProposalHash: nil,
+				Certificate: &proto.RoundChangeCertificate{
+					RoundChangeMessages: testCase.roundChangeMessages,
+				},
+			},
+		},
+	*/
+
+	t.Run("proposer is not valid", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log     = mockLogger{}
+			backend = mockBackend{
+				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+					return false
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("block is not valid", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log     = mockLogger{}
+			backend = mockBackend{
+				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+					return true
+				},
+				isValidBlockFn: func(_ []byte) bool {
+					return false
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("proposal hash is not valid", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log     = mockLogger{}
+			backend = mockBackend{
+				isValidProposalHashFn: func(_ []byte, _ []byte) bool {
+					return false
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("certificate is not present", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log       = mockLogger{}
+			backend   = mockBackend{}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: nil,
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("there are < quorum RC messages in the certificate", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+
+			log       = mockLogger{}
+			backend   = mockBackend{}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: generateMessages(quorum-1, proto.MessageType_ROUND_CHANGE),
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("current node should not be the proposer", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+			id     = []byte("node id")
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, id)
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: generateMessages(quorum, proto.MessageType_ROUND_CHANGE),
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+}

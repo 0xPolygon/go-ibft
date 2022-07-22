@@ -75,6 +75,9 @@ func (s *state) clear(height uint64) {
 	s.seals = nil
 	s.roundStarted = false
 	s.name = newRound
+	s.proposalMessage = nil
+	s.latestPC = nil
+	s.latestPreparedProposedBlock = nil
 
 	s.view = &proto.View{
 		Height: height,

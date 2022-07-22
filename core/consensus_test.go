@@ -150,6 +150,11 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			return bytes.Equal(newProposal, proposal)
 		}
 
+		// Make sure the proposal hash matches
+		backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
+			return bytes.Equal(p, proposal) && bytes.Equal(ph, proposalHash)
+		}
+
 		// Make sure the preprepare message is built correctly
 		backend.buildPrePrepareMessageFn = func(
 			proposal []byte,
@@ -322,6 +327,15 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			// Node 1 is the proposer for round 1,
 			// and their proposal is the only one that's valid
 			return bytes.Equal(newProposal, proposals[1])
+		}
+
+		// Make sure the proposal hash matches
+		backend.isValidProposalHashFn = func(proposal []byte, proposalHash []byte) bool {
+			if bytes.Equal(proposal, proposals[0]) {
+				return bytes.Equal(proposalHash, proposalHashes[0])
+			}
+
+			return bytes.Equal(proposalHash, proposalHashes[1])
 		}
 
 		// Make sure the preprepare message is built correctly
