@@ -158,7 +158,7 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	// Prune out the messages from this view
-	messages.PruneByHeight(views[1])
+	messages.PruneByHeight(views[1].Height + 1)
 
 	// Make sure the round 1 messages are pruned out
 	assert.Equal(t, 0, messages.numMessages(views[0], messageType))
@@ -318,7 +318,7 @@ func TestMessages_EventManager(t *testing.T) {
 	}
 
 	// Create the subscription
-	subscription := messages.Subscribe(Subscription{
+	subscription := messages.Subscribe(SubscriptionDetails{
 		MessageType: messageType,
 		View:        baseView,
 		NumMessages: numMessages,

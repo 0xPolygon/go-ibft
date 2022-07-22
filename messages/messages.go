@@ -6,16 +6,6 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-// heightMessageMap maps the height number -> round message map
-type heightMessageMap map[uint64]roundMessageMap
-
-// roundMessageMap maps the round number -> messages
-type roundMessageMap map[uint64]protoMessages
-
-// protoMessages is the set of messages that circulate.
-// It contains a mapping between the sender and their messages to avoid duplicates
-type protoMessages map[string]*proto.Message
-
 // Messages contains the relevant messages for each view (height, round)
 type Messages struct {
 	// manager for incoming message events
@@ -32,13 +22,15 @@ type Messages struct {
 }
 
 // Subscribe creates a new message type subscription
-func (ms *Messages) Subscribe(details Subscription) *SubscribeResult {
+func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 	// Create the subscription
 	subscription := ms.eventManager.subscribe(details)
 
 	// Check if any condition is already met
-	numMessages := ms.numMessages(details.View, details.MessageType)
-	if numMessages >= details.NumMessages {
+	if numMessages := ms.numMessages(
+		details.View,
+		details.MessageType,
+	); numMessages >= details.NumMessages {
 		// Conditions are already met, alert the event manager
 		ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
 	}
@@ -113,33 +105,6 @@ func (ms *Messages) getMessageMap(messageType proto.MessageType) heightMessageMa
 	return nil
 }
 
-// getViewMessages fetches the message queue for the specified view (height + round).
-// It will initialize a new message array if it's not found
-func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
-	var (
-		height = view.Height
-		round  = view.Round
-	)
-
-	// Check if the height is present
-	roundMessages, exists := m[height]
-	if !exists {
-		roundMessages = roundMessageMap{}
-
-		m[height] = roundMessages
-	}
-
-	// Check if the round is present
-	messages, exists := roundMessages[round]
-	if !exists {
-		messages = protoMessages{}
-
-		roundMessages[round] = messages
-	}
-
-	return messages
-}
-
 // numMessages returns the number of messages received for the specific type
 func (ms *Messages) numMessages(
 	view *proto.View,
@@ -168,7 +133,7 @@ func (ms *Messages) numMessages(
 
 // PruneByHeight prunes out all old messages from the message queues
 // by the specified height in the view
-func (ms *Messages) PruneByHeight(view *proto.View) {
+func (ms *Messages) PruneByHeight(height uint64) {
 	possibleMaps := []proto.MessageType{
 		proto.MessageType_PREPREPARE,
 		proto.MessageType_PREPARE,
@@ -183,10 +148,12 @@ func (ms *Messages) PruneByHeight(view *proto.View) {
 
 		messageMap := ms.getMessageMap(messageType)
 
-		// Delete all height maps up until and including the specified
+		// Delete all height maps up until the specified
 		// view height
-		for height := uint64(0); height <= view.Height; height++ {
-			delete(messageMap, height)
+		for msgHeight := range messageMap {
+			if msgHeight < height {
+				delete(messageMap, msgHeight)
+			}
 		}
 
 		mux.Unlock()
@@ -221,27 +188,27 @@ func (ms *Messages) GetValidMessages(
 	mux.Lock()
 	defer mux.Unlock()
 
-	result := make([]*proto.Message, 0)
+	validMessages := make([]*proto.Message, 0)
 
-	invalidMessages := make([]string, 0)
+	invalidMessageKeys := make([]string, 0)
 	messages := ms.getProtoMessages(view, messageType)
 
 	for key, message := range messages {
 		if !isValid(message) {
-			invalidMessages = append(invalidMessages, key)
+			invalidMessageKeys = append(invalidMessageKeys, key)
 
 			continue
 		}
 
-		result = append(result, message)
+		validMessages = append(validMessages, message)
 	}
 
 	// Prune out invalid messages
-	for _, key := range invalidMessages {
+	for _, key := range invalidMessageKeys {
 		delete(messages, key)
 	}
 
-	return result
+	return validMessages
 }
 
 // GetMostRoundChangeMessages fetches most round change messages
@@ -285,41 +252,39 @@ func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto
 	return messages
 }
 
-// ExtractCommittedSeals extracts the committed seals from the passed in messages
-func ExtractCommittedSeals(commitMessages []*proto.Message) [][]byte {
-	committedSeals := make([][]byte, len(commitMessages))
+// heightMessageMap maps the height number -> round message map
+type heightMessageMap map[uint64]roundMessageMap
 
-	for index, commitMessage := range commitMessages {
-		committedSeals[index] = ExtractCommittedSeal(commitMessage)
+// roundMessageMap maps the round number -> messages
+type roundMessageMap map[uint64]protoMessages
+
+// protoMessages is the set of messages that circulate.
+// It contains a mapping between the sender and their messages to avoid duplicates
+type protoMessages map[string]*proto.Message
+
+// getViewMessages fetches the message queue for the specified view (height + round).
+// It will initialize a new message array if it's not found
+func (m heightMessageMap) getViewMessages(view *proto.View) protoMessages {
+	var (
+		height = view.Height
+		round  = view.Round
+	)
+
+	// Check if the height is present
+	roundMessages, exists := m[height]
+	if !exists {
+		roundMessages = roundMessageMap{}
+
+		m[height] = roundMessages
 	}
 
-	return committedSeals
-}
+	// Check if the round is present
+	messages, exists := roundMessages[round]
+	if !exists {
+		messages = protoMessages{}
 
-// ExtractCommittedSeal extracts the committed seal from the passed in message
-func ExtractCommittedSeal(commitMessage *proto.Message) []byte {
-	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
+		roundMessages[round] = messages
+	}
 
-	return commitData.CommitData.CommittedSeal
-}
-
-// ExtractCommitHash extracts the commit proposal hash from the passed in message
-func ExtractCommitHash(commitMessage *proto.Message) []byte {
-	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
-
-	return commitData.CommitData.ProposalHash
-}
-
-// ExtractProposal extracts the proposal from the passed in message
-func ExtractProposal(proposalMessage *proto.Message) []byte {
-	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
-
-	return preprepareData.PreprepareData.Proposal
-}
-
-// ExtractPrepareHash extracts the prepare proposal hash from the passed in message
-func ExtractPrepareHash(prepareMessage *proto.Message) []byte {
-	prepareData, _ := prepareMessage.Payload.(*proto.Message_PrepareData)
-
-	return prepareData.PrepareData.ProposalHash
+	return messages
 }

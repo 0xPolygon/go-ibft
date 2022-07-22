@@ -7,16 +7,24 @@ import (
 // MessageConstructor defines a message constructor interface
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
-	BuildPrePrepareMessage(proposal []byte, view *proto.View) *proto.Message
+	BuildPrePrepareMessage(
+		proposal []byte,
+		certificate *proto.RoundChangeCertificate,
+		view *proto.View,
+	) *proto.Message
 
 	// BuildPrepareMessage builds a PREPARE message based on the passed in proposal
-	BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message
+	BuildPrepareMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildCommitMessage builds a COMMIT message based on the passed in proposal
-	BuildCommitMessage(proposal []byte, view *proto.View) *proto.Message
+	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
-	BuildRoundChangeMessage(height, round uint64) *proto.Message
+	BuildRoundChangeMessage(
+		proposal []byte,
+		certificate *proto.PreparedCertificate,
+		view *proto.View,
+	) *proto.Message
 }
 
 // Verifier defines the verifier interface
@@ -44,23 +52,19 @@ type Backend interface {
 	Verifier
 
 	// BuildProposal builds a new block proposal
-	BuildProposal(blockNumber uint64) ([]byte, error)
+	BuildProposal(blockNumber uint64) []byte
 
 	// InsertBlock inserts a proposal with the specified committed seals
-	InsertBlock(proposal []byte, committedSeals [][]byte) error
+	InsertBlock(proposal []byte, committedSeals [][]byte)
 
 	// ID returns the validator's ID
 	ID() []byte
 
 	// MaximumFaultyNodes returns the maximum number of faulty nodes based
 	// on the validator set.
-	// This should optimally be floor((n-1)/3), where n is the
-	// number of validators in the network
 	MaximumFaultyNodes() uint64
 
 	// Quorum returns what is the quorum size for the
 	// specified block height.
-	// This should be optimally be ceil(2*n/3), where n is the
-	// number of validators in the network
 	Quorum(blockHeight uint64) uint64
 }

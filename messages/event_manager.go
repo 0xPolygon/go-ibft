@@ -20,43 +20,46 @@ func newEventManager() *eventManager {
 	}
 }
 
-type SubscribeResult struct {
+type SubscriptionID int32
+
+type Subscription struct {
 	id                  SubscriptionID
-	subscriptionChannel chan struct{}
+	subscriptionChannel chan uint64
 }
 
-func NewSubscribeResult(id SubscriptionID, ch chan struct{}) *SubscribeResult {
-	return &SubscribeResult{
+func NewSubscription(id SubscriptionID, ch chan uint64) *Subscription {
+	return &Subscription{
 		id:                  id,
 		subscriptionChannel: ch,
 	}
 }
 
-func (sr *SubscribeResult) GetCh() chan struct{} {
+func (sr *Subscription) GetCh() chan uint64 {
 	return sr.subscriptionChannel
 }
 
-func (sr *SubscribeResult) GetID() SubscriptionID {
+func (sr *Subscription) GetID() SubscriptionID {
 	return sr.id
 }
 
-type Subscription struct {
+type SubscriptionDetails struct {
 	MessageType proto.MessageType
 	View        *proto.View
 	NumMessages int
+	HasMinRound bool
 }
 
 // subscribe registers a new listener for message events
-func (em *eventManager) subscribe(details Subscription) *SubscribeResult {
+func (em *eventManager) subscribe(details SubscriptionDetails) *Subscription {
 	em.subscriptionsLock.Lock()
 	defer em.subscriptionsLock.Unlock()
 
 	id := uuid.New().ID()
 	subscription := &eventSubscription{
 		details:  details,
-		outputCh: make(chan struct{}, 1),
+		outputCh: make(chan uint64, 1),
 		doneCh:   make(chan struct{}),
-		notifyCh: make(chan struct{}, 1),
+		notifyCh: make(chan uint64, 1),
 	}
 
 	em.subscriptions[SubscriptionID(id)] = subscription
@@ -65,7 +68,7 @@ func (em *eventManager) subscribe(details Subscription) *SubscribeResult {
 
 	atomic.AddInt64(&em.numSubscriptions, 1)
 
-	return &SubscribeResult{
+	return &Subscription{
 		id:                  SubscriptionID(id),
 		subscriptionChannel: subscription.outputCh,
 	}

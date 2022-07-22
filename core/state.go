@@ -1,21 +1,22 @@
 package core
 
 import (
+	"github.com/Trapesys/go-ibft/messages"
 	"github.com/Trapesys/go-ibft/messages/proto"
 	"sync"
 )
 
-type stateName int
+type stateType uint8
 
 const (
-	newRound stateName = iota
+	newRound stateType = iota
 	prepare
 	commit
 	roundChange
 	fin
 )
 
-func (s stateName) String() (str string) {
+func (s stateType) String() (str string) {
 	switch s {
 	case newRound:
 		str = "new round"
@@ -35,19 +36,26 @@ func (s stateName) String() (str string) {
 type state struct {
 	sync.RWMutex
 
-	//	current view (block height, round)
+	//	current view (sequence, round)
 	view *proto.View
 
-	//	block proposal for current round
-	proposal []byte
+	// latestPC is the latest prepared certificate
+	latestPC *proto.PreparedCertificate
+
+	// latestPreparedProposedBlock is the block
+	// for which Q(N)-1 PREPARE messages were received
+	latestPreparedProposedBlock []byte
+
+	//	accepted block proposal for current round
+	proposalMessage *proto.Message
 
 	//	validated commit seals
 	seals [][]byte
 
 	//	flags for different states
-	roundStarted, locked bool
+	roundStarted bool
 
-	name stateName
+	name stateType
 }
 
 func (s *state) getView() *proto.View {
@@ -64,16 +72,66 @@ func (s *state) clear(height uint64) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.proposal = nil
 	s.seals = nil
 	s.roundStarted = false
-	s.locked = false
 	s.name = newRound
+	s.proposalMessage = nil
+	s.latestPC = nil
+	s.latestPreparedProposedBlock = nil
 
 	s.view = &proto.View{
 		Height: height,
 		Round:  0,
 	}
+}
+
+func (s *state) getLatestPC() *proto.PreparedCertificate {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.latestPC
+}
+
+func (s *state) setLatestPC(certificate *proto.PreparedCertificate) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.latestPC = certificate
+}
+
+func (s *state) getLatestPreparedProposedBlock() []byte {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.latestPreparedProposedBlock
+}
+
+func (s *state) setLatestPPB(block []byte) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.latestPreparedProposedBlock = block
+}
+
+func (s *state) getProposalMessage() *proto.Message {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.proposalMessage
+}
+
+func (s *state) getProposalHash() []byte {
+	s.RLock()
+	defer s.RUnlock()
+
+	return messages.ExtractProposalHash(s.proposalMessage)
+}
+
+func (s *state) setProposalMessage(proposalMessage *proto.Message) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.proposalMessage = proposalMessage
 }
 
 func (s *state) getRound() uint64 {
@@ -101,7 +159,11 @@ func (s *state) getProposal() []byte {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.proposal
+	if s.proposalMessage != nil {
+		return messages.ExtractProposal(s.proposalMessage)
+	}
+
+	return nil
 }
 
 func (s *state) getCommittedSeals() [][]byte {
@@ -111,28 +173,14 @@ func (s *state) getCommittedSeals() [][]byte {
 	return s.seals
 }
 
-func (s *state) isLocked() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.locked
-}
-
-func (s *state) getStateName() stateName {
+func (s *state) getStateName() stateType {
 	s.RLock()
 	defer s.RUnlock()
 
 	return s.name
 }
 
-func (s *state) setLocked(locked bool) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.locked = locked
-}
-
-func (s *state) setStateName(name stateName) {
+func (s *state) changeState(name stateType) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -144,13 +192,6 @@ func (s *state) setRoundStarted(started bool) {
 	defer s.Unlock()
 
 	s.roundStarted = started
-}
-
-func (s *state) setProposal(proposal []byte) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.proposal = proposal
 }
 
 func (s *state) setView(view *proto.View) {

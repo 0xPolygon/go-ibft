@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
+	"time"
 )
 
 // generateNodeAddresses generates dummy node addresses
@@ -22,7 +23,9 @@ func generateNodeAddresses(count int) [][]byte {
 
 // buildBasicPreprepareMessage builds a simple preprepare message
 func buildBasicPreprepareMessage(
-	proposal,
+	proposal []byte,
+	proposalHash []byte,
+	certificate *proto.RoundChangeCertificate,
 	from []byte,
 	view *proto.View,
 ) *proto.Message {
@@ -32,7 +35,9 @@ func buildBasicPreprepareMessage(
 		Type: proto.MessageType_PREPREPARE,
 		Payload: &proto.Message_PreprepareData{
 			PreprepareData: &proto.PrePrepareMessage{
-				Proposal: proposal,
+				Proposal:     proposal,
+				Certificate:  certificate,
+				ProposalHash: proposalHash,
 			},
 		},
 	}
@@ -78,18 +83,21 @@ func buildBasicCommitMessage(
 
 // buildBasicRoundChangeMessage builds a simple round change message
 func buildBasicRoundChangeMessage(
-	height,
-	round uint64,
+	proposal []byte,
+	certificate *proto.PreparedCertificate,
+	view *proto.View,
 	from []byte,
 ) *proto.Message {
 	return &proto.Message{
-		View: &proto.View{
-			Height: height,
-			Round:  round,
+		View: view,
+		From: from,
+		Type: proto.MessageType_ROUND_CHANGE,
+		Payload: &proto.Message_RoundChangeData{
+			RoundChangeData: &proto.RoundChangeMessage{
+				LastPreparedProposedBlock: proposal,
+				LatestPreparedCertificate: certificate,
+			},
 		},
-		From:    from,
-		Type:    proto.MessageType_ROUND_CHANGE,
-		Payload: nil,
 	}
 }
 
@@ -142,9 +150,23 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			return bytes.Equal(newProposal, proposal)
 		}
 
+		// Make sure the proposal hash matches
+		backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
+			return bytes.Equal(p, proposal) && bytes.Equal(ph, proposalHash)
+		}
+
 		// Make sure the preprepare message is built correctly
-		backend.buildPrePrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			return buildBasicPreprepareMessage(proposal, nodes[nodeIndex], view)
+		backend.buildPrePrepareMessageFn = func(
+			proposal []byte,
+			certificate *proto.RoundChangeCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicPreprepareMessage(
+				proposal,
+				proposalHash,
+				certificate,
+				nodes[nodeIndex],
+				view)
 		}
 
 		// Make sure the prepare message is built correctly
@@ -158,15 +180,17 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the round change message is built correctly
-		backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-			return buildBasicRoundChangeMessage(height, round, nodes[nodeIndex])
+		backend.buildRoundChangeMessageFn = func(
+			proposal []byte,
+			certificate *proto.PreparedCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
+		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) {
 			insertedBlocks[nodeIndex] = proposal
-
-			return nil
 		}
 	}
 
@@ -178,8 +202,8 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 				// Set the proposal creation method for node 0, since
 				// they are the proposer
-				backend.buildProposalFn = func(u uint64) ([]byte, error) {
-					return proposal, nil
+				backend.buildProposalFn = func(u uint64) []byte {
+					return proposal
 				}
 			},
 			1: func(backend *mockBackend) {
@@ -215,7 +239,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	}
 
 	// Start the main run loops
-	cluster.runSequence(1)
+	cluster.runSequence(0)
 
 	// Wait until the main run loops finish
 	cluster.stop()
@@ -303,9 +327,28 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			return bytes.Equal(newProposal, proposals[1])
 		}
 
+		// Make sure the proposal hash matches
+		backend.isValidProposalHashFn = func(proposal []byte, proposalHash []byte) bool {
+			if bytes.Equal(proposal, proposals[0]) {
+				return bytes.Equal(proposalHash, proposalHashes[0])
+			}
+
+			return bytes.Equal(proposalHash, proposalHashes[1])
+		}
+
 		// Make sure the preprepare message is built correctly
-		backend.buildPrePrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			return buildBasicPreprepareMessage(proposal, nodes[nodeIndex], view)
+		backend.buildPrePrepareMessageFn = func(
+			proposal []byte,
+			certificate *proto.RoundChangeCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicPreprepareMessage(
+				proposal,
+				proposalHashes[view.Round],
+				certificate,
+				nodes[nodeIndex],
+				view,
+			)
 		}
 
 		// Make sure the prepare message is built correctly
@@ -319,15 +362,17 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the round change message is built correctly
-		backend.buildRoundChangeMessageFn = func(height uint64, round uint64) *proto.Message {
-			return buildBasicRoundChangeMessage(height, round, nodes[nodeIndex])
+		backend.buildRoundChangeMessageFn = func(
+			proposal []byte,
+			certificate *proto.PreparedCertificate,
+			view *proto.View,
+		) *proto.Message {
+			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
+		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) {
 			insertedBlocks[nodeIndex] = proposal
-
-			return nil
 		}
 	}
 
@@ -336,15 +381,15 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			0: func(backend *mockBackend) {
 				commonBackendCallback(backend, 0)
 
-				backend.buildProposalFn = func(_ uint64) ([]byte, error) {
-					return proposals[0], nil
+				backend.buildProposalFn = func(_ uint64) []byte {
+					return proposals[0]
 				}
 			},
 			1: func(backend *mockBackend) {
 				commonBackendCallback(backend, 1)
 
-				backend.buildProposalFn = func(_ uint64) ([]byte, error) {
-					return proposals[1], nil
+				backend.buildProposalFn = func(_ uint64) []byte {
+					return proposals[1]
 				}
 			},
 			2: func(backend *mockBackend) {
@@ -369,6 +414,9 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		nil,
 		transportCallbackMap,
 	)
+
+	// Set the base timeout to be lower than usual
+	cluster.setBaseTimeout(2 * time.Second)
 
 	// Set the multicast callback to relay the message
 	// to the entire cluster

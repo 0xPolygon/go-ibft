@@ -4,20 +4,18 @@ import (
 	"github.com/Trapesys/go-ibft/messages/proto"
 )
 
-type SubscriptionID int32
-
 type eventSubscription struct {
 	// details contains the details of the event subscription
-	details Subscription
+	details SubscriptionDetails
 
 	// outputCh is the update channel for the subscriber
-	outputCh chan struct{}
+	outputCh chan uint64
 
 	// doneCh is the channel for handling stop signals
 	doneCh chan struct{}
 
 	// notifyCh is the channel for receiving event requests
-	notifyCh chan struct{}
+	notifyCh chan uint64
 }
 
 // close stops the event subscription
@@ -33,11 +31,11 @@ func (es *eventSubscription) runLoop() {
 		select {
 		case <-es.doneCh: // Break if a close signal has been received
 			return
-		case <-es.notifyCh: // Listen for new events to appear
+		case round := <-es.notifyCh: // Listen for new events to appear
 			select {
 			case <-es.doneCh: // Break if a close signal has been received
 				return
-			case es.outputCh <- struct{}{}: // Pass the event to the output
+			case es.outputCh <- round: // Pass the event to the output
 			}
 		}
 	}
@@ -51,6 +49,12 @@ func (es *eventSubscription) eventSupported(
 ) bool {
 	// The heights must match
 	if view.Height != es.details.View.Height {
+		return false
+	}
+
+	// The round can be treated as a min round
+	if es.details.HasMinRound &&
+		view.Round >= es.details.View.Round {
 		return false
 	}
 
@@ -75,10 +79,12 @@ func (es *eventSubscription) pushEvent(
 	view *proto.View,
 	totalMessages int,
 ) {
-	if es.eventSupported(messageType, view, totalMessages) {
-		select {
-		case es.notifyCh <- struct{}{}: // Notify the worker thread
-		default:
-		}
+	if !es.eventSupported(messageType, view, totalMessages) {
+		return
+	}
+
+	select {
+	case es.notifyCh <- view.Round: // Notify the worker thread
+	default:
 	}
 }

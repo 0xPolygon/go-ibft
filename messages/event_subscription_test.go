@@ -9,7 +9,7 @@ import (
 func TestEventSubscription_EventSupported(t *testing.T) {
 	t.Parallel()
 
-	supportedDetails := Subscription{
+	supportedDetails := SubscriptionDetails{
 		MessageType: proto.MessageType_PREPARE,
 		View: &proto.View{
 			Height: 0,
@@ -20,8 +20,8 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 
 	subscription := &eventSubscription{
 		details:  supportedDetails,
-		outputCh: make(chan struct{}, 1),
-		notifyCh: make(chan struct{}, 1),
+		outputCh: make(chan uint64, 1),
+		notifyCh: make(chan uint64, 1),
 		doneCh:   make(chan struct{}),
 	}
 
