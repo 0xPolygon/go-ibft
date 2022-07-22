@@ -437,12 +437,17 @@ func (i *IBFT) waitForRCC(
 // handleRoundChangeMessage validates the round change message
 // and constructs a RCC if possible
 func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.RoundChangeCertificate {
+	var (
+		height = view.Height
+		round  = view.Round
+	)
+
 	isValidFn := func(msg *proto.Message) bool {
 		proposal := messages.ExtractLastPreparedProposedBlock(msg)
 		certificate := messages.ExtractLatestPC(msg)
 
 		// Check if the prepared certificate is valid
-		if !i.validPC(certificate, view.Round) {
+		if !i.validPC(certificate, round, height) {
 			return false
 		}
 
@@ -696,7 +701,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		certificate := messages.ExtractLatestPC(rcMessage)
 
 		// Check if there is a certificate, and if it's a valid PC
-		if certificate != nil && i.validPC(certificate, msg.View.Round) {
+		if certificate != nil && i.validPC(certificate, msg.View.Round, height) {
 			hash := messages.ExtractProposalHash(certificate.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
@@ -1067,7 +1072,11 @@ func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 }
 
 // validPC verifies that  the prepared certificate is valid
-func (i *IBFT) validPC(certificate *proto.PreparedCertificate, rLimit uint64) bool {
+func (i *IBFT) validPC(
+	certificate *proto.PreparedCertificate,
+	rLimit,
+	height uint64,
+) bool {
 	if certificate == nil {
 		// PCs that are not set are valid by default
 		return true
@@ -1112,6 +1121,11 @@ func (i *IBFT) validPC(certificate *proto.PreparedCertificate, rLimit uint64) bo
 
 	// Make sure all the messages have a round number lower than rLimit
 	if !messages.AllHaveLowerRound(allMessages, rLimit) {
+		return false
+	}
+
+	// Make sure all the messages have the same height
+	if !messages.AllHaveSameHeight(allMessages, height) {
 		return false
 	}
 

@@ -133,3 +133,13 @@ func AllHaveLowerRound(messages []*proto.Message, round uint64) bool {
 
 	return true
 }
+
+func AllHaveSameHeight(messages []*proto.Message, height uint64) bool {
+	for _, message := range messages {
+		if message.View.Height != height {
+			return false
+		}
+	}
+
+	return true
+}

@@ -1399,7 +1399,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		i := NewIBFT(log, backend, transport)
 
-		assert.True(t, i.validPC(certificate, 0))
+		assert.True(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("proposal and prepare messages mismatch", func(t *testing.T) {
@@ -1418,14 +1418,14 @@ func TestIBFT_ValidPC(t *testing.T) {
 			PrepareMessages: make([]*proto.Message, 0),
 		}
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 
 		certificate = &proto.PreparedCertificate{
 			ProposalMessage: &proto.Message{},
 			PrepareMessages: nil,
 		}
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("no Quorum PP + P messages", func(t *testing.T) {
@@ -1450,7 +1450,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			PrepareMessages: generateMessages(quorum-2, proto.MessageType_PREPARE),
 		}
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("invalid proposal message type", func(t *testing.T) {
@@ -1477,7 +1477,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			PrepareMessages: generateMessages(quorum-1, proto.MessageType_PREPARE),
 		}
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("invalid prepare message type", func(t *testing.T) {
@@ -1507,7 +1507,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		// Make sure one of the messages has an invalid type
 		certificate.PrepareMessages[0].Type = proto.MessageType_ROUND_CHANGE
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("non unique senders", func(t *testing.T) {
@@ -1536,7 +1536,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			PrepareMessages: generateMessagesWithSender(quorum-1, proto.MessageType_PREPARE, sender),
 		}
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("differing proposal hashes", func(t *testing.T) {
@@ -1568,7 +1568,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		appendProposalHash([]*proto.Message{certificate.ProposalMessage}, []byte("proposal hash 1"))
 		appendProposalHash(certificate.PrepareMessages, []byte("proposal hash 2"))
 
-		assert.False(t, i.validPC(certificate, 0))
+		assert.False(t, i.validPC(certificate, 0, 0))
 	})
 
 	t.Run("rounds not lower than rLimit", func(t *testing.T) {
@@ -1607,7 +1607,52 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		setRoundForMessages(allMessages, rLimit+1)
 
-		assert.False(t, i.validPC(certificate, rLimit))
+		assert.False(t, i.validPC(certificate, rLimit, 0))
+	})
+
+	t.Run("heights are not the same", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum       = uint64(4)
+			rLimit       = uint64(1)
+			sender       = []byte("unique node")
+			proposalHash = []byte("proposal hash")
+
+			log       = mockLogger{}
+			transport = mockTransport{}
+			backend   = mockBackend{
+				quorumFn: func(_ uint64) uint64 {
+					return quorum
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return !bytes.Equal(proposer, sender)
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
+
+		// Make sure the height is invalid for the proposal
+		proposal.View.Height = 10
+
+		certificate := &proto.PreparedCertificate{
+			ProposalMessage: proposal,
+			PrepareMessages: generateMessagesWithUniqueSender(quorum-1, proto.MessageType_PREPARE),
+		}
+
+		// Make sure they all have the same proposal hash
+		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		appendProposalHash(
+			allMessages,
+			proposalHash,
+		)
+
+		setRoundForMessages(allMessages, rLimit-1)
+
+		assert.False(t, i.validPC(certificate, rLimit, 0))
 	})
 
 	t.Run("proposal not from proposer", func(t *testing.T) {
@@ -1649,7 +1694,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		setRoundForMessages(allMessages, rLimit-1)
 
-		assert.False(t, i.validPC(certificate, rLimit))
+		assert.False(t, i.validPC(certificate, rLimit, 0))
 	})
 
 	t.Run("prepare is from an invalid sender", func(t *testing.T) {
@@ -1695,7 +1740,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		setRoundForMessages(allMessages, rLimit-1)
 
-		assert.False(t, i.validPC(certificate, rLimit))
+		assert.False(t, i.validPC(certificate, rLimit, 0))
 	})
 
 	t.Run("completely valid PC", func(t *testing.T) {
@@ -1740,7 +1785,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		setRoundForMessages(allMessages, rLimit-1)
 
-		assert.True(t, i.validPC(certificate, rLimit))
+		assert.True(t, i.validPC(certificate, rLimit, 0))
 	})
 }
 
@@ -1905,6 +1950,46 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: generateMessages(quorum-1, proto.MessageType_ROUND_CHANGE),
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("current node should not be the proposer", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum = uint64(4)
+			id     = []byte("node id")
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, id)
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: generateMessages(quorum, proto.MessageType_ROUND_CHANGE),
 					},
 				},
 			},
