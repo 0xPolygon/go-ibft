@@ -39,7 +39,6 @@ type Messages interface {
 }
 
 var (
-	errInsertBlock    = errors.New("failed to insert block")
 	errTimeoutExpired = errors.New("round timeout expired")
 
 	roundZeroTimeout = 10 * time.Second
@@ -152,6 +151,15 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 func (i *IBFT) signalRoundExpired(ctx context.Context) {
 	select {
 	case i.roundExpired <- struct{}{}:
+	case <-ctx.Done():
+	}
+}
+
+//	signalRoundDone notifies the sequence routine (RunSequence) that the
+//	consensus sequence is finished
+func (i *IBFT) signalRoundDone(ctx context.Context) {
+	select {
+	case i.roundDone <- struct{}{}:
 	case <-ctx.Done():
 	}
 }
@@ -511,33 +519,27 @@ func (i *IBFT) proposalMatchesCertificate(
 
 //	runStates is the main loop which performs state transitions
 func (i *IBFT) runStates(ctx context.Context) {
-	var err error
+	var timeout error
 
 	for {
 		switch i.state.getStateName() {
 		case newRound:
-			err = i.runNewRound(ctx)
+			timeout = i.runNewRound(ctx)
 		case prepare:
-			err = i.runPrepare(ctx)
+			timeout = i.runPrepare(ctx)
 		case commit:
-			err = i.runCommit(ctx)
+			timeout = i.runCommit(ctx)
 		case fin:
-			if err = i.runFin(); err == nil {
-				//	Block inserted without any errors,
-				// sequence is complete
-				//	TODO: we managed to insert the block, but timeout expired
-				//		We need to stop the timer when entering Fin state
-				select {
-				case i.roundDone <- struct{}{}:
-				case <-ctx.Done():
-				}
+			i.runFin()
+			//	Block inserted without any errors,
+			// sequence is complete
+			i.signalRoundDone(ctx)
 
-				return
-			}
+			return
 		}
 
-		//	TODO: timeout is the only error that can happen (simplify)
-		if errors.Is(err, errTimeoutExpired) {
+		if timeout != nil {
+			// Timeout received
 			return
 		}
 	}
@@ -920,23 +922,19 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 }
 
 // runFin runs the fin state (block insertion)
-func (i *IBFT) runFin() error {
+func (i *IBFT) runFin() {
 	i.log.Debug("enter: fin state")
 	defer i.log.Debug("exit: fin state")
 
 	// Insert the block to the node's underlying
 	// blockchain layer
-	if err := i.backend.InsertBlock(
+	i.backend.InsertBlock(
 		i.state.getProposal(),
 		i.state.getCommittedSeals(),
-	); err != nil {
-		return errInsertBlock
-	}
+	)
 
 	// Remove stale messages
 	i.messages.PruneByHeight(i.state.getHeight())
-
-	return nil
 }
 
 // moveToNewRound moves the state to the new round
@@ -958,10 +956,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		proposal, err := i.backend.BuildProposal(height)
-		if err != nil {
-			return nil
-		}
+		proposal := i.backend.BuildProposal(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
@@ -996,13 +991,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal, err := i.backend.BuildProposal(height)
-		if err != nil {
-			// Proposal is unable to be built
-			i.log.Error("unable to build proposal")
-
-			return nil
-		}
+		proposal := i.backend.BuildProposal(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,

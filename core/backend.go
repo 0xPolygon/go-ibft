@@ -52,10 +52,10 @@ type Backend interface {
 	Verifier
 
 	// BuildProposal builds a new block proposal
-	BuildProposal(blockNumber uint64) ([]byte, error)
+	BuildProposal(blockNumber uint64) []byte
 
 	// InsertBlock inserts a proposal with the specified committed seals
-	InsertBlock(proposal []byte, committedSeals [][]byte) error
+	InsertBlock(proposal []byte, committedSeals [][]byte)
 
 	// ID returns the validator's ID
 	ID() []byte

@@ -234,8 +234,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					buildProposalFn: func(_ uint64) ([]byte, error) {
-						return newProposal, nil
+					buildProposalFn: func(_ uint64) []byte {
+						return newProposal
 					},
 					buildPrePrepareMessageFn: func(
 						proposal []byte,
@@ -318,8 +318,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					quorumFn: func(_ uint64) uint64 {
 						return quorum
 					},
-					buildProposalFn: func(_ uint64) ([]byte, error) {
-						return proposal, nil
+					buildProposalFn: func(_ uint64) []byte {
+						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
@@ -471,8 +471,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					quorumFn: func(_ uint64) uint64 {
 						return quorum
 					},
-					buildProposalFn: func(_ uint64) ([]byte, error) {
-						return proposal, nil
+					buildProposalFn: func(_ uint64) []byte {
+						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
@@ -941,11 +941,9 @@ func TestRunCommit(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					insertBlockFn: func(proposal []byte, committedSeals [][]byte) error {
+					insertBlockFn: func(proposal []byte, committedSeals [][]byte) {
 						insertedProposal = proposal
 						insertedCommittedSeals = committedSeals
-
-						return nil
 					},
 					quorumFn: func(_ uint64) uint64 {
 						return 1

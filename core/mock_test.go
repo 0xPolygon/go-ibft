@@ -12,7 +12,7 @@ import (
 type isValidBlockDelegate func([]byte) bool
 type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
-type buildProposalDelegate func(uint64) ([]byte, error)
+type buildProposalDelegate func(uint64) []byte
 type isValidProposalHashDelegate func([]byte, []byte) bool
 type isValidCommittedSealDelegate func([]byte, []byte) bool
 
@@ -30,7 +30,7 @@ type buildRoundChangeMessageDelegate func(
 ) *proto.Message
 
 type quorumDelegate func(blockHeight uint64) uint64
-type insertBlockDelegate func([]byte, [][]byte) error
+type insertBlockDelegate func([]byte, [][]byte)
 type idDelegate func() []byte
 type maximumFaultyNodesDelegate func() uint64
 
@@ -61,12 +61,10 @@ func (m mockBackend) ID() []byte {
 	return nil
 }
 
-func (m mockBackend) InsertBlock(proposal []byte, seals [][]byte) error {
+func (m mockBackend) InsertBlock(proposal []byte, seals [][]byte) {
 	if m.insertBlockFn != nil {
-		return m.insertBlockFn(proposal, seals)
+		m.insertBlockFn(proposal, seals)
 	}
-
-	return nil
 }
 
 func (m mockBackend) Quorum(blockNumber uint64) uint64 {
@@ -101,12 +99,12 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) BuildProposal(blockNumber uint64) ([]byte, error) {
+func (m mockBackend) BuildProposal(blockNumber uint64) []byte {
 	if m.buildProposalFn != nil {
 		return m.buildProposalFn(blockNumber)
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (m mockBackend) IsValidProposalHash(proposal, hash []byte) bool {

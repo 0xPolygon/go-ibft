@@ -189,10 +189,8 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
+		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) {
 			insertedBlocks[nodeIndex] = proposal
-
-			return nil
 		}
 	}
 
@@ -204,8 +202,8 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 				// Set the proposal creation method for node 0, since
 				// they are the proposer
-				backend.buildProposalFn = func(u uint64) ([]byte, error) {
-					return proposal, nil
+				backend.buildProposalFn = func(u uint64) []byte {
+					return proposal
 				}
 			},
 			1: func(backend *mockBackend) {
@@ -373,10 +371,8 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) error {
+		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) {
 			insertedBlocks[nodeIndex] = proposal
-
-			return nil
 		}
 	}
 
@@ -385,15 +381,15 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			0: func(backend *mockBackend) {
 				commonBackendCallback(backend, 0)
 
-				backend.buildProposalFn = func(_ uint64) ([]byte, error) {
-					return proposals[0], nil
+				backend.buildProposalFn = func(_ uint64) []byte {
+					return proposals[0]
 				}
 			},
 			1: func(backend *mockBackend) {
 				commonBackendCallback(backend, 1)
 
-				backend.buildProposalFn = func(_ uint64) ([]byte, error) {
-					return proposals[1], nil
+				backend.buildProposalFn = func(_ uint64) []byte {
+					return proposals[1]
 				}
 			},
 			2: func(backend *mockBackend) {
