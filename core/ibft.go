@@ -309,6 +309,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			i.moveToNewRound(round)
 		case <-i.roundExpired:
 			teardown()
+			i.log.Info("round timeout expired", "round", currentRound)
 
 			newRound := currentRound + 1
 
@@ -497,8 +498,6 @@ func (i *IBFT) runStates(ctx context.Context) {
 
 		//	TODO: timeout is the only error that can happen (simplify)
 		if errors.Is(err, errTimeoutExpired) {
-			i.log.Info("round timeout expired")
-
 			return
 		}
 	}
