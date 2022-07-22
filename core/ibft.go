@@ -156,6 +156,8 @@ func (i *IBFT) signalRoundExpired(ctx context.Context) {
 	}
 }
 
+// signalNewRCC notifies the sequence routine (RunSequence) that
+// a valid RCC for a higher round appeared
 func (i *IBFT) signalNewRCC(ctx context.Context, round uint64) {
 	select {
 	case i.roundCertificate <- round:
@@ -168,10 +170,11 @@ type newProposalEvent struct {
 	round           uint64
 }
 
+// signalNewProposal notifies the sequence routine (RunSequence) that
+// a valid proposal for a higher round appeared
 func (i *IBFT) signalNewProposal(ctx context.Context, event newProposalEvent) {
 	select {
 	case i.newProposal <- event:
-		i.log.Debug("signal new proposal")
 	case <-ctx.Done():
 	}
 }
