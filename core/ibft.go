@@ -41,7 +41,7 @@ type Messages interface {
 var (
 	errTimeoutExpired = errors.New("round timeout expired")
 
-	roundZeroTimeout = 10 * time.Second
+	round0Timeout = 10 * time.Second
 )
 
 // IBFT represents a single instance of the IBFT state machine
@@ -116,7 +116,7 @@ func NewIBFT(
 			roundStarted: false,
 			name:         newRound,
 		},
-		baseRoundTimeout: roundZeroTimeout,
+		baseRoundTimeout: round0Timeout,
 	}
 }
 
@@ -284,14 +284,17 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	i.state.clear(h)
 	i.messages.PruneByHeight(h)
 
-	i.log.Info("sequence started", "height", h)
-	defer i.log.Info("sequence complete", "height", h)
+	i.log.Info("sequence started", "num", h)
+	defer i.log.Info("sequence done", "num", h)
 
 	for {
 		i.wg.Add(4)
 
-		currentRound := i.state.getRound()
+		view := i.state.getView()
 
+		i.log.Info("round started", "sequence", view.Height, view.Round)
+
+		currentRound := view.Round
 		ctxRound, cancelRound := context.WithCancel(ctx)
 
 		// Start the round timer worker
@@ -314,15 +317,15 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		select {
 		case ev := <-i.newProposal:
 			teardown()
-			i.log.Info("received higher proposal", "round", ev.round)
+			i.log.Info("received future proposal", "round", ev.round)
 
 			i.moveToNewRound(ev.round)
 			i.acceptProposal(ev.proposalMessage)
-			i.state.setRoundStarted(true) //	TODO
+			i.state.setRoundStarted(true)
 
 		case round := <-i.roundCertificate:
 			teardown()
-			i.log.Info("received higher RCC", "round", round)
+			i.log.Info("received future RCC", "round", round)
 
 			i.moveToNewRound(round)
 		case <-i.roundExpired:
@@ -330,7 +333,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			i.log.Info("round timeout expired", "round", currentRound)
 
 			newRound := currentRound + 1
-
 			i.moveToNewRound(newRound)
 
 			i.transport.Multicast(
@@ -352,6 +354,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			return
 		case <-ctx.Done():
 			teardown()
+			i.log.Debug("sequence cancelled")
 
 			return
 		}
@@ -374,8 +377,6 @@ func (i *IBFT) runRound(ctx context.Context) {
 		// Round is not yet started, kick the round off
 		i.state.changeState(newRound)
 		i.state.setRoundStarted(true)
-
-		i.log.Info("round started", "round", i.state.getRound())
 	}
 
 	var (
