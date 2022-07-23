@@ -33,10 +33,10 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 		assert.Equal(t, int64(i+1), em.numSubscriptions)
 
 		// Check if a duplicate ID has been issued
-		if _, ok := IDMap[subscriptions[i].GetID()]; ok {
+		if _, ok := IDMap[subscriptions[i].ID]; ok {
 			t.Fatalf("Duplicate ID entry")
 		} else {
-			IDMap[subscriptions[i].GetID()] = true
+			IDMap[subscriptions[i].ID] = true
 		}
 	}
 
@@ -59,7 +59,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 	// Cancel them concurrently
 	for _, subscription := range subscriptions {
-		em.cancelSubscription(subscription.GetID())
+		em.cancelSubscription(subscription.ID)
 	}
 
 	// Check that the number is up-to-date
@@ -96,7 +96,7 @@ func TestEventManager_SubscribeClose(t *testing.T) {
 
 	// Check if the subscription channels are closed
 	for indx, subscription := range subscriptions {
-		if _, more := <-subscription.GetCh(); more {
+		if _, more := <-subscription.SubCh; more {
 			t.Fatalf("SubscriptionDetails channel not closed for index %d", indx)
 		}
 	}

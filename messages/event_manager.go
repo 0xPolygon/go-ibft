@@ -22,30 +22,34 @@ func newEventManager() *eventManager {
 
 type SubscriptionID int32
 
+// Subscription is the subscription
+// returned to the user
 type Subscription struct {
-	id                  SubscriptionID
-	subscriptionChannel chan uint64
+	// ID is the unique identifier of the subscription
+	ID SubscriptionID
+
+	// SubCh is the notification channel
+	// on which the listener will receive notifications
+	SubCh chan uint64
 }
 
-func NewSubscription(id SubscriptionID, ch chan uint64) *Subscription {
-	return &Subscription{
-		id:                  id,
-		subscriptionChannel: ch,
-	}
-}
-
-func (sr *Subscription) GetCh() chan uint64 {
-	return sr.subscriptionChannel
-}
-
-func (sr *Subscription) GetID() SubscriptionID {
-	return sr.id
-}
-
+// SubscriptionDetails contain the requested
+// details for the subscription
 type SubscriptionDetails struct {
+	// MessageType is the type of message
+	// being subscribed to
 	MessageType proto.MessageType
-	View        *proto.View
+
+	// View is the combination of height + round
+	// being subscribed to
+	View *proto.View
+
+	// NumMessages is the threshold of messages
+	// being subscribed to
 	NumMessages int
+
+	// HasMinRound is the flag indicating if the
+	// round number is a lower bound
 	HasMinRound bool
 }
 
@@ -69,8 +73,8 @@ func (em *eventManager) subscribe(details SubscriptionDetails) *Subscription {
 	atomic.AddInt64(&em.numSubscriptions, 1)
 
 	return &Subscription{
-		id:                  SubscriptionID(id),
-		subscriptionChannel: subscription.outputCh,
+		ID:    SubscriptionID(id),
+		SubCh: subscription.outputCh,
 	}
 }
 

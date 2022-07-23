@@ -208,7 +208,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 	)
 
 	defer func() {
-		i.messages.Unsubscribe(sub.GetID())
+		i.messages.Unsubscribe(sub.ID)
 
 		i.wg.Done()
 	}()
@@ -217,7 +217,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case round := <-sub.GetCh():
+		case round := <-sub.SubCh:
 			proposal := i.handlePrePrepare(&proto.View{Height: height, Round: round})
 			if proposal == nil {
 				continue
@@ -257,13 +257,13 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 		})
 	)
 
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case round := <-sub.GetCh():
+		case round := <-sub.SubCh:
 			rcc := i.handleRoundChangeMessage(
 				&proto.View{
 					Height: height,
@@ -431,13 +431,13 @@ func (i *IBFT) waitForRCC(
 		)
 	)
 
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-sub.GetCh():
+		case <-sub.SubCh:
 			rcc := i.handleRoundChangeMessage(view, quorum)
 			if rcc == nil {
 				continue
@@ -572,14 +572,14 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 
 	// The subscription is not needed anymore after
 	// this state is done executing
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
 		select {
 		case <-ctx.Done():
 			// Stop signal received, exit
 			return errTimeoutExpired
-		case <-sub.GetCh():
+		case <-sub.SubCh:
 			// SubscriptionDetails conditions have been met,
 			// grab the proposal messages
 			proposalMessage := i.handlePrePrepare(view)
@@ -788,14 +788,14 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 
 	// The subscription is not needed anymore after
 	// this state is done executing
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
 		select {
 		case <-ctx.Done():
 			// Stop signal received, exit
 			return errTimeoutExpired
-		case <-sub.GetCh():
+		case <-sub.SubCh:
 			if !i.handlePrepare(view, quorum) {
 				//	quorum of valid prepare messages not received, retry
 				continue
@@ -875,14 +875,14 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 
 	// The subscription is not needed anymore after
 	// this state is done executing
-	defer i.messages.Unsubscribe(sub.GetID())
+	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
 		select {
 		case <-ctx.Done():
 			// Stop signal received, exit
 			return errTimeoutExpired
-		case <-sub.GetCh():
+		case <-sub.SubCh:
 			if !i.handleCommit(view, quorum) {
 				//	quorum not reached, retry
 				continue

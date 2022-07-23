@@ -324,7 +324,7 @@ func TestMessages_EventManager(t *testing.T) {
 		NumMessages: numMessages,
 	})
 
-	defer messages.Unsubscribe(subscription.GetID())
+	defer messages.Unsubscribe(subscription.ID)
 
 	// Push random messages
 	randomMessages := generateRandomMessages(numMessages, baseView, messageType)
@@ -334,7 +334,7 @@ func TestMessages_EventManager(t *testing.T) {
 
 	// Wait for the subscription event to happen
 	select {
-	case <-subscription.GetCh():
+	case <-subscription.SubCh:
 	case <-time.After(5 * time.Second):
 	}
 

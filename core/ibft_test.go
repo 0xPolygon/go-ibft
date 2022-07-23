@@ -258,7 +258,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						cancelFn()
 
-						return messages.NewSubscription(messages.SubscriptionID(1), make(chan uint64))
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: make(chan uint64),
+						}
 					},
 				}
 			)
@@ -351,7 +354,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: notifyCh,
+						}
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						cancelFn()
@@ -505,7 +511,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: notifyCh,
+						}
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						cancelFn()
@@ -601,7 +610,10 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 		}
 		messages = mockMessages{
 			subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-				return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+				return &messages.Subscription{
+					ID:    messages.SubscriptionID(1),
+					SubCh: notifyCh,
+				}
 			},
 			unsubscribeFn: func(_ messages.SubscriptionID) {
 				cancelFn()
@@ -766,7 +778,10 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: notifyCh,
+						}
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						cancelFn()
@@ -858,7 +873,10 @@ func TestRunPrepare(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: notifyCh,
+						}
 					},
 					unsubscribeFn: func(_ messages.SubscriptionID) {
 						cancelFn()
@@ -954,7 +972,10 @@ func TestRunCommit(t *testing.T) {
 				}
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: notifyCh,
+						}
 					},
 					getValidMessagesFn: func(
 						view *proto.View,
@@ -1326,7 +1347,10 @@ func TestIBFT_FutureProposal(t *testing.T) {
 				transport = mockTransport{}
 				mMessages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-						return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+						return &messages.Subscription{
+							ID:    messages.SubscriptionID(1),
+							SubCh: notifyCh,
+						}
 					},
 					getValidMessagesFn: func(
 						view *proto.View,
@@ -2086,7 +2110,10 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 		}
 		messages = mockMessages{
 			subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
-				return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+				return &messages.Subscription{
+					ID:    messages.SubscriptionID(1),
+					SubCh: notifyCh,
+				}
 			},
 			getValidMessagesFn: func(
 				view *proto.View,
