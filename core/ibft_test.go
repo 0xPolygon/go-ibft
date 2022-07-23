@@ -2163,3 +2163,138 @@ func TestState_String(t *testing.T) {
 		assert.Equal(t, stringMap[stateT], stateT.String())
 	}
 }
+
+// TestIBFT_RunSequence_NewProposal verifies that the
+// state changes correctly when receiving a higher proposal event
+func TestIBFT_RunSequence_NewProposal(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	var (
+		proposal = []byte("proposal")
+		round    = uint64(10)
+		height   = uint64(1)
+		quorum   = uint64(4)
+
+		log     = mockLogger{}
+		backend = mockBackend{
+			quorumFn: func(_ uint64) uint64 {
+				return quorum
+			},
+		}
+		transport = mockTransport{}
+	)
+
+	i := NewIBFT(log, backend, transport)
+	i.newProposal = make(chan newProposalEvent, 1)
+
+	ev := newProposalEvent{
+		proposalMessage: &proto.Message{
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal: proposal,
+				},
+			},
+		},
+		round: round,
+	}
+
+	// Make sure the event is waiting
+	i.newProposal <- ev
+
+	// Spawn a go-routine that's going to turn off the sequence after 1s
+	go func() {
+		defer cancelFn()
+
+		<-time.After(1 * time.Second)
+	}()
+
+	i.RunSequence(ctx, height)
+
+	// Make sure the correct proposal message was accepted
+	assert.Equal(t, ev.proposalMessage, i.state.proposalMessage)
+
+	// Make sure the correct round was moved to
+	assert.Equal(t, ev.round, i.state.view.Round)
+	assert.Equal(t, height, i.state.view.Height)
+
+	// Make sure the round has been started
+	assert.True(t, i.state.roundStarted)
+
+	// Make sure the state is the prepare state
+	assert.Equal(t, prepare, i.state.name)
+}
+
+// TestIBFT_RunSequence_FutureRCC verifies that the
+// state changes correctly when receiving a higher RCC event
+func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	var (
+		round  = uint64(10)
+		height = uint64(1)
+		quorum = uint64(4)
+
+		log     = mockLogger{}
+		backend = mockBackend{
+			quorumFn: func(_ uint64) uint64 {
+				return quorum
+			},
+		}
+		transport = mockTransport{}
+	)
+
+	i := NewIBFT(log, backend, transport)
+	i.roundCertificate = make(chan uint64, 1)
+
+	// Make sure the round event is waiting
+	i.roundCertificate <- round
+
+	// Spawn a go-routine that's going to turn off the sequence after 1s
+	go func() {
+		defer cancelFn()
+
+		<-time.After(1 * time.Second)
+	}()
+
+	i.RunSequence(ctx, height)
+
+	// Make sure the proposal message is not set
+	assert.Nil(t, i.state.proposalMessage)
+
+	// Make sure the correct round was moved to
+	assert.Equal(t, round, i.state.view.Round)
+	assert.Equal(t, height, i.state.view.Height)
+
+	// Make sure the new round has been started
+	assert.True(t, i.state.roundStarted)
+
+	// Make sure the state is the new round state
+	assert.Equal(t, newRound, i.state.name)
+}
+
+// TestIBFT_ExtendRoundTimer makes sure the round timeout
+// is extended correctly
+func TestIBFT_ExtendRoundTimer(t *testing.T) {
+	t.Parallel()
+
+	var (
+		additionalTimeout = 10 * time.Second
+
+		log       = mockLogger{}
+		backend   = mockBackend{}
+		transport = mockTransport{}
+	)
+
+	i := NewIBFT(log, backend, transport)
+
+	i.ExtendRoundTimeout(additionalTimeout)
+
+	// Make sure the round timeout was extended
+	assert.Equal(t, additionalTimeout, i.additionalTimeout)
+}

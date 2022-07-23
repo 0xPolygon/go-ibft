@@ -327,7 +327,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			i.moveToNewRound(ev.round)
 			i.acceptProposal(ev.proposalMessage)
 			i.state.setRoundStarted(true)
-
 		case round := <-i.roundCertificate:
 			teardown()
 			i.log.Info("received future RCC", "round", round)
@@ -350,7 +349,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 					},
 				),
 			)
-
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
@@ -364,13 +362,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			return
 		}
 	}
-}
-
-// CancelSequence stops the running IBFT sequence
-func (i *IBFT) CancelSequence() {
-	//	pre-emptively send a signal to roundDone
-	//	so the thread can finish early
-	i.roundDone <- struct{}{}
 }
 
 // runRound runs the state machine loop for the current round
