@@ -246,7 +246,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 		round  = view.Round
 		quorum = i.backend.Quorum(height)
 
-		details = messages.SubscriptionDetails{
+		sub = i.messages.Subscribe(messages.SubscriptionDetails{
 			MessageType: proto.MessageType_ROUND_CHANGE,
 			View: &proto.View{
 				Height: height,
@@ -254,10 +254,9 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 			},
 			NumMessages: 1,
 			HasMinRound: true,
-		}
+		})
 	)
 
-	sub := i.messages.Subscribe(details)
 	defer i.messages.Unsubscribe(sub.GetID())
 
 	for {
@@ -265,7 +264,13 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case round := <-sub.GetCh():
-			rcc := i.handleRoundChangeMessage(&proto.View{Height: height, Round: round}, quorum)
+			rcc := i.handleRoundChangeMessage(
+				&proto.View{
+					Height: height,
+					Round:  round,
+				},
+				quorum,
+			)
 			if rcc == nil {
 				continue
 			}

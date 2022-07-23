@@ -281,12 +281,6 @@ func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.
 	return nil
 }
 
-// TODO remove
-func (m mockMessages) NumMsg(view *proto.View,
-	messageType proto.MessageType) int {
-	return -20
-}
-
 type backendConfigCallback func(*mockBackend)
 type loggerConfigCallback func(*mockLogger)
 type transportConfigCallback func(*mockTransport)

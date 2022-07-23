@@ -2056,3 +2056,96 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		assert.False(t, i.validateProposal(proposal, baseView))
 	})
 }
+
+// TestIBFT_WatchForFutureRCC verifies that future RCC
+// are handled properly
+func TestIBFT_WatchForFutureRCC(t *testing.T) {
+	t.Parallel()
+
+	quorum := uint64(4)
+	proposal := []byte("proposal")
+	rccRound := uint64(10)
+	proposalHash := []byte("proposal hash")
+
+	roundChangeMessages := generateFilledRCMessages(quorum, proposal, proposalHash)
+	setRoundForMessages(roundChangeMessages, rccRound)
+
+	var (
+		receivedRound = uint64(0)
+		notifyCh      = make(chan uint64, 1)
+
+		log       = mockLogger{}
+		transport = mockTransport{}
+		backend   = mockBackend{
+			quorumFn: func(_ uint64) uint64 {
+				return quorum
+			},
+			isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
+				return true
+			},
+		}
+		messages = mockMessages{
+			subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
+				return messages.NewSubscription(messages.SubscriptionID(1), notifyCh)
+			},
+			getValidMessagesFn: func(
+				view *proto.View,
+				messageType proto.MessageType,
+				isValid func(message *proto.Message) bool,
+			) []*proto.Message {
+				return filterMessages(
+					roundChangeMessages,
+					isValid,
+				)
+			},
+		}
+	)
+
+	i := NewIBFT(log, backend, transport)
+	i.messages = messages
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	go func() {
+		defer cancelFn()
+
+		select {
+		case r := <-i.roundCertificate:
+			receivedRound = r
+		case <-time.After(5 * time.Second):
+		}
+	}()
+
+	// Have the notification waiting
+	notifyCh <- rccRound
+
+	i.wg.Add(1)
+	i.watchForRoundChangeCertificates(ctx)
+	i.wg.Wait()
+
+	// Make sure the notification round was correct
+	assert.Equal(t, rccRound, receivedRound)
+}
+
+// TestState_String makes sure the string representation
+// of states is correct
+func TestState_String(t *testing.T) {
+	stringMap := map[stateType]string{
+		newRound: "new round",
+		prepare:  "prepare",
+		commit:   "commit",
+		fin:      "fin",
+	}
+
+	stateTypes := []stateType{
+		newRound,
+		prepare,
+		commit,
+		fin,
+	}
+
+	for _, stateT := range stateTypes {
+		assert.Equal(t, stringMap[stateT], fmt.Sprintf("%s", stateT))
+	}
+}

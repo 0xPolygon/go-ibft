@@ -12,7 +12,6 @@ const (
 	newRound stateType = iota
 	prepare
 	commit
-	roundChange
 	fin
 )
 
@@ -24,8 +23,6 @@ func (s stateType) String() (str string) {
 		str = "prepare"
 	case commit:
 		str = "commit"
-	case roundChange:
-		str = "round change"
 	case fin:
 		str = "fin"
 	}
