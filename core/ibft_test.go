@@ -2146,6 +2146,6 @@ func TestState_String(t *testing.T) {
 	}
 
 	for _, stateT := range stateTypes {
-		assert.Equal(t, stringMap[stateT], fmt.Sprintf("%s", stateT))
+		assert.Equal(t, stringMap[stateT], stateT.String())
 	}
 }
