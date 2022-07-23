@@ -1814,19 +1814,6 @@ func TestIBFT_ValidPC(t *testing.T) {
 func TestIBFT_ValidateProposal(t *testing.T) {
 	t.Parallel()
 
-	/*
-
-			Payload: &proto.Message_PreprepareData{
-			PreprepareData: &proto.PrePrepareMessage{
-				Proposal:     nil,
-				ProposalHash: nil,
-				Certificate: &proto.RoundChangeCertificate{
-					RoundChangeMessages: testCase.roundChangeMessages,
-				},
-			},
-		},
-	*/
-
 	t.Run("proposer is not valid", func(t *testing.T) {
 		t.Parallel()
 
