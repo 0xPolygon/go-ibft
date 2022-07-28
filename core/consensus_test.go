@@ -14,7 +14,7 @@ import (
 func generateNodeAddresses(count int) [][]byte {
 	addresses := make([][]byte, count)
 
-	for index := 0; index < count; index++ {
+	for index := range addresses {
 		addresses[index] = []byte(fmt.Sprintf("node %d", index))
 	}
 
