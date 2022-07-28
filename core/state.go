@@ -204,3 +204,14 @@ func (s *state) setCommittedSeals(seals [][]byte) {
 
 	s.seals = seals
 }
+
+func (s *state) newRound() {
+	s.Lock()
+	defer s.Unlock()
+
+	if !s.roundStarted {
+		// Round is not yet started, kick the round off
+		s.name = newRound
+		s.roundStarted = true
+	}
+}

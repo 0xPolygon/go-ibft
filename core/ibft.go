@@ -357,11 +357,7 @@ func (i *IBFT) runRound(ctx context.Context) {
 	// Register this worker thread with the barrier
 	defer i.wg.Done()
 
-	if !i.state.isRoundStarted() {
-		// Round is not yet started, kick the round off
-		i.state.changeState(newRound)
-		i.state.setRoundStarted(true)
-	}
+	i.state.newRound()
 
 	var (
 		id   = i.backend.ID()
