@@ -199,8 +199,8 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 					Height: height,
 					Round:  nextRound,
 				},
-				NumMessages: 1,
-				HasMinRound: true,
+				MinNumMessages: 1,
+				HasMinRound:    true,
 			})
 	)
 
@@ -249,8 +249,8 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				Height: height,
 				Round:  round + 1, // only for higher rounds
 			},
-			NumMessages: 1,
-			HasMinRound: true,
+			MinNumMessages: 1,
+			HasMinRound:    true,
 		})
 	)
 
@@ -412,9 +412,9 @@ func (i *IBFT) waitForRCC(
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_ROUND_CHANGE,
-				View:        view,
-				NumMessages: int(quorum),
+				MessageType:    proto.MessageType_ROUND_CHANGE,
+				View:           view,
+				MinNumMessages: int(quorum),
 			},
 		)
 	)
@@ -551,9 +551,9 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 		// Subscribe for PREPREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_PREPREPARE,
-				View:        view,
-				NumMessages: 1,
+				MessageType:    proto.MessageType_PREPREPARE,
+				View:           view,
+				MinNumMessages: 1,
 			},
 		)
 	)
@@ -767,9 +767,9 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 		// Subscribe to PREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_PREPARE,
-				View:        view,
-				NumMessages: int(quorum) - 1,
+				MessageType:    proto.MessageType_PREPARE,
+				View:           view,
+				MinNumMessages: int(quorum) - 1,
 			},
 		)
 	)
@@ -854,9 +854,9 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 		// Subscribe to COMMIT messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_COMMIT,
-				View:        view,
-				NumMessages: int(quorum),
+				MessageType:    proto.MessageType_COMMIT,
+				View:           view,
+				MinNumMessages: int(quorum),
 			},
 		)
 	)

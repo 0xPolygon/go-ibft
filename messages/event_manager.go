@@ -44,9 +44,9 @@ type SubscriptionDetails struct {
 	// being subscribed to
 	View *proto.View
 
-	// NumMessages is the threshold of messages
+	// MinNumMessages is the threshold of messages
 	// being subscribed to
-	NumMessages int
+	MinNumMessages int
 
 	// HasMinRound is the flag indicating if the
 	// round number is a lower bound

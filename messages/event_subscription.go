@@ -70,7 +70,7 @@ func (es *eventSubscription) eventSupported(
 
 	// The total number of messages must be
 	// greater of equal to the subscription threshold
-	return totalMessages >= es.details.NumMessages
+	return totalMessages >= es.details.MinNumMessages
 }
 
 // pushEvent sends the event off for processing by the subscription. [NON-BLOCKING]

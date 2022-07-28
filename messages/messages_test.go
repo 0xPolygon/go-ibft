@@ -319,9 +319,9 @@ func TestMessages_EventManager(t *testing.T) {
 
 	// Create the subscription
 	subscription := messages.Subscribe(SubscriptionDetails{
-		MessageType: messageType,
-		View:        baseView,
-		NumMessages: numMessages,
+		MessageType:    messageType,
+		View:           baseView,
+		MinNumMessages: numMessages,
 	})
 
 	defer messages.Unsubscribe(subscription.ID)

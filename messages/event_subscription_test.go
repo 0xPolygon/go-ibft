@@ -15,7 +15,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		},
-		NumMessages: 10,
+		MinNumMessages: 10,
 	}
 
 	subscription := &eventSubscription{
@@ -46,7 +46,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 				{
 					supportedDetails.MessageType,
 					supportedDetails.View,
-					supportedDetails.NumMessages,
+					supportedDetails.MinNumMessages,
 				},
 			},
 			true,
@@ -62,7 +62,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 				{
 					messageType:   proto.MessageType_COMMIT,
 					view:          supportedDetails.View,
-					totalMessages: supportedDetails.NumMessages,
+					totalMessages: supportedDetails.MinNumMessages,
 				},
 				{
 					messageType: supportedDetails.MessageType,
@@ -70,7 +70,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 						Height: supportedDetails.View.Height,
 						Round:  supportedDetails.View.Round + 1,
 					},
-					totalMessages: supportedDetails.NumMessages,
+					totalMessages: supportedDetails.MinNumMessages,
 				},
 				{
 					messageType: supportedDetails.MessageType,
@@ -78,7 +78,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 						Height: supportedDetails.View.Height + 1,
 						Round:  supportedDetails.View.Round,
 					},
-					totalMessages: supportedDetails.NumMessages,
+					totalMessages: supportedDetails.MinNumMessages,
 				},
 			},
 			false,
