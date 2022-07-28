@@ -806,15 +806,13 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 
 	i.log.Debug("commit message multicasted")
 
-	i.state.setLatestPC(&proto.PreparedCertificate{
-		ProposalMessage: i.state.getProposalMessage(),
-		PrepareMessages: prepareMessages,
-	})
-
-	i.state.setLatestPPB(i.state.getProposal())
-
-	// Move to the commit state
-	i.state.changeState(commit)
+	i.state.finalizePrepare(
+		&proto.PreparedCertificate{
+			ProposalMessage: i.state.getProposalMessage(),
+			PrepareMessages: prepareMessages,
+		},
+		i.state.getProposal(),
+	)
 
 	return true
 }

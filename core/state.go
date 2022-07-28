@@ -89,25 +89,11 @@ func (s *state) getLatestPC() *proto.PreparedCertificate {
 	return s.latestPC
 }
 
-func (s *state) setLatestPC(certificate *proto.PreparedCertificate) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.latestPC = certificate
-}
-
 func (s *state) getLatestPreparedProposedBlock() []byte {
 	s.RLock()
 	defer s.RUnlock()
 
 	return s.latestPreparedProposedBlock
-}
-
-func (s *state) setLatestPPB(block []byte) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.latestPreparedProposedBlock = block
 }
 
 func (s *state) getProposalMessage() *proto.Message {
@@ -207,4 +193,18 @@ func (s *state) newRound() {
 		s.name = newRound
 		s.roundStarted = true
 	}
+}
+
+func (s *state) finalizePrepare(
+	certificate *proto.PreparedCertificate,
+	latestPPB []byte,
+) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.latestPC = certificate
+	s.latestPreparedProposedBlock = latestPPB
+
+	// Move to the commit state
+	s.name = commit
 }
