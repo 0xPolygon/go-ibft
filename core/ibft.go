@@ -290,8 +290,6 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	defer i.log.Info("sequence done", "height", h)
 
 	for {
-		i.wg.Add(4)
-
 		view := i.state.getView()
 
 		i.log.Info("round started", "round", view.Round)
@@ -300,15 +298,23 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		ctxRound, cancelRound := context.WithCancel(ctx)
 
 		// Start the round timer worker
+		i.wg.Add(1)
+
 		go i.startRoundTimer(ctxRound, currentRound)
 
 		//	Jump round on proposals from higher rounds
+		i.wg.Add(1)
+
 		go i.watchForFutureProposal(ctxRound)
 
 		//	Jump round on certificates
+		i.wg.Add(1)
+
 		go i.watchForRoundChangeCertificates(ctxRound)
 
 		// Start the state machine worker
+		i.wg.Add(1)
+
 		go i.startRound(ctxRound)
 
 		teardown := func() {
