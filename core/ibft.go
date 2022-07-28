@@ -162,7 +162,7 @@ func (i *IBFT) signalRoundDone(ctx context.Context) {
 }
 
 // signalNewRCC notifies the sequence routine (RunSequence) that
-// a valid RCC for a higher round appeared
+// a valid Round Change Certificate for a higher round appeared
 func (i *IBFT) signalNewRCC(ctx context.Context, round uint64) {
 	select {
 	case i.roundCertificate <- round:
