@@ -19,12 +19,10 @@ type Logger interface {
 
 type Messages interface {
 	// Messages modifiers //
-
 	AddMessage(message *proto.Message)
 	PruneByHeight(height uint64)
 
 	// Messages fetchers //
-
 	GetValidMessages(
 		view *proto.View,
 		messageType proto.MessageType,
@@ -33,7 +31,6 @@ type Messages interface {
 	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
 
 	// Messages subscription handlers //
-
 	Subscribe(details messages.SubscriptionDetails) *messages.Subscription
 	Unsubscribe(id messages.SubscriptionID)
 }
