@@ -336,16 +336,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			newRound := currentRound + 1
 			i.moveToNewRound(newRound)
 
-			i.transport.Multicast(
-				i.backend.BuildRoundChangeMessage(
-					i.state.getLatestPreparedProposedBlock(),
-					i.state.getLatestPC(),
-					&proto.View{
-						Height: h,
-						Round:  newRound,
-					},
-				),
-			)
+			i.sendRoundChangeMessage(h, newRound)
 		case <-i.roundDone:
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
@@ -389,7 +380,7 @@ func (i *IBFT) runRound(ctx context.Context) {
 		i.acceptProposal(proposalMessage)
 		i.log.Debug("block proposal accepted")
 
-		i.transport.Multicast(proposalMessage)
+		i.sendPreprepareMessage(proposalMessage)
 
 		i.log.Debug("pre-prepare message multicasted")
 	}
@@ -579,12 +570,7 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			i.acceptProposal(proposalMessage)
 
 			// Multicast the PREPARE message
-			i.transport.Multicast(
-				i.backend.BuildPrepareMessage(
-					i.state.getProposalHash(),
-					view,
-				),
-			)
+			i.sendPrepareMessage(view)
 
 			i.log.Debug("prepare message multicasted")
 
@@ -818,12 +804,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 	}
 
 	// Multicast the COMMIT message
-	i.transport.Multicast(
-		i.backend.BuildCommitMessage(
-			i.state.getProposalHash(),
-			view,
-		),
-	)
+	i.sendCommitMessage(view)
 
 	i.log.Debug("commit message multicasted")
 
@@ -1129,4 +1110,43 @@ func (i *IBFT) validPC(
 	}
 
 	return true
+}
+
+// sendPreprepareMessage sends out the preprepare message
+func (i *IBFT) sendPreprepareMessage(message *proto.Message) {
+	i.transport.Multicast(message)
+}
+
+// sendRoundChangeMessage sends out the round change message
+func (i *IBFT) sendRoundChangeMessage(height, newRound uint64) {
+	i.transport.Multicast(
+		i.backend.BuildRoundChangeMessage(
+			i.state.getLatestPreparedProposedBlock(),
+			i.state.getLatestPC(),
+			&proto.View{
+				Height: height,
+				Round:  newRound,
+			},
+		),
+	)
+}
+
+// sendPrepareMessage sends out the prepare message
+func (i *IBFT) sendPrepareMessage(view *proto.View) {
+	i.transport.Multicast(
+		i.backend.BuildPrepareMessage(
+			i.state.getProposalHash(),
+			view,
+		),
+	)
+}
+
+// sendCommitMessage sends out the commit message
+func (i *IBFT) sendCommitMessage(view *proto.View) {
+	i.transport.Multicast(
+		i.backend.BuildCommitMessage(
+			i.state.getProposalHash(),
+			view,
+		),
+	)
 }
