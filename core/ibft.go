@@ -294,7 +294,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 
 		view := i.state.getView()
 
-		i.log.Info("round started", "num", view.Round)
+		i.log.Info("round started", "round", view.Round)
 
 		currentRound := view.Round
 		ctxRound, cancelRound := context.WithCancel(ctx)
