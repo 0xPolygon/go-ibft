@@ -370,6 +370,8 @@ func (i *IBFT) runRound(ctx context.Context) {
 
 		proposalMessage := i.buildProposal(ctx, view)
 		if proposalMessage == nil {
+			i.log.Error("unable to build proposal")
+
 			return
 		}
 

@@ -138,13 +138,6 @@ func (s *state) getRound() uint64 {
 	return s.view.Round
 }
 
-func (s *state) isRoundStarted() bool {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.roundStarted
-}
-
 func (s *state) getHeight() uint64 {
 	s.RLock()
 	defer s.RUnlock()
