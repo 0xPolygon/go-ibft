@@ -270,7 +270,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			i.messages = messages
 
 			i.wg.Add(1)
-			i.runRound(ctx)
+			i.startRound(ctx)
 
 			i.wg.Wait()
 
@@ -385,7 +385,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			notifyCh <- 1
 
 			i.wg.Add(1)
-			i.runRound(ctx)
+			i.startRound(ctx)
 
 			i.wg.Wait()
 
@@ -542,7 +542,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			notifyCh <- 1
 
 			i.wg.Add(1)
-			i.runRound(ctx)
+			i.startRound(ctx)
 
 			i.wg.Wait()
 
@@ -649,7 +649,7 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 	notifyCh <- 0
 
 	i.wg.Add(1)
-	i.runRound(ctx)
+	i.startRound(ctx)
 
 	i.wg.Wait()
 
@@ -812,7 +812,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			notifyCh <- 1
 
 			i.wg.Add(1)
-			i.runRound(ctx)
+			i.startRound(ctx)
 
 			i.wg.Wait()
 
@@ -921,7 +921,7 @@ func TestRunPrepare(t *testing.T) {
 			notifyCh <- 0
 
 			i.wg.Add(1)
-			i.runRound(ctx)
+			i.startRound(ctx)
 
 			i.wg.Wait()
 
@@ -1033,7 +1033,7 @@ func TestRunCommit(t *testing.T) {
 			notifyCh <- 0
 
 			i.wg.Add(1)
-			i.runRound(ctx)
+			i.startRound(ctx)
 
 			i.wg.Wait()
 

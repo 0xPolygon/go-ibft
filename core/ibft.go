@@ -309,7 +309,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		go i.watchForRoundChangeCertificates(ctxRound)
 
 		// Start the state machine worker
-		go i.runRound(ctxRound)
+		go i.startRound(ctxRound)
 
 		teardown := func() {
 			cancelRound()
@@ -352,8 +352,8 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	}
 }
 
-// runRound runs the state machine loop for the current round
-func (i *IBFT) runRound(ctx context.Context) {
+// startRound runs the state machine loop for the current round
+func (i *IBFT) startRound(ctx context.Context) {
 	// Register this worker thread with the barrier
 	defer i.wg.Done()
 
