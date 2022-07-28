@@ -596,6 +596,31 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 	}
 }
 
+// validateProposalCommon does common validations for each proposal, no
+// matter the round
+func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool {
+	var (
+		height = view.Height
+		round  = view.Round
+
+		proposal     = messages.ExtractProposal(msg)
+		proposalHash = messages.ExtractProposalHash(msg)
+	)
+
+	//	is proposer
+	if !i.backend.IsProposer(msg.From, height, round) {
+		return false
+	}
+
+	//	hash matches keccak(proposal)
+	if !i.backend.IsValidProposalHash(proposal, proposalHash) {
+		return false
+	}
+
+	//	is valid block
+	return i.backend.IsValidBlock(proposal)
+}
+
 // validateProposal0 validates the proposal for round 0
 func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
 	var (
@@ -608,26 +633,13 @@ func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
 		return false
 	}
 
-	//	is proposer
-	if !i.backend.IsProposer(msg.From, height, round) {
+	// Make sure common proposal validations pass
+	if !i.validateProposalCommon(msg, view) {
 		return false
 	}
 
 	// Make sure the current node is not the proposer for this round
 	if i.backend.IsProposer(i.backend.ID(), height, round) {
-		return false
-	}
-
-	proposal := messages.ExtractProposal(msg)
-	proposalHash := messages.ExtractProposalHash(msg)
-
-	//	hash matches keccak(proposal)
-	if !i.backend.IsValidProposalHash(proposal, proposalHash) {
-		return false
-	}
-
-	//	is valid block
-	if !i.backend.IsValidBlock(proposal) {
 		return false
 	}
 
@@ -640,24 +652,13 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		height = view.Height
 		round  = view.Round
 
-		proposal     = messages.ExtractProposal(msg)
 		proposalHash = messages.ExtractProposalHash(msg)
 		certificate  = messages.ExtractRoundChangeCertificate(msg)
 		rcc          = messages.ExtractRoundChangeCertificate(msg)
 	)
 
-	// Verify that the message is indeed from the proposer for this view
-	if !i.backend.IsProposer(msg.From, height, round) {
-		return false
-	}
-
-	// Make sure the block is actually valid
-	if !i.backend.IsValidBlock(proposal) {
-		return false
-	}
-
-	// Verify that the proposal hash matches the proposal
-	if !i.backend.IsValidProposalHash(proposal, proposalHash) {
+	// Make sure common proposal validations pass
+	if !i.validateProposalCommon(msg, view) {
 		return false
 	}
 
