@@ -52,15 +52,17 @@ func (es *eventSubscription) eventSupported(
 		return false
 	}
 
-	// The round can be treated as a min round
-	if es.details.HasMinRound &&
-		view.Round >= es.details.View.Round {
-		return false
-	}
-
-	// The rounds must match
-	if view.Round != es.details.View.Round {
-		return false
+	// Check the round constraints
+	if es.details.HasMinRound {
+		// The round can be treated as a min round (message round can be equal or higher)
+		if view.Round < es.details.View.Round {
+			return false
+		}
+	} else {
+		// The rounds must match
+		if view.Round != es.details.View.Round {
+			return false
+		}
 	}
 
 	// The type of message must match
