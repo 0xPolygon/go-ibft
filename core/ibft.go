@@ -297,24 +297,18 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 		currentRound := view.Round
 		ctxRound, cancelRound := context.WithCancel(ctx)
 
-		// Start the round timer worker
-		i.wg.Add(1)
+		i.wg.Add(4)
 
+		// Start the round timer worker
 		go i.startRoundTimer(ctxRound, currentRound)
 
 		//	Jump round on proposals from higher rounds
-		i.wg.Add(1)
-
 		go i.watchForFutureProposal(ctxRound)
 
 		//	Jump round on certificates
-		i.wg.Add(1)
-
 		go i.watchForRoundChangeCertificates(ctxRound)
 
 		// Start the state machine worker
-		i.wg.Add(1)
-
 		go i.startRound(ctxRound)
 
 		teardown := func() {
