@@ -17,7 +17,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		},
-		NumMessages: 1,
+		MinNumMessages: 1,
 	}
 
 	IDMap := make(map[SubscriptionID]bool)
@@ -47,7 +47,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 	go func() {
 		for {
-			em.signalEvent(baseDetails.MessageType, baseDetails.View, baseDetails.NumMessages)
+			em.signalEvent(baseDetails.MessageType, baseDetails.View, baseDetails.MinNumMessages)
 
 			select {
 			case <-quitCh:
@@ -77,7 +77,7 @@ func TestEventManager_SubscribeClose(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		},
-		NumMessages: 1,
+		MinNumMessages: 1,
 	}
 
 	em := newEventManager()

@@ -14,7 +14,7 @@ import (
 func generateNodeAddresses(count int) [][]byte {
 	addresses := make([][]byte, count)
 
-	for index := 0; index < count; index++ {
+	for index := range addresses {
 		addresses[index] = []byte(fmt.Sprintf("node %d", index))
 	}
 
@@ -291,16 +291,20 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		return uint64((nodeCount - 1) / 3)
 	}
 
+	quorumOptimal := func(numNodes int) uint64 {
+		if maxFaulty(numNodes) == 0 {
+			return uint64(numNodes)
+		}
+
+		return uint64(math.Ceil(2 * float64(numNodes) / 3))
+	}
+
 	// commonBackendCallback is the common method modification required
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function is Quorum optimal
 		backend.quorumFn = func(_ uint64) uint64 {
-			if maxFaulty(numNodes) == 0 {
-				return uint64(numNodes)
-			}
-
-			return uint64(math.Ceil(2 * float64(numNodes) / 3))
+			return quorumOptimal(numNodes)
 		}
 
 		// Make sure the allowed faulty nodes function is accurate
