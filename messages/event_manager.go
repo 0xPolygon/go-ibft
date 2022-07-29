@@ -108,7 +108,7 @@ func (em *eventManager) signalEvent(
 	view *proto.View,
 	totalMessages int,
 ) {
-	if atomic.LoadInt64(&em.numSubscriptions) < 1 {
+	if atomic.LoadInt64(&em.numSubscriptions) == 0 {
 		// No reason to lock the subscriptions map
 		// if no subscriptions exist
 		return
