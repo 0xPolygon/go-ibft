@@ -117,6 +117,12 @@ func NewIBFT(
 	}
 }
 
+// GetRound returns the current round,
+// usually exposed to the end user by some metrics API
+func (i *IBFT) GetRound() uint64 {
+	return i.state.getRound()
+}
+
 // startRoundTimer starts the exponential round timer, based on the
 // passed in round number
 func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
