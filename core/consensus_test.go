@@ -3,11 +3,13 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
 	"math"
 	"testing"
 	"time"
+
+	"github.com/0xPolygon/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/stretchr/testify/assert"
 )
 
 // generateNodeAddresses generates dummy node addresses
@@ -189,7 +191,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) {
+		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal
 		}
 	}
@@ -375,7 +377,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, committedSeals [][]byte) {
+		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal
 		}
 	}

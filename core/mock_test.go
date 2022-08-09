@@ -2,10 +2,11 @@ package core
 
 import (
 	"context"
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
 	"sync"
 	"time"
+
+	"github.com/0xPolygon/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 // Define delegation methods
@@ -14,7 +15,7 @@ type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
 type buildProposalDelegate func(uint64) []byte
 type isValidProposalHashDelegate func([]byte, []byte) bool
-type isValidCommittedSealDelegate func([]byte, []byte) bool
+type isValidCommittedSealDelegate func([]byte, *messages.CommittedSeal) bool
 
 type buildPrePrepareMessageDelegate func(
 	[]byte,
@@ -30,7 +31,7 @@ type buildRoundChangeMessageDelegate func(
 ) *proto.Message
 
 type quorumDelegate func(blockHeight uint64) uint64
-type insertBlockDelegate func([]byte, [][]byte)
+type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type maximumFaultyNodesDelegate func() uint64
 
@@ -61,9 +62,9 @@ func (m mockBackend) ID() []byte {
 	return nil
 }
 
-func (m mockBackend) InsertBlock(proposal []byte, seals [][]byte) {
+func (m mockBackend) InsertBlock(proposal []byte, committedSeals []*messages.CommittedSeal) {
 	if m.insertBlockFn != nil {
-		m.insertBlockFn(proposal, seals)
+		m.insertBlockFn(proposal, committedSeals)
 	}
 }
 
@@ -115,9 +116,9 @@ func (m mockBackend) IsValidProposalHash(proposal, hash []byte) bool {
 	return true
 }
 
-func (m mockBackend) IsValidCommittedSeal(proposal, seal []byte) bool {
+func (m mockBackend) IsValidCommittedSeal(proposal []byte, committedSeal *messages.CommittedSeal) bool {
 	if m.isValidCommittedSealFn != nil {
-		return m.isValidCommittedSealFn(proposal, seal)
+		return m.isValidCommittedSealFn(proposal, committedSeal)
 	}
 
 	return true

@@ -1,14 +1,16 @@
 package messages
 
 import (
+	"testing"
+
 	"github.com/0xPolygon/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestMessages_ExtractCommittedSeals(t *testing.T) {
 	t.Parallel()
 
+	signer := []byte("signer")
 	committedSeal := []byte("committed seal")
 
 	commitMessage := &proto.Message{
@@ -18,6 +20,7 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 				CommittedSeal: committedSeal,
 			},
 		},
+		From: signer,
 	}
 	invalidMessage := &proto.Message{
 		Type: proto.MessageType_PREPARE,
@@ -32,7 +35,12 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 		t.Fatalf("Seals not extracted")
 	}
 
-	assert.Equal(t, committedSeal, seals[0])
+	expected := &CommittedSeal{
+		Signer:    signer,
+		Signature: committedSeal,
+	}
+
+	assert.Equal(t, expected, seals[0])
 }
 
 func TestMessages_ExtractCommitHash(t *testing.T) {

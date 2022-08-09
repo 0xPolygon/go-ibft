@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/stretchr/testify/assert"
 )
 
 func proposalMatches(proposal []byte, message *proto.Message) bool {
@@ -948,18 +948,24 @@ func TestRunCommit(t *testing.T) {
 			t.Parallel()
 
 			var (
-				proposal                        = []byte("block proposal")
-				proposalHash                    = []byte("proposal hash")
-				insertedProposal       []byte   = nil
-				insertedCommittedSeals [][]byte = nil
-				committedSeals                  = generateSeals(1)
-				doneReceived                    = false
-				notifyCh                        = make(chan uint64, 1)
+				proposal                                         = []byte("block proposal")
+				proposalHash                                     = []byte("proposal hash")
+				signer                                           = []byte("signer")
+				insertedProposal       []byte                    = nil
+				insertedCommittedSeals []*messages.CommittedSeal = nil
+				committedSeals                                   = []*messages.CommittedSeal{
+					{
+						Signer:    signer,
+						Signature: generateSeals(1)[0],
+					},
+				}
+				doneReceived = false
+				notifyCh     = make(chan uint64, 1)
 
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					insertBlockFn: func(proposal []byte, committedSeals [][]byte) {
+					insertBlockFn: func(proposal []byte, committedSeals []*messages.CommittedSeal) {
 						insertedProposal = proposal
 						insertedCommittedSeals = committedSeals
 					},
@@ -990,9 +996,10 @@ func TestRunCommit(t *testing.T) {
 									Payload: &proto.Message_CommitData{
 										CommitData: &proto.CommitMessage{
 											ProposalHash:  proposalHash,
-											CommittedSeal: committedSeals[0],
+											CommittedSeal: committedSeals[0].Signature,
 										},
 									},
+									From: signer,
 								},
 							},
 							isValid,
