@@ -21,7 +21,7 @@ jobs:
         with:
           # Specify a version instead of 'latest'
           # because of something wrong with 1.48.0
-          version: 1.47.3
+          version: v1.47.3
           args:
             --timeout=3m
             -E whitespace
