@@ -19,7 +19,9 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          # Specify a version instead of 'latest'
+          # because of something wrong with 1.48.0
+          version: v1.47.3
           args:
             --timeout=3m
             -E whitespace
@@ -61,7 +63,7 @@ jobs:
 
       - name: Go test
         run: go test -coverprofile coverage.out -timeout 28m ./...
-      
+
       - name: Upload coverage file to Codecov
         uses: codecov/codecov-action@v3
         with:
