@@ -13,7 +13,7 @@ import (
 )
 
 // generateNodeAddresses generates dummy node addresses
-func generateNodeAddresses(count int) [][]byte {
+func generateNodeAddresses(count uint64) [][]byte {
 	addresses := make([][]byte, count)
 
 	for index := range addresses {
@@ -117,7 +117,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	proposal := []byte("proposal")
 	proposalHash := []byte("proposal hash")
 	committedSeal := []byte("seal")
-	numNodes := 4
+	numNodes := uint64(4)
 	nodes := generateNodeAddresses(numNodes)
 	insertedBlocks := make([][]byte, numNodes)
 
@@ -134,7 +134,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function requires all nodes
 		backend.quorumFn = func(_ uint64) uint64 {
-			return uint64(numNodes)
+			return numNodes
 		}
 
 		// Make sure the node ID is properly relayed
@@ -277,7 +277,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		[]byte("proposal hash 2"), // for proposal 2
 	}
 	committedSeal := []byte("seal")
-	numNodes := 4
+	numNodes := uint64(4)
 	nodes := generateNodeAddresses(numNodes)
 	insertedBlocks := make([][]byte, numNodes)
 
@@ -289,13 +289,13 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 	}
 
-	maxFaulty := func(nodeCount int) uint64 {
-		return uint64((nodeCount - 1) / 3)
+	maxFaulty := func(nodeCount uint64) uint64 {
+		return (nodeCount - 1) / 3
 	}
 
-	quorumOptimal := func(numNodes int) uint64 {
+	quorumOptimal := func(numNodes uint64) uint64 {
 		if maxFaulty(numNodes) == 0 {
-			return uint64(numNodes)
+			return numNodes
 		}
 
 		return uint64(math.Ceil(2 * float64(numNodes) / 3))

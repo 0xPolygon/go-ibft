@@ -288,7 +288,7 @@ type transportConfigCallback func(*mockTransport)
 
 // newMockCluster creates a new IBFT cluster
 func newMockCluster(
-	numNodes int,
+	numNodes uint64,
 	backendCallbackMap map[int]backendConfigCallback,
 	loggerCallbackMap map[int]loggerConfigCallback,
 	transportCallbackMap map[int]transportConfigCallback,
@@ -301,7 +301,7 @@ func newMockCluster(
 	quitChannels := make([]chan struct{}, numNodes)
 	messageHandlersQuit := make([]chan struct{}, numNodes)
 
-	for index := 0; index < numNodes; index++ {
+	for index := 0; index < int(numNodes); index++ {
 		var (
 			logger    = &mockLogger{}
 			transport = &mockTransport{}
@@ -361,6 +361,17 @@ func (m *mockCluster) runSequence(height uint64) {
 			// Start the main run loop for the node
 			node.RunSequence(context.Background(), height)
 		}(node, height)
+	}
+}
+
+// runSequenceUntilHeight runs multiple sequence iterations until the desired height is reached
+func (m *mockCluster) runSequenceUntilHeight(desiredHeight uint64) {
+	for height := uint64(0); height < desiredHeight; height++ {
+		// Start the main run loops
+		m.runSequence(height)
+
+		// Wait until the main run loops finish
+		m.stop()
 	}
 }
 
