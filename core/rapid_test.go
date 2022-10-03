@@ -149,13 +149,13 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 		// Run the sequence up until a certain height
 		cluster.runSequenceUntilHeight(desiredHeight)
 
-		// Make sure that the inserted block is valid for each height
-		for _, blockMap := range insertedBlocks {
-			// Make sure the node has the adequate number of inserted blocks
-			assert.Len(t, blockMap, int(desiredHeight))
+		// Make sure that the inserted proposal is valid for each height
+		for _, proposalMap := range insertedBlocks {
+			// Make sure the node has the adequate number of inserted proposals
+			assert.Len(t, proposalMap, int(desiredHeight))
 
-			for _, block := range blockMap {
-				assert.True(t, bytes.Equal(proposal, block))
+			for _, insertedProposal := range proposalMap {
+				assert.True(t, bytes.Equal(proposal, insertedProposal))
 			}
 		}
 	})
