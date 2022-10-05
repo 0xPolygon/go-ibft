@@ -300,7 +300,7 @@ func newMockCluster(
 	}
 
 	nodes := make([]*IBFT, numNodes)
-	nodeCtxs := make([]*mockNodeContext, numNodes)
+	nodeCtxs := make([]mockNodeContext, numNodes)
 
 	for index := 0; index < int(numNodes); index++ {
 		var (
@@ -333,7 +333,7 @@ func newMockCluster(
 
 		// Instantiate context for the nodes
 		ctx, cancelFn := context.WithCancel(context.Background())
-		nodeCtxs[index] = &mockNodeContext{
+		nodeCtxs[index] = mockNodeContext{
 			ctx:      ctx,
 			cancelFn: cancelFn,
 		}
@@ -376,8 +376,8 @@ func (wg *mockNodeWg) resetDone() {
 
 // mockCluster represents a mock IBFT cluster
 type mockCluster struct {
-	nodes []*IBFT            // references to the nodes in the cluster
-	ctxs  []*mockNodeContext // context handlers for the nodes in the cluster
+	nodes []*IBFT           // references to the nodes in the cluster
+	ctxs  []mockNodeContext // context handlers for the nodes in the cluster
 
 	wg mockNodeWg
 }
