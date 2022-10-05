@@ -103,6 +103,22 @@ func buildBasicRoundChangeMessage(
 	}
 }
 
+// maxFaulty returns the maximum number of allowed
+// faulty nodes
+func maxFaulty(nodeCount uint64) uint64 {
+	return (nodeCount - 1) / 3
+}
+
+// quorumOptimal returns the minimum number of
+// required nodes to reach quorum
+func quorumOptimal(numNodes uint64) uint64 {
+	if maxFaulty(numNodes) == 0 {
+		return numNodes
+	}
+
+	return uint64(math.Ceil(2 * float64(numNodes) / 3))
+}
+
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
@@ -244,7 +260,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	cluster.runSequence(0)
 
 	// Wait until the main run loops finish
-	cluster.stop()
+	cluster.awaitCompletion()
 
 	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
@@ -287,18 +303,6 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		transport.multicastFn = func(message *proto.Message) {
 			multicastFn(message)
 		}
-	}
-
-	maxFaulty := func(nodeCount uint64) uint64 {
-		return (nodeCount - 1) / 3
-	}
-
-	quorumOptimal := func(numNodes uint64) uint64 {
-		if maxFaulty(numNodes) == 0 {
-			return numNodes
-		}
-
-		return uint64(math.Ceil(2 * float64(numNodes) / 3))
 	}
 
 	// commonBackendCallback is the common method modification required
@@ -434,7 +438,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	cluster.runSequence(1)
 
 	// Wait until the main run loops finish
-	cluster.stop()
+	cluster.awaitCompletion()
 
 	// Make sure the nodes switched to the new round
 	assert.True(t, cluster.areAllNodesOnRound(1))
