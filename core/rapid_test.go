@@ -201,11 +201,11 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 		gen := rapid.SampledFrom(nodes)
 		byzantineNodes := make(map[string]struct{})
 		for i := 0; i < int(numByzantineNodes); i++ {
-			byzantineNodes[fmt.Sprintf("%s", gen.Example(i))] = struct{}{}
+			byzantineNodes[string(gen.Example(i))] = struct{}{}
 		}
 
 		isByzantineNode := func(from []byte) bool {
-			_, exists := byzantineNodes[fmt.Sprintf("%s", from)]
+			_, exists := byzantineNodes[string(from)]
 
 			return exists
 		}
