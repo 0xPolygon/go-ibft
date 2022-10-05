@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
+
+// mockInsertedProposals keeps track of inserted proposals for a cluster
+// of nodes
+type mockInsertedProposals struct {
+	sync.Mutex
+
+	proposals        []map[uint64][]byte // for each node, map the height -> proposal
+	currentProposals []uint64            // for each node, save the current proposal height
+}
+
+// newMockInsertedProposals creates a new proposal insertion tracker
+func newMockInsertedProposals(numNodes uint64) *mockInsertedProposals {
+	m := &mockInsertedProposals{
+		proposals:        make([]map[uint64][]byte, numNodes),
+		currentProposals: make([]uint64, numNodes),
+	}
+
+	// Initialize the proposal insertion map, used for lookups
+	for i := uint64(0); i < numNodes; i++ {
+		m.proposals[i] = make(map[uint64][]byte)
+	}
+
+	return m
+}
+
+// insertProposal inserts a new proposal for the specified node [Thread safe]
+func (m *mockInsertedProposals) insertProposal(
+	nodeIndex int,
+	proposal []byte,
+) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.proposals[nodeIndex][m.currentProposals[nodeIndex]] = proposal
+	m.currentProposals[nodeIndex]++
+}
 
 // TestProperty_AllHonestNodes is a property-based test
 // that assures the cluster can reach consensus on any
@@ -30,16 +67,9 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 			numNodes      = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
 			desiredHeight = rapid.Uint64Range(10, 20).Draw(t, "minimum height to be reached")
 
-			nodes            = generateNodeAddresses(numNodes)
-			insertedBlocks   = make([]map[uint64][]byte, numNodes)
-			currentProposals = make([]uint64, numNodes)
+			nodes             = generateNodeAddresses(numNodes)
+			insertedProposals = newMockInsertedProposals(numNodes)
 		)
-
-		// Initialize the block insertion map, used for lookups
-		for i := uint64(0); i < numNodes; i++ {
-			insertedBlocks[i] = make(map[uint64][]byte)
-		}
-
 		// commonTransportCallback is the common method modification
 		// required for Transport, for all nodes
 		commonTransportCallback := func(transport *mockTransport) {
@@ -111,8 +141,7 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 
 			// Make sure the inserted proposal is noted
 			backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-				insertedBlocks[nodeIndex][currentProposals[nodeIndex]] = proposal
-				currentProposals[nodeIndex]++
+				insertedProposals.insertProposal(nodeIndex, proposal)
 			}
 
 			// Make sure the proposal can be built
@@ -159,7 +188,7 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 		}
 
 		// Make sure that the inserted proposal is valid for each height
-		for _, proposalMap := range insertedBlocks {
+		for _, proposalMap := range insertedProposals.proposals {
 			// Make sure the node has the adequate number of inserted proposals
 			assert.Len(t, proposalMap, int(desiredHeight))
 
@@ -168,6 +197,22 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 			}
 		}
 	})
+}
+
+// getByzantineNodes returns a random subset of
+// byzantine nodes
+func getByzantineNodes(
+	numNodes uint64,
+	set [][]byte,
+) map[string]struct{} {
+	gen := rapid.SampledFrom(set)
+	byzantineNodes := make(map[string]struct{})
+
+	for i := 0; i < int(numNodes); i++ {
+		byzantineNodes[string(gen.Example(i))] = struct{}{}
+	}
+
+	return byzantineNodes
 }
 
 // TestProperty_MajorityHonestNodes is a property-based test
@@ -188,21 +233,14 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 			numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
 			desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
 
-			nodes            = generateNodeAddresses(numNodes)
-			insertedBlocks   = make([]map[uint64][]byte, numNodes)
-			currentProposals = make([]uint64, numNodes)
+			nodes             = generateNodeAddresses(numNodes)
+			insertedProposals = newMockInsertedProposals(numNodes)
 		)
-		// Initialize the block insertion map, used for lookups
-		for i := uint64(0); i < numNodes; i++ {
-			insertedBlocks[i] = make(map[uint64][]byte)
-		}
-
 		// Initialize the byzantine nodes
-		gen := rapid.SampledFrom(nodes)
-		byzantineNodes := make(map[string]struct{})
-		for i := 0; i < int(numByzantineNodes); i++ {
-			byzantineNodes[string(gen.Example(i))] = struct{}{}
-		}
+		byzantineNodes := getByzantineNodes(
+			numByzantineNodes,
+			nodes,
+		)
 
 		isByzantineNode := func(from []byte) bool {
 			_, exists := byzantineNodes[string(from)]
@@ -271,7 +309,8 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 					proposalHash,
 					certificate,
 					nodes[nodeIndex],
-					view)
+					view,
+				)
 			}
 
 			// Make sure the prepare message is built correctly
@@ -295,12 +334,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 
 			// Make sure the inserted proposal is noted
 			backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-				if isByzantineNode(nodes[nodeIndex]) {
-					return
-				}
-
-				insertedBlocks[nodeIndex][currentProposals[nodeIndex]] = proposal
-				currentProposals[nodeIndex]++
+				insertedProposals.insertProposal(nodeIndex, proposal)
 			}
 
 			// Make sure the proposal can be built
@@ -363,7 +397,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 		}
 
 		// Make sure that the inserted proposal is valid for each height
-		for _, proposalMap := range insertedBlocks {
+		for _, proposalMap := range insertedProposals.proposals {
 			for _, insertedProposal := range proposalMap {
 				assert.True(t, bytes.Equal(proposal, insertedProposal))
 			}
