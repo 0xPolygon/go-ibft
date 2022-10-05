@@ -267,7 +267,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 		commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 			// Make sure the quorum function is Quorum optimal
 			backend.quorumFn = func(_ uint64) uint64 {
-				return quorumOptimal(numNodes)
+				return quorum(numNodes)
 			}
 
 			// Make sure the allowed faulty nodes function is accurate
@@ -382,7 +382,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 
 			// Wait until Quorum nodes finish their run loop
 			ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
-			if err := cluster.awaitNCompletions(ctx, int64(quorumOptimal(numNodes))); err != nil {
+			if err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes))); err != nil {
 				t.Fatalf(
 					fmt.Sprintf(
 						"unable to wait for nodes to complete, %v",

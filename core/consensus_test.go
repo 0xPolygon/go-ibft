@@ -109,14 +109,15 @@ func maxFaulty(nodeCount uint64) uint64 {
 	return (nodeCount - 1) / 3
 }
 
-// quorumOptimal returns the minimum number of
+// quorum returns the minimum number of
 // required nodes to reach quorum
-func quorumOptimal(numNodes uint64) uint64 {
-	if maxFaulty(numNodes) == 0 {
+func quorum(numNodes uint64) uint64 {
+	switch maxFaulty(numNodes) {
+	case 0:
 		return numNodes
+	default:
+		return uint64(math.Ceil(2 * float64(numNodes) / 3))
 	}
-
-	return uint64(math.Ceil(2 * float64(numNodes) / 3))
 }
 
 // TestConsensus_ValidFlow tests the following scenario:
@@ -310,7 +311,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function is Quorum optimal
 		backend.quorumFn = func(_ uint64) uint64 {
-			return quorumOptimal(numNodes)
+			return quorum(numNodes)
 		}
 
 		// Make sure the allowed faulty nodes function is accurate
