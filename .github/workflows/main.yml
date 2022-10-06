@@ -62,9 +62,28 @@ jobs:
           submodules: recursive
 
       - name: Go test
-        run: go test -coverprofile coverage.out -timeout 28m ./...
+        run: go test -shuffle -coverprofile coverage.out -timeout 28m ./...
 
       - name: Upload coverage file to Codecov
         uses: codecov/codecov-action@v3
         with:
           files: coverage.out
+
+  mutating:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.17.x
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: install
+
+      - name: Go test
+        run: make mut
