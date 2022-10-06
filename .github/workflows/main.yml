@@ -83,7 +83,7 @@ jobs:
           submodules: recursive
 
       - name: Install dependencies
-        run: install
+        run: make install
 
       - name: Mutating testing
         run: make mut
