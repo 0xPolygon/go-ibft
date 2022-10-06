@@ -85,5 +85,5 @@ jobs:
       - name: Install dependencies
         run: install
 
-      - name: Go test
+      - name: Mutating testing
         run: make mut
