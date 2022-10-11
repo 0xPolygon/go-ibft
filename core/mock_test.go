@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/0xPolygon/go-ibft/messages"
@@ -288,7 +290,7 @@ type transportConfigCallback func(*mockTransport)
 
 // newMockCluster creates a new IBFT cluster
 func newMockCluster(
-	numNodes int,
+	numNodes uint64,
 	backendCallbackMap map[int]backendConfigCallback,
 	loggerCallbackMap map[int]loggerConfigCallback,
 	transportCallbackMap map[int]transportConfigCallback,
@@ -298,10 +300,9 @@ func newMockCluster(
 	}
 
 	nodes := make([]*IBFT, numNodes)
-	quitChannels := make([]chan struct{}, numNodes)
-	messageHandlersQuit := make([]chan struct{}, numNodes)
+	nodeCtxs := make([]mockNodeContext, numNodes)
 
-	for index := 0; index < numNodes; index++ {
+	for index := 0; index < int(numNodes); index++ {
 		var (
 			logger    = &mockLogger{}
 			transport = &mockTransport{}
@@ -328,48 +329,119 @@ func newMockCluster(
 		}
 
 		// Create a new instance of the IBFT node
-		i := NewIBFT(logger, backend, transport)
+		nodes[index] = NewIBFT(logger, backend, transport)
 
-		// Instantiate quit channels for node routines
-		quitChannels[index] = make(chan struct{})
-		messageHandlersQuit[index] = make(chan struct{})
-
-		nodes[index] = i
+		// Instantiate context for the nodes
+		ctx, cancelFn := context.WithCancel(context.Background())
+		nodeCtxs[index] = mockNodeContext{
+			ctx:      ctx,
+			cancelFn: cancelFn,
+		}
 	}
 
 	return &mockCluster{
 		nodes: nodes,
+		ctxs:  nodeCtxs,
 	}
+}
+
+// mockNodeContext keeps track of the node runtime context
+type mockNodeContext struct {
+	ctx      context.Context
+	cancelFn context.CancelFunc
+}
+
+// mockNodeWg is the WaitGroup wrapper for the cluster nodes
+type mockNodeWg struct {
+	sync.WaitGroup
+	count int64
+}
+
+func (wg *mockNodeWg) Add(delta int) {
+	wg.WaitGroup.Add(delta)
+}
+
+func (wg *mockNodeWg) Done() {
+	wg.WaitGroup.Done()
+	atomic.AddInt64(&wg.count, 1)
+}
+
+func (wg *mockNodeWg) getDone() int64 {
+	return atomic.LoadInt64(&wg.count)
+}
+
+func (wg *mockNodeWg) resetDone() {
+	wg.count = 0
 }
 
 // mockCluster represents a mock IBFT cluster
 type mockCluster struct {
-	nodes []*IBFT // references to the nodes in the cluster
+	nodes []*IBFT           // references to the nodes in the cluster
+	ctxs  []mockNodeContext // context handlers for the nodes in the cluster
 
-	wg sync.WaitGroup
+	wg mockNodeWg
 }
 
 func (m *mockCluster) runSequence(height uint64) {
-	for _, node := range m.nodes {
+	m.wg.resetDone()
+
+	for nodeIndex, node := range m.nodes {
 		m.wg.Add(1)
 
-		go func(node *IBFT, height uint64) {
+		go func(
+			ctx context.Context,
+			node *IBFT,
+			height uint64,
+		) {
 			defer func() {
 				m.wg.Done()
 			}()
 
 			// Start the main run loop for the node
-			node.RunSequence(context.Background(), height)
-		}(node, height)
+			node.RunSequence(ctx, height)
+		}(m.ctxs[nodeIndex].ctx, node, height)
 	}
 }
 
-// stop sends a quit signal to all nodes
-// in the cluster
-func (m *mockCluster) stop() {
+// awaitCompletion waits for completion of all
+// nodes in the cluster
+func (m *mockCluster) awaitCompletion() {
 	// Wait for all main run loops to signalize
 	// that they're finished
 	m.wg.Wait()
+}
+
+// forceShutdown sends a stop signal to all running nodes
+// in the cluster, and awaits their completion
+func (m *mockCluster) forceShutdown() {
+	// Send a stop signal to all the nodes
+	for _, ctx := range m.ctxs {
+		ctx.cancelFn()
+	}
+
+	// Wait for all the nodes to finish
+	m.awaitCompletion()
+}
+
+// awaitNCompletions awaits completion of the current sequence
+// for N nodes in the cluster
+func (m *mockCluster) awaitNCompletions(
+	ctx context.Context,
+	count int64,
+) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf(
+				"await exceeded timeout for %d nodes",
+				count,
+			)
+		default:
+			if m.wg.getDone() >= count {
+				return nil
+			}
+		}
+	}
 }
 
 // pushMessage imitates a message passing service,
