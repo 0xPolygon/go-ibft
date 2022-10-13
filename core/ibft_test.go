@@ -2134,12 +2134,10 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	i.messages = messages
 
 	ctx, cancelFn := context.WithCancel(context.Background())
-	defer cancelFn()
 
 	wg.Add(1)
 
 	go func() {
-		defer cancelFn()
 		defer func() {
 			cancelFn()
 			wg.Done()
