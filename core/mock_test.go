@@ -371,7 +371,7 @@ func (wg *mockNodeWg) getDone() int64 {
 }
 
 func (wg *mockNodeWg) resetDone() {
-	wg.count = 0
+	atomic.StoreInt64(&wg.count, 0)
 }
 
 // mockCluster represents a mock IBFT cluster
