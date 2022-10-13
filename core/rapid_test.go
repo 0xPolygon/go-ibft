@@ -54,8 +54,6 @@ func (m *mockInsertedProposals) insertProposal(
 // that assures the cluster can reach consensus on any
 // arbitrary number of valid nodes
 func TestProperty_AllHonestNodes(t *testing.T) {
-	t.Parallel()
-
 	rapid.Check(t, func(t *rapid.T) {
 		var multicastFn func(message *proto.Message)
 
@@ -219,8 +217,6 @@ func getByzantineNodes(
 // that assures the cluster can reach consensus on any
 // arbitrary number of valid nodes and byzantine nodes
 func TestProperty_MajorityHonestNodes(t *testing.T) {
-	t.Parallel()
-
 	rapid.Check(t, func(t *rapid.T) {
 		var multicastFn func(message *proto.Message)
 
