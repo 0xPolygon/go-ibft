@@ -68,3 +68,18 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           files: coverage.out
+  test-race:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Go race test
+        run: go test -race -shuffle=on -timeout 28m ./...s
