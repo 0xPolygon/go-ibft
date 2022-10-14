@@ -948,6 +948,8 @@ func TestRunCommit(t *testing.T) {
 			t.Parallel()
 
 			var (
+				wg sync.WaitGroup
+
 				proposal                                         = []byte("block proposal")
 				proposalHash                                     = []byte("proposal hash")
 				signer                                           = []byte("signer")
@@ -1023,9 +1025,12 @@ func TestRunCommit(t *testing.T) {
 
 			ctx, cancelFn := context.WithCancel(context.Background())
 
+			wg.Add(1)
+
 			go func(i *IBFT) {
 				defer func() {
 					cancelFn()
+					wg.Done()
 				}()
 
 				select {
@@ -1054,6 +1059,7 @@ func TestRunCommit(t *testing.T) {
 			assert.Equal(t, insertedCommittedSeals, committedSeals)
 
 			// Make sure the proper done channel was notified
+			wg.Wait()
 			assert.True(t, doneReceived)
 		},
 	)
@@ -2089,6 +2095,8 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	setRoundForMessages(roundChangeMessages, rccRound)
 
 	var (
+		wg sync.WaitGroup
+
 		receivedRound = uint64(0)
 		notifyCh      = make(chan uint64, 1)
 
@@ -2126,10 +2134,14 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	i.messages = messages
 
 	ctx, cancelFn := context.WithCancel(context.Background())
-	defer cancelFn()
+
+	wg.Add(1)
 
 	go func() {
-		defer cancelFn()
+		defer func() {
+			cancelFn()
+			wg.Done()
+		}()
 
 		select {
 		case r := <-i.roundCertificate:
@@ -2146,6 +2158,7 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	i.wg.Wait()
 
 	// Make sure the notification round was correct
+	wg.Wait()
 	assert.Equal(t, rccRound, receivedRound)
 }
 
