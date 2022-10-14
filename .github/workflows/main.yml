@@ -69,6 +69,22 @@ jobs:
         with:
           files: coverage.out
 
+  test-race:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Go race test
+        run: go test -race -shuffle=on -timeout 28m ./...
+
   mutating:
     runs-on: ubuntu-latest
     steps:
@@ -87,19 +103,3 @@ jobs:
 
       - name: Mutating testing
         run: make mut
-
-#  test-race:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Install Go
-#        uses: actions/setup-go@v3
-#        with:
-#          go-version: 1.18.x
-#
-#      - name: Checkout code
-#        uses: actions/checkout@v3
-#        with:
-#          submodules: recursive
-#
-#      - name: Go race test
-#        run: go test -race -shuffle=on -timeout 28m ./...
