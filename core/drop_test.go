@@ -5,14 +5,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/0xPolygon/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
-func TestDropMaxFaulty(t *testing.T) {
+/*
+	Scenario:
+	1. Cluster can reach height 5
+	2. Stop MaxFaulty+1 nodes
+	3. Cluster cannot progress
+*/
+func TestDropMaxFaultyPlusOne(t *testing.T) {
 	cluster := newCluster(
 		5,
 		func(c *cluster) {
@@ -50,7 +57,54 @@ func TestDropMaxFaulty(t *testing.T) {
 
 	cluster.stopN(int(cluster.maxFaulty()) + 1)
 
-	assert.Error(t, cluster.progressToHeight(2*time.Second, 10))
+	assert.Error(t, cluster.progressToHeight(1*time.Second, 10))
+}
+
+/*
+	Scenario:
+	1. Cluster can reach height 5
+	2. Stop MaxFaulty nodes
+	3. Cluster can still reach height 10
+*/
+func TestDropMaxFaulty(t *testing.T) {
+	cluster := newCluster(
+		5,
+		func(c *cluster) {
+			for _, node := range c.nodes {
+				node.core = NewIBFT(
+					mockLogger{},
+					&mockBackend{
+						isValidBlockFn:         isValidProposal,
+						isValidProposalHashFn:  isValidProposalHash,
+						isValidSenderFn:        nil,
+						isValidCommittedSealFn: nil,
+						isProposerFn:           c.isProposer,
+
+						idFn:                 node.addr,
+						quorumFn:             quorum,
+						maximumFaultyNodesFn: c.maxFaulty,
+
+						buildProposalFn:           buildValidProposal,
+						buildPrePrepareMessageFn:  node.buildPrePrepare,
+						buildPrepareMessageFn:     node.buildPrepare,
+						buildCommitMessageFn:      node.buildCommit,
+						buildRoundChangeMessageFn: node.buildRoundChange,
+						insertBlockFn:             nil,
+					},
+
+					&mockTransport{multicastFn: c.gossip},
+				)
+			}
+		},
+	)
+
+	if err := cluster.progressToHeight(5*time.Second, 5); err != nil {
+		t.Fatal("cannot progress to height: err=", err)
+	}
+
+	cluster.stopN(int(cluster.maxFaulty()))
+
+	assert.NoError(t, cluster.progressToHeight(30*time.Second, 6))
 }
 
 /*	HELPERS */
@@ -164,6 +218,9 @@ func newCluster(num uint64, init func(*cluster)) *cluster {
 }
 
 func (c *cluster) runSequence(ctx context.Context, height uint64) {
+	println("cluster running", height)
+	defer println("cluster done\n\n")
+
 	for _, n := range c.nodes {
 		c.wg.Add(1)
 
@@ -173,6 +230,9 @@ func (c *cluster) runSequence(ctx context.Context, height uint64) {
 			if n.offline {
 				return
 			}
+
+			println(string(n.address), "running", height)
+			defer println(string(n.address), "done")
 
 			n.core.RunSequence(ctx, height)
 		}(n)
