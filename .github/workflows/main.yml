@@ -99,7 +99,7 @@ jobs:
           submodules: recursive
 
       - name: Install dependencies
-        run: make deps
+        run: make install-deps
 
       - name: Mutating testing
         run: make mut
