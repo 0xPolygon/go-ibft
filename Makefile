@@ -8,3 +8,7 @@ deps:
 	go get github.com/JekaMas/go-mutesting/cmd/go-mutesting@v1.0.0
 	go install github.com/JekaMas/go-mutesting/...
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./build/bin v1.47.3
+
+mut:
+	MUTATION_TEST=on go-mutesting --blacklist=".github/mut_blacklist" --config=".github/mut_config.yml" ./...
+	@echo MSI: `jq '.stats.msi' report.json`
