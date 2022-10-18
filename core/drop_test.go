@@ -17,11 +17,15 @@ import (
 	Scenario:
 	1. Cluster can reach height 5
 	2. Stop MaxFaulty+1 nodes
-	3. Cluster cannot progress
+	3. Cluster cannot reach height 10
+	4. Start MaxFaulty+1 nodes
+	5. Cluster can reach height 10
 */
 func TestDropMaxFaultyPlusOne(t *testing.T) {
+	t.Parallel()
+
 	cluster := newCluster(
-		5,
+		6,
 		func(c *cluster) {
 			for _, node := range c.nodes {
 				node.core = NewIBFT(
@@ -34,7 +38,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						isProposerFn:           c.isProposer,
 
 						idFn:                 node.addr,
-						quorumFn:             quorum,
+						quorumFn:             c.quorum,
 						maximumFaultyNodesFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
@@ -55,9 +59,19 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 		t.Fatal("cannot progress to height: err=", err)
 	}
 
-	cluster.stopN(int(cluster.maxFaulty()) + 1)
+	assert.Equal(t, uint64(5), cluster.latestHeight)
 
-	assert.Error(t, cluster.progressToHeight(1*time.Second, 10))
+	offline := int(cluster.maxFaulty()) + 1
+
+	cluster.stopN(offline)
+
+	assert.Error(t, cluster.progressToHeight(2*time.Second, 10))
+	assert.Equal(t, uint64(5), cluster.latestHeight)
+
+	cluster.startN(offline)
+
+	assert.NoError(t, cluster.progressToHeight(5*time.Second, 10))
+	assert.Equal(t, uint64(10), cluster.latestHeight)
 }
 
 /*
@@ -67,6 +81,8 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 	3. Cluster can still reach height 10
 */
 func TestDropMaxFaulty(t *testing.T) {
+	t.Parallel()
+
 	cluster := newCluster(
 		5,
 		func(c *cluster) {
@@ -81,7 +97,7 @@ func TestDropMaxFaulty(t *testing.T) {
 						isProposerFn:           c.isProposer,
 
 						idFn:                 node.addr,
-						quorumFn:             quorum,
+						quorumFn:             c.quorum,
 						maximumFaultyNodesFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
@@ -102,9 +118,13 @@ func TestDropMaxFaulty(t *testing.T) {
 		t.Fatal("cannot progress to height: err=", err)
 	}
 
+	assert.Equal(t, uint64(5), cluster.latestHeight)
+
 	cluster.stopN(int(cluster.maxFaulty()))
 
-	assert.NoError(t, cluster.progressToHeight(30*time.Second, 6))
+	// higher timeout due to round-robin proposer selection
+	assert.NoError(t, cluster.progressToHeight(20*time.Second, 10))
+	assert.Equal(t, uint64(10), cluster.latestHeight)
 }
 
 /*	HELPERS */
@@ -158,7 +178,7 @@ func (n *node) buildPrePrepare(
 }
 
 func (n *node) buildPrepare(
-	proposal []byte,
+	_ []byte,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicPrepareMessage(
@@ -169,7 +189,7 @@ func (n *node) buildPrepare(
 }
 
 func (n *node) buildCommit(
-	proposal []byte,
+	_ []byte,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicCommitMessage(
@@ -193,6 +213,17 @@ func (n *node) buildRoundChange(
 	)
 }
 
+func (n *node) runSequence(ctx context.Context, height uint64) {
+	if n.offline {
+		return
+	}
+
+	ctxSequence, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	n.core.RunSequence(ctxSequence, height)
+}
+
 type cluster struct {
 	nodes []*node
 	wg    sync.WaitGroup
@@ -202,14 +233,13 @@ type cluster struct {
 
 func newCluster(num uint64, init func(*cluster)) *cluster {
 	c := &cluster{
+		nodes:        make([]*node, num),
 		wg:           sync.WaitGroup{},
 		latestHeight: 0,
 	}
 
-	for _, addr := range generateNodeAddresses(num) {
-		c.nodes = append(c.nodes,
-			&node{address: addr},
-		)
+	for i, addr := range generateNodeAddresses(num) {
+		c.nodes[i] = &node{address: addr}
 	}
 
 	init(c)
@@ -217,55 +247,53 @@ func newCluster(num uint64, init func(*cluster)) *cluster {
 	return c
 }
 
-func (c *cluster) runSequence(ctx context.Context, height uint64) {
-	println("cluster running", height)
-	defer println("cluster done\n\n")
-
-	for _, n := range c.nodes {
-		c.wg.Add(1)
-
-		go func(n *node) {
-			defer c.wg.Done()
-
-			if n.offline {
-				return
-			}
-
-			println(string(n.address), "running", height)
-			defer println(string(n.address), "done")
-
-			n.core.RunSequence(ctx, height)
-		}(n)
-	}
-
-	c.wg.Wait()
-	c.latestHeight = height
-}
-
-func (c *cluster) progressToHeight(timeout time.Duration, height uint64) error {
-	var (
-		ok          = make(chan struct{})
-		ctx, cancel = context.WithTimeout(context.Background(), timeout)
-	)
-
-	defer cancel()
+func (c *cluster) runSequence(ctx context.Context, height uint64) <-chan struct{} {
+	done := make(chan struct{})
 
 	go func() {
-		for current := c.latestHeight; current < height; current++ {
-			c.runSequence(ctx, current)
+		defer close(done)
+
+		for _, n := range c.nodes {
+			c.wg.Add(1)
+
+			go func(n *node) {
+				defer c.wg.Done()
+
+				n.runSequence(ctx, height)
+			}(n)
 		}
 
-		ok <- struct{}{}
+		c.wg.Wait()
 	}()
 
-	select {
-	case <-ok:
-		//	height reached
-	case <-ctx.Done():
-		return errors.New("timeout")
+	return done
+}
+
+func (c *cluster) runSequences(ctx context.Context, height uint64) error {
+	for current := c.latestHeight + 1; current <= height; current++ {
+		select {
+		case <-ctx.Done():
+			// wait for subcontext to cancel itself
+			time.Sleep(time.Second)
+
+			return errors.New("timeout")
+		case <-c.runSequence(ctx, current):
+			c.latestHeight = current
+		}
 	}
 
 	return nil
+}
+
+func (c *cluster) progressToHeight(timeout time.Duration, height uint64) error {
+	if c.latestHeight >= height {
+		panic("height already reached")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return c.runSequences(ctx, height)
 }
 
 func (c *cluster) addresses() [][]byte {
@@ -275,6 +303,10 @@ func (c *cluster) addresses() [][]byte {
 	}
 
 	return addresses
+}
+
+func (c *cluster) quorum(_ uint64) uint64 {
+	return quorum(uint64(len(c.nodes)))
 }
 
 func (c *cluster) isProposer(
@@ -311,5 +343,11 @@ func (c *cluster) stopN(num int) {
 
 	for i := 0; i < num; i++ {
 		c.nodes[i].offline = true
+	}
+}
+
+func (c *cluster) startN(num int) {
+	for i := 0; i < num; i++ {
+		c.nodes[i].offline = false
 	}
 }
