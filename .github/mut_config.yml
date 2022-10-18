@@ -2,6 +2,6 @@ skip_without_test: false
 skip_with_build_tags: false
 json_output: true
 silent_mode: false
-min_msi: 0.95
+min_msi: 0.89
 exclude_dirs:
   - messages/proto
