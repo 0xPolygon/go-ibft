@@ -22,8 +22,6 @@ import (
 	5. Cluster can reach height 10
 */
 func TestDropMaxFaultyPlusOne(t *testing.T) {
-	t.Parallel()
-
 	cluster := newCluster(
 		6,
 		func(c *cluster) {
@@ -81,8 +79,6 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 	3. Cluster can still reach height 10
 */
 func TestDropMaxFaulty(t *testing.T) {
-	t.Parallel()
-
 	cluster := newCluster(
 		5,
 		func(c *cluster) {
