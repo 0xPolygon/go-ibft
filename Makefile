@@ -5,7 +5,7 @@ lint:
 	-E forcetypeassert -E dogsled -E dupl -E errname -E errorlint -E nolintlint --timeout 2m
 
 install-deps:
-	go get github.com/JekaMas/go-mutesting/cmd/go-mutesting@v1.1.0
+	go get github.com/JekaMas/go-mutesting/cmd/go-mutesting@v1.1.1
 	go install github.com/JekaMas/go-mutesting/...
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./build/bin v1.50.0
 

@@ -3,7 +3,7 @@ module github.com/0xPolygon/go-ibft
 go 1.19
 
 require (
-	github.com/JekaMas/go-mutesting v1.1.0
+	github.com/JekaMas/go-mutesting v1.1.1
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.0
 	google.golang.org/protobuf v1.28.1
