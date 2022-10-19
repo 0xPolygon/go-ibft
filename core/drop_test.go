@@ -22,6 +22,8 @@ import (
 	5. Cluster can reach height 10
 */
 func TestDropMaxFaultyPlusOne(t *testing.T) {
+	t.Parallel()
+
 	cluster := newCluster(
 		6,
 		func(c *cluster) {
@@ -79,6 +81,8 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 	3. Cluster can still reach height 10
 */
 func TestDropMaxFaulty(t *testing.T) {
+	t.Parallel()
+
 	cluster := newCluster(
 		5,
 		func(c *cluster) {
@@ -267,14 +271,16 @@ func (c *cluster) runSequence(ctx context.Context, height uint64) <-chan struct{
 
 func (c *cluster) runSequences(ctx context.Context, height uint64) error {
 	for current := c.latestHeight + 1; current <= height; current++ {
+		sequenceDone := c.runSequence(ctx, current)
+
 		select {
+		case <-sequenceDone:
+			c.latestHeight = current
 		case <-ctx.Done():
-			// wait for subcontext to cancel itself
-			time.Sleep(time.Second)
+			// wait for the worker threads to return
+			<-sequenceDone
 
 			return errors.New("timeout")
-		case <-c.runSequence(ctx, current):
-			c.latestHeight = current
 		}
 	}
 
