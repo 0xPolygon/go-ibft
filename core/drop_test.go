@@ -298,9 +298,9 @@ func (c *cluster) progressToHeight(timeout time.Duration, height uint64) error {
 }
 
 func (c *cluster) addresses() [][]byte {
-	addresses := make([][]byte, 0, len(c.nodes))
-	for _, node := range c.nodes {
-		addresses = append(addresses, node.address)
+	addresses := make([][]byte, len(c.nodes))
+	for i, node := range c.nodes {
+		addresses[i] = node.address
 	}
 
 	return addresses
