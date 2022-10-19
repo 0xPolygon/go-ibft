@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
@@ -316,10 +315,6 @@ func (c *cluster) isProposer(
 	height,
 	round uint64,
 ) bool {
-	if len(c.nodes) == 0 {
-		panic("no nodes")
-	}
-
 	addrs := c.addresses()
 
 	return bytes.Equal(
@@ -339,10 +334,6 @@ func (c *cluster) maxFaulty() uint64 {
 }
 
 func (c *cluster) stopN(num int) {
-	if num > len(c.nodes) {
-		panic(fmt.Sprintf("stop %d, but size is %d", num, len(c.nodes)))
-	}
-
 	for i := 0; i < num; i++ {
 		c.nodes[i].offline = true
 	}
