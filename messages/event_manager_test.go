@@ -11,7 +11,7 @@ import (
 
 func TestEventManager_SubscribeCancel(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)
@@ -72,7 +72,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 func TestEventManager_SubscribeClose(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)

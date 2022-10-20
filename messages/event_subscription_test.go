@@ -150,7 +150,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t)
+			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			subscription := &eventSubscription{
 				details:  testCase.subscriptionDetails,

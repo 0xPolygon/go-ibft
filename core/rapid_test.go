@@ -222,7 +222,7 @@ func getByzantineNodes(
 // arbitrary number of valid nodes and byzantine nodes
 func TestProperty_MajorityHonestNodes(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	rapid.Check(t, func(t *rapid.T) {
 		var multicastFn func(message *proto.Message)
