@@ -1,90 +1,43 @@
-on:
+---
+name: Main CI
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch: {}
   push:
     branches:
       - main
   pull_request:
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.18.x
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
 
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Golang vulnerabilities check
-        run: |
-            go install golang.org/x/vuln/cmd/govulncheck@latest
-            govulncheck ./...
-
-      - name: Lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          # Specify a version instead of 'latest'
-          # because of something wrong with 1.48.0
-          version: v1.47.3
-          args:
-            --timeout=3m
-            -E whitespace
-            -E wsl
-            -E wastedassign
-            -E unconvert
-            -E tparallel
-            -E thelper
-            -E stylecheck
-            -E prealloc
-            -E predeclared
-            -E nolintlint
-            -E nlreturn
-            -E misspell
-            -E makezero
-            -E lll
-            -E importas
-            -E ifshort
-            -E gosec
-            -E gofmt
-            -E goconst
-            -E forcetypeassert
-            -E dogsled
-            -E dupl
-            -E errname
-            -E errorlint
   test:
+    name: Test
+    uses: ./.github/workflows/test.yml
+    needs: build
+
+  snyk:
+    name: Snyk
     runs-on: ubuntu-latest
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v3
+      - uses: actions/checkout@master
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@master
         with:
-          go-version: 1.18.x
+          args: --org=${{ secrets.SNYK_ORG }} --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Go test
-        run: go test -coverprofile coverage.out -timeout 28m ./...
-
-      - name: Upload coverage file to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: coverage.out
-  test-race:
+  snyk-code:
+    name: Snyk Code
     runs-on: ubuntu-latest
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v3
+      - uses: actions/checkout@master
+      - name: Run Snyk SAST to check for code vulnerabilities
+        uses: snyk/actions/golang@master
         with:
-          go-version: 1.18.x
-
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Go race test
-        run: go test -race -shuffle=on -timeout 28m ./...
+          command: code test
+          args: --org=${{ secrets.SNYK_ORG }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
