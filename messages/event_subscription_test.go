@@ -1,9 +1,12 @@
 package messages
 
 import (
-	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 func TestEventSubscription_EventSupported(t *testing.T) {
@@ -147,6 +150,7 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			subscription := &eventSubscription{
 				details:  testCase.subscriptionDetails,

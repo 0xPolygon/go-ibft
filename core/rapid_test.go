@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
+	"pgregory.net/rapid"
+
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
-	"pgregory.net/rapid"
 )
 
 // mockInsertedProposals keeps track of inserted proposals for a cluster
@@ -220,6 +222,7 @@ func getByzantineNodes(
 // arbitrary number of valid nodes and byzantine nodes
 func TestProperty_MajorityHonestNodes(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	rapid.Check(t, func(t *rapid.T) {
 		var multicastFn func(message *proto.Message)

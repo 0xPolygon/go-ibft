@@ -1,13 +1,17 @@
 package messages
 
 import (
-	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 func TestEventManager_SubscribeCancel(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)
@@ -68,6 +72,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 func TestEventManager_SubscribeClose(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)

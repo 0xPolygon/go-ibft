@@ -1,11 +1,14 @@
 package messages
 
 import (
-	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 // generateRandomMessages generates random messages for the
@@ -57,6 +60,7 @@ func generateRandomMessages(
 // of different types works
 func TestMessages_AddMessage(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	numMessages := 5
 	initialView := &proto.View{
@@ -92,6 +96,7 @@ func TestMessages_AddMessage(t *testing.T) {
 // of the same view for the same message type
 func TestMessages_AddDuplicates(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	numMessages := 5
 	commonSender := strconv.Itoa(1)
@@ -123,6 +128,7 @@ func TestMessages_AddDuplicates(t *testing.T) {
 // TestMessages_Prune tests if pruning of certain messages works
 func TestMessages_Prune(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	numMessages := 5
 	messageType := proto.MessageType_PREPARE
@@ -212,8 +218,11 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 
 	for _, testCase := range testTable {
 		testCase := testCase
+
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
+
 			// Add the initial message set
 			messages := NewMessages()
 			defer messages.Close()
@@ -263,6 +272,7 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 // messages are fetched
 func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	messages := NewMessages()
 	defer messages.Close()
@@ -306,6 +316,7 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 // behaves correctly when new messages appear
 func TestMessages_EventManager(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	messages := NewMessages()
 	defer messages.Close()

@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
+
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
 )
 
 func proposalMatches(proposal []byte, message *proto.Message) bool {
@@ -216,6 +218,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		"proposer builds fresh block",
 		func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -289,6 +292,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		"proposer builds proposal for round > 0 (create new)",
 		func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			quorum := uint64(4)
 			ctx, cancelFn := context.WithCancel(context.Background())
@@ -407,6 +411,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 		"proposer builds proposal for round > 0 (resend last prepared proposal)",
 		func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			lastPreparedProposedBlock := []byte("last prepared block")
 			proposalHash := []byte("proposal hash")
@@ -565,6 +570,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 // of a non-proposer when receiving the proposal for round 0
 func TestRunNewRound_Validator_Zero(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -735,6 +741,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			ctx, cancelFn := context.WithCancel(context.Background())
 			defer cancelFn()
@@ -837,6 +844,7 @@ func TestRunPrepare(t *testing.T) {
 		"validator receives quorum of PREPARE messages",
 		func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -946,6 +954,7 @@ func TestRunCommit(t *testing.T) {
 		"validator received quorum of valid commit messages",
 		func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			var (
 				wg sync.WaitGroup
@@ -1130,8 +1139,10 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 
 	for _, testCase := range testTable {
 		testCase := testCase
+
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			var (
 				log       = mockLogger{}
@@ -1161,6 +1172,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 	t.Run("round timer exits due to a quit signal", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			wg sync.WaitGroup
@@ -1189,6 +1201,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 	t.Run("round timer expires", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			wg      sync.WaitGroup
@@ -1236,6 +1249,7 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 
 	t.Run("move to new round", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			expectedNewRound uint64 = 1
@@ -1319,6 +1333,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+			defer goleak.VerifyNone(t)
 
 			ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -1423,6 +1438,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("no certificate", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			certificate *proto.PreparedCertificate = nil
@@ -1439,6 +1455,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("proposal and prepare messages mismatch", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			log       = mockLogger{}
@@ -1465,6 +1482,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("no Quorum PP + P messages", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -1490,6 +1508,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("invalid proposal message type", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -1517,6 +1536,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("invalid prepare message type", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -1547,6 +1567,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("non unique senders", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -1576,6 +1597,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("differing proposal hashes", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -1608,6 +1630,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("rounds not lower than rLimit", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum       = uint64(4)
@@ -1647,6 +1670,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("heights are not the same", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum       = uint64(4)
@@ -1692,6 +1716,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("proposal not from proposer", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum       = uint64(4)
@@ -1734,6 +1759,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("prepare is from an invalid sender", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum       = uint64(4)
@@ -1780,6 +1806,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 	t.Run("completely valid PC", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum       = uint64(4)
@@ -1829,6 +1856,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("proposer is not valid", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			log     = mockLogger{}
@@ -1859,6 +1887,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("block is not valid", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			log     = mockLogger{}
@@ -1892,6 +1921,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("proposal hash is not valid", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			log     = mockLogger{}
@@ -1925,6 +1955,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("certificate is not present", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			log     = mockLogger{}
@@ -1957,6 +1988,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("there are < quorum RC messages in the certificate", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -1996,6 +2028,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("current node should not be the proposer", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum     = uint64(4)
@@ -2042,6 +2075,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 
 	t.Run("current node should not be the proposer", func(t *testing.T) {
 		t.Parallel()
+		defer goleak.VerifyNone(t)
 
 		var (
 			quorum = uint64(4)
@@ -2085,6 +2119,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 // are handled properly
 func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	quorum := uint64(4)
 	proposal := []byte("proposal")
@@ -2188,6 +2223,7 @@ func TestState_String(t *testing.T) {
 // state changes correctly when receiving a higher proposal event
 func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
@@ -2251,6 +2287,7 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 // state changes correctly when receiving a higher RCC event
 func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
@@ -2302,6 +2339,7 @@ func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
 // is extended correctly
 func TestIBFT_ExtendRoundTimer(t *testing.T) {
 	t.Parallel()
+	defer goleak.VerifyNone(t)
 
 	var (
 		additionalTimeout = 10 * time.Second
