@@ -8,18 +8,27 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
 
 jobs:
-  build:
-    name: Build
-    uses: ./.github/workflows/build.yml
+  go_test:
+    name: Polygon Edge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
 
-  test:
-    name: Test
-    uses: ./.github/workflows/test.yml
-    needs: build
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Run Go Test
+        run: go test -race -shuffle=on -timeout 28m ./...
 
   snyk:
     name: Snyk
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@master
       - name: Run Snyk to check for vulnerabilities
@@ -32,6 +41,7 @@ jobs:
   snyk-code:
     name: Snyk Code
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@master
       - name: Run Snyk SAST to check for code vulnerabilities
