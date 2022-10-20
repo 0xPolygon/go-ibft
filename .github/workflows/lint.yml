@@ -3,8 +3,7 @@ name: Lint
 on:  # yamllint disable-line rule:truthy
   push:
     branches-ignore:
-      - 'develop'
-      - 'release/**'
+      - 'main'
     tags-ignore:
       - 'v*'
     paths:
