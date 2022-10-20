@@ -56,11 +56,14 @@ func generateRandomMessages(
 	return messages
 }
 
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 // TestMessages_AddMessage tests if the message addition
 // of different types works
 func TestMessages_AddMessage(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	numMessages := 5
 	initialView := &proto.View{
@@ -96,7 +99,6 @@ func TestMessages_AddMessage(t *testing.T) {
 // of the same view for the same message type
 func TestMessages_AddDuplicates(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	numMessages := 5
 	commonSender := strconv.Itoa(1)
@@ -128,7 +130,6 @@ func TestMessages_AddDuplicates(t *testing.T) {
 // TestMessages_Prune tests if pruning of certain messages works
 func TestMessages_Prune(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	numMessages := 5
 	messageType := proto.MessageType_PREPARE
@@ -221,7 +222,6 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			// Add the initial message set
 			messages := NewMessages()
@@ -272,7 +272,6 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 // messages are fetched
 func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	messages := NewMessages()
 	defer messages.Close()
@@ -316,7 +315,6 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 // behaves correctly when new messages appear
 func TestMessages_EventManager(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	messages := NewMessages()
 	defer messages.Close()

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
@@ -130,7 +129,6 @@ func quorum(numNodes uint64) uint64 {
 // - All nodes go through the consensus states to insert the valid block B
 func TestConsensus_ValidFlow(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	var multicastFn func(message *proto.Message)
 
@@ -284,7 +282,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 // - All nodes go through the consensus states to insert the valid block B'
 func TestConsensus_InvalidBlock(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	var multicastFn func(message *proto.Message)
 

@@ -4,14 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 func TestMessages_ExtractCommittedSeals(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	signer := []byte("signer")
 	committedSeal := []byte("committed seal")
@@ -82,7 +80,6 @@ func TestMessages_ExtractCommitHash(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -129,7 +126,6 @@ func TestMessages_ExtractProposal(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -176,7 +172,6 @@ func TestMessages_ExtractProposalHash(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -225,7 +220,6 @@ func TestMessages_ExtractRCC(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -272,7 +266,6 @@ func TestMessages_ExtractPrepareHash(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -322,7 +315,6 @@ func TestMessages_ExtractLatestPC(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -369,7 +361,6 @@ func TestMessages_ExtractLPPB(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -424,7 +415,6 @@ func TestMessages_HasUniqueSenders(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -510,7 +500,6 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -602,7 +591,6 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,
@@ -670,7 +658,6 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			assert.Equal(
 				t,

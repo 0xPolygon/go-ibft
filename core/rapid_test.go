@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 	"pgregory.net/rapid"
 
 	"github.com/0xPolygon/go-ibft/messages"
@@ -222,7 +221,6 @@ func getByzantineNodes(
 // arbitrary number of valid nodes and byzantine nodes
 func TestProperty_MajorityHonestNodes(t *testing.T) {
 	t.Parallel()
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 	rapid.Check(t, func(t *rapid.T) {
 		var multicastFn func(message *proto.Message)
