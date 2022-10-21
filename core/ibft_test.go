@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/stretchr/testify/assert"
 )
 
 func proposalMatches(proposal []byte, message *proto.Message) bool {
@@ -1130,6 +1131,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 
 	for _, testCase := range testTable {
 		testCase := testCase
+
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
