@@ -54,9 +54,8 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 		},
 	)
 
-	if err := cluster.progressToHeight(5*time.Second, 5); err != nil {
-		t.Fatal("cannot progress to height: err=", err)
-	}
+	err := cluster.progressToHeight(5*time.Second, 5)
+	assert.NoError(t, err, "unable to reach height: %w", err)
 
 	assert.Equal(t, uint64(5), cluster.latestHeight)
 
