@@ -181,6 +181,21 @@ func (m mockBackend) BuildRoundChangeMessage(
 	}
 }
 
+func (m mockBackend) HasQuorum(blockNumber uint64, messages []*proto.Message) bool {
+	quorum := m.Quorum(blockNumber)
+
+	if len(messages) > 0 {
+		switch messages[0].GetType() {
+		case proto.MessageType_PREPARE:
+			return len(messages) < int(quorum)-1
+		case proto.MessageType_ROUND_CHANGE:
+			return len(messages) < int(quorum)
+		}
+	}
+
+	return false
+}
+
 // Define delegation methods
 type multicastFnDelegate func(*proto.Message)
 
