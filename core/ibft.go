@@ -453,7 +453,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.
 		isValidFn,
 	)
 
-	if len(msgs) < int(quorum) {
+	if i.backend.HasQuorum(view.Height, msgs) {
 		return nil
 	}
 
@@ -797,7 +797,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		isValidPrepare,
 	)
 
-	if len(prepareMessages) < int(quorum)-1 {
+	if i.backend.HasQuorum(view.Height, prepareMessages) {
 		//	quorum not reached, keep polling
 		return false
 	}
@@ -1033,7 +1033,7 @@ func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 	i.additionalTimeout = amount
 }
 
-// validPC verifies that  the prepared certificate is valid
+// validPC verifies that the prepared certificate is valid
 func (i *IBFT) validPC(
 	certificate *proto.PreparedCertificate,
 	rLimit,
