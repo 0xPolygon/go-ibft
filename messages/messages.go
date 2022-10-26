@@ -27,13 +27,18 @@ func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 	subscription := ms.eventManager.subscribe(details)
 
 	// Check if any condition is already met
-	if numMessages := ms.numMessages(
-		details.View,
-		details.MessageType,
-	); numMessages >= details.MinNumMessages {
+	msgs := ms.GetValidMessages(details.View, details.MessageType, func(_ *proto.Message) bool { return true })
+	if details.QuorumFn(details.View, msgs) {
 		// Conditions are already met, alert the event manager
-		ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
+		ms.eventManager.signalEvent(details.MessageType, details.View)
 	}
+
+	// if numMessages := ms.numMessages(details.View,
+	// 	details.MessageType,
+	// ); numMessages >= details.MinNumMessages {
+	// 	// Conditions are already met, alert the event manager
+	// 	ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
+	// }
 
 	return subscription
 }
@@ -81,7 +86,6 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 			Height: message.View.Height,
 			Round:  message.View.Round,
 		},
-		len(messages),
 	)
 }
 
@@ -103,32 +107,6 @@ func (ms *Messages) getMessageMap(messageType proto.MessageType) heightMessageMa
 	}
 
 	return nil
-}
-
-// numMessages returns the number of messages received for the specific type
-func (ms *Messages) numMessages(
-	view *proto.View,
-	messageType proto.MessageType,
-) int {
-	mux := ms.muxMap[messageType]
-	mux.RLock()
-	defer mux.RUnlock()
-
-	heightMsgMap := ms.getMessageMap(messageType)
-
-	// Check if the round map is present
-	roundMsgMap, found := heightMsgMap[view.Height]
-	if !found {
-		return 0
-	}
-
-	// Check if the messages array is present
-	messages, found := roundMsgMap[view.Round]
-	if !found {
-		return 0
-	}
-
-	return len(messages)
 }
 
 // PruneByHeight prunes out all old messages from the message queues

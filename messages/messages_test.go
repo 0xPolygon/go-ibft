@@ -87,10 +87,13 @@ func TestMessages_AddMessage(t *testing.T) {
 		messages.AddMessage(message)
 	}
 
+	isValid := func(_ *proto.Message) bool {
+		return true
+	}
 	// Make sure that the messages are present
-	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_PREPARE))
-	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_COMMIT))
-	assert.Equal(t, numMessages, messages.numMessages(initialView, proto.MessageType_ROUND_CHANGE))
+	assert.Equal(t, numMessages, len(messages.GetValidMessages(initialView, proto.MessageType_PREPARE, isValid)))
+	assert.Equal(t, numMessages, len(messages.GetValidMessages(initialView, proto.MessageType_COMMIT, isValid)))
+	assert.Equal(t, numMessages, len(messages.GetValidMessages(initialView, proto.MessageType_ROUND_CHANGE, isValid)))
 }
 
 // TestMessages_AddDuplicates tests that no duplicates
@@ -123,8 +126,12 @@ func TestMessages_AddDuplicates(t *testing.T) {
 		messages.AddMessage(message)
 	}
 
+	isValid := func(_ *proto.Message) bool {
+		return true
+	}
+
 	// Check that only 1 message has been added
-	assert.Equal(t, 1, messages.numMessages(initialView, commonType))
+	assert.Equal(t, 1, len(messages.GetValidMessages(initialView, commonType, isValid)))
 }
 
 // TestMessages_Prune tests if pruning of certain messages works
@@ -167,14 +174,18 @@ func TestMessages_Prune(t *testing.T) {
 	// Prune out the messages from this view
 	messages.PruneByHeight(views[1].Height + 1)
 
+	isValid := func(_ *proto.Message) bool {
+		return true
+	}
+
 	// Make sure the round 1 messages are pruned out
-	assert.Equal(t, 0, messages.numMessages(views[0], messageType))
+	assert.Equal(t, 0, len(messages.GetValidMessages(views[0], messageType, isValid)))
 
 	// Make sure the round 2 messages are pruned out
-	assert.Equal(t, 0, messages.numMessages(views[1], messageType))
+	assert.Equal(t, 0, len(messages.GetValidMessages(views[1], messageType, isValid)))
 
 	// Make sure the round 3 messages are pruned out
-	assert.Equal(t, 0, messages.numMessages(views[2], messageType))
+	assert.Equal(t, 0, len(messages.GetValidMessages(views[2], messageType, isValid)))
 }
 
 // TestMessages_GetMessage makes sure
@@ -239,11 +250,15 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 				messages.AddMessage(message)
 			}
 
+			isValid := func(_ *proto.Message) bool {
+				return true
+			}
+
 			// Make sure the messages are there
 			assert.Equal(
 				t,
 				numMessages,
-				messages.numMessages(defaultView, testCase.messageType),
+				len(messages.GetValidMessages(defaultView, testCase.messageType, isValid)),
 			)
 
 			// Start fetching messages and making sure they're not cleared
@@ -261,7 +276,7 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 			assert.Equal(
 				t,
 				0,
-				messages.numMessages(defaultView, testCase.messageType),
+				len(messages.GetValidMessages(defaultView, testCase.messageType, isValid)),
 			)
 		})
 	}
@@ -328,9 +343,11 @@ func TestMessages_EventManager(t *testing.T) {
 
 	// Create the subscription
 	subscription := messages.Subscribe(SubscriptionDetails{
-		MessageType:    messageType,
-		View:           baseView,
-		MinNumMessages: numMessages,
+		MessageType: messageType,
+		View:        baseView,
+		QuorumFn: func(view *proto.View, messages []*proto.Message) bool {
+			return len(messages) >= numMessages
+		},
 	})
 
 	defer messages.Unsubscribe(subscription.ID)
@@ -348,5 +365,8 @@ func TestMessages_EventManager(t *testing.T) {
 	}
 
 	// Make sure the number of messages is actually accurate
-	assert.Equal(t, numMessages, messages.numMessages(baseView, messageType))
+	isValid := func(_ *proto.Message) bool {
+		return true
+	}
+	assert.Equal(t, numMessages, len(messages.GetValidMessages(baseView, messageType, isValid)))
 }

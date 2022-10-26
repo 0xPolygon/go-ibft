@@ -121,12 +121,30 @@ func quorum(numNodes uint64) uint64 {
 	}
 }
 
+func commonHasQuorumFn(numNodes uint64) func(view *proto.View, messages []*proto.Message) bool {
+	return func(view *proto.View, messages []*proto.Message) bool {
+		if len(messages) > 0 {
+			switch messages[0].GetType() {
+			case proto.MessageType_PREPREPARE:
+				return len(messages) > 1
+			case proto.MessageType_PREPARE:
+				return len(messages) >= int(numNodes)-1
+			case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+				return len(messages) >= int(numNodes)
+			}
+		}
+
+		return false
+	}
+}
+
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
 // - Node 0 is the proposer for block 1, round 0
 // - Node 0 proposes a valid block B
 // - All nodes go through the consensus states to insert the valid block B
+// TODO: Test not passing
 func TestConsensus_ValidFlow(t *testing.T) {
 	t.Parallel()
 
@@ -151,9 +169,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function requires all nodes
-		backend.quorumFn = func(_ uint64) uint64 {
-			return numNodes
-		}
+		backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
 		// Make sure the node ID is properly relayed
 		backend.idFn = func() []byte {
@@ -311,12 +327,16 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function is Quorum optimal
-		backend.quorumFn = func(_ uint64) uint64 {
-			return quorum(numNodes)
+		// TODO: Test not passing
+		backend.hasQuorumFn = func(_ *proto.View, messages []*proto.Message) bool {
+			t.Log(messages)
+			res := len(messages) >= int(numNodes)-1
+			t.Log(res)
+			return res
 		}
 
 		// Make sure the allowed faulty nodes function is accurate
-		backend.maximumFaultyNodesFn = func() uint64 {
+		backend.maximumFaultyFn = func() uint64 {
 			return maxFaulty(numNodes)
 		}
 
@@ -332,7 +352,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			return bytes.Equal(from, nodes[round])
 		}
 
-		// Make sure the proposal is valid if it matches what node 0 proposed
+		// Make sure the proposal is valid if it matches what node 1 proposed
 		backend.isValidBlockFn = func(newProposal []byte) bool {
 			// Node 1 is the proposer for round 1,
 			// and their proposal is the only one that's valid

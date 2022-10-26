@@ -1,10 +1,11 @@
 package messages
 
 import (
-	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/google/uuid"
 	"sync"
 	"sync/atomic"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/google/uuid"
 )
 
 type eventManager struct {
@@ -44,9 +45,8 @@ type SubscriptionDetails struct {
 	// being subscribed to
 	View *proto.View
 
-	// MinNumMessages is the threshold of messages
-	// being subscribed to
-	MinNumMessages int
+	// QuorumFn is the function used to check for quorum
+	QuorumFn func(view *proto.View, messages []*proto.Message) bool
 
 	// HasMinRound is the flag indicating if the
 	// round number is a lower bound
@@ -106,7 +106,6 @@ func (em *eventManager) close() {
 func (em *eventManager) signalEvent(
 	messageType proto.MessageType,
 	view *proto.View,
-	totalMessages int,
 ) {
 	if atomic.LoadInt64(&em.numSubscriptions) == 0 {
 		// No reason to lock the subscriptions map
@@ -121,7 +120,6 @@ func (em *eventManager) signalEvent(
 		subscription.pushEvent(
 			messageType,
 			view,
-			totalMessages,
 		)
 	}
 }

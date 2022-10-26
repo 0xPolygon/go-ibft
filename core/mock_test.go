@@ -32,10 +32,10 @@ type buildRoundChangeMessageDelegate func(
 	*proto.View,
 ) *proto.Message
 
-type quorumDelegate func(blockHeight uint64) uint64
+type hasQuorumDelegate func(view *proto.View, messages []*proto.Message) bool
 type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
-type maximumFaultyNodesDelegate func() uint64
+type maximumFaultyDelegate func() uint64
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -50,10 +50,10 @@ type mockBackend struct {
 	buildPrepareMessageFn     buildPrepareMessageDelegate
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
-	quorumFn                  quorumDelegate
+	hasQuorumFn               hasQuorumDelegate
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
-	maximumFaultyNodesFn      maximumFaultyNodesDelegate
+	maximumFaultyFn           maximumFaultyDelegate
 }
 
 func (m mockBackend) ID() []byte {
@@ -68,14 +68,6 @@ func (m mockBackend) InsertBlock(proposal []byte, committedSeals []*messages.Com
 	if m.insertBlockFn != nil {
 		m.insertBlockFn(proposal, committedSeals)
 	}
-}
-
-func (m mockBackend) Quorum(blockNumber uint64) uint64 {
-	if m.quorumFn != nil {
-		return m.quorumFn(blockNumber)
-	}
-
-	return 0
 }
 
 func (m mockBackend) IsValidBlock(block []byte) bool {
@@ -126,9 +118,9 @@ func (m mockBackend) IsValidCommittedSeal(proposal []byte, committedSeal *messag
 	return true
 }
 
-func (m mockBackend) MaximumFaultyNodes() uint64 {
-	if m.maximumFaultyNodesFn != nil {
-		return m.maximumFaultyNodesFn()
+func (m mockBackend) MaximumFaulty() uint64 {
+	if m.maximumFaultyFn != nil {
+		return m.maximumFaultyFn()
 	}
 
 	return 0
@@ -181,16 +173,9 @@ func (m mockBackend) BuildRoundChangeMessage(
 	}
 }
 
-func (m mockBackend) HasQuorum(blockNumber uint64, messages []*proto.Message) bool {
-	quorum := m.Quorum(blockNumber)
-
-	if len(messages) > 0 {
-		switch messages[0].GetType() {
-		case proto.MessageType_PREPARE:
-			return len(messages) < int(quorum)-1
-		case proto.MessageType_ROUND_CHANGE:
-			return len(messages) < int(quorum)
-		}
+func (m mockBackend) HasQuorum(view *proto.View, messages []*proto.Message) bool {
+	if m.hasQuorumFn != nil {
+		return m.hasQuorumFn(view, messages)
 	}
 
 	return false

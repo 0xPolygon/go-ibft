@@ -12,9 +12,8 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 	t.Parallel()
 
 	type signalDetails struct {
-		messageType   proto.MessageType
-		view          *proto.View
-		totalMessages int
+		messageType proto.MessageType
+		view        *proto.View
 	}
 
 	commonDetails := SubscriptionDetails{
@@ -23,7 +22,9 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		},
-		MinNumMessages: 10,
+		QuorumFn: func(view *proto.View, messages []*proto.Message) bool {
+			return len(messages) >= 10
+		},
 	}
 
 	testTable := []struct {
@@ -38,17 +39,16 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 			signalDetails{
 				commonDetails.MessageType,
 				commonDetails.View,
-				commonDetails.MinNumMessages,
 			},
 			true,
 		},
 		{
 			"Message round > round than subscription (supported)",
 			SubscriptionDetails{
-				MessageType:    commonDetails.MessageType,
-				View:           commonDetails.View,
-				MinNumMessages: commonDetails.MinNumMessages,
-				HasMinRound:    true,
+				MessageType: commonDetails.MessageType,
+				View:        commonDetails.View,
+				QuorumFn:    commonDetails.QuorumFn,
+				HasMinRound: true,
 			},
 			signalDetails{
 				commonDetails.MessageType,
@@ -56,22 +56,20 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 					Height: commonDetails.View.Height,
 					Round:  commonDetails.View.Round + 1,
 				},
-				commonDetails.MinNumMessages,
 			},
 			true,
 		},
 		{
 			"Message round == round than subscription (supported)",
 			SubscriptionDetails{
-				MessageType:    commonDetails.MessageType,
-				View:           commonDetails.View,
-				MinNumMessages: commonDetails.MinNumMessages,
-				HasMinRound:    true,
+				MessageType: commonDetails.MessageType,
+				View:        commonDetails.View,
+				QuorumFn:    commonDetails.QuorumFn,
+				HasMinRound: true,
 			},
 			signalDetails{
 				commonDetails.MessageType,
 				commonDetails.View,
-				commonDetails.MinNumMessages,
 			},
 			true,
 		},
@@ -84,7 +82,6 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 					Height: commonDetails.View.Height,
 					Round:  commonDetails.View.Round + 1,
 				},
-				commonDetails.MinNumMessages,
 			},
 			false,
 		},
@@ -96,8 +93,8 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 					Height: commonDetails.View.Height,
 					Round:  commonDetails.View.Round + 10,
 				},
-				MinNumMessages: commonDetails.MinNumMessages,
-				HasMinRound:    true,
+				QuorumFn:    commonDetails.QuorumFn,
+				HasMinRound: true,
 			},
 			signalDetails{
 				commonDetails.MessageType,
@@ -105,27 +102,24 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 					Height: commonDetails.View.Height,
 					Round:  commonDetails.View.Round + 10 - 1,
 				},
-				commonDetails.MinNumMessages,
 			},
 			false,
 		},
-		{
-			"Lower number of messages",
-			commonDetails,
-			signalDetails{
-				commonDetails.MessageType,
-				commonDetails.View,
-				commonDetails.MinNumMessages - 1,
-			},
-			false,
-		},
+		// {
+		// 	"Lower number of messages",
+		// 	commonDetails,
+		// 	signalDetails{
+		// 		commonDetails.MessageType,
+		// 		commonDetails.View,
+		// 	},
+		// 	false,
+		// },
 		{
 			"Invalid message type",
 			commonDetails,
 			signalDetails{
 				proto.MessageType_COMMIT,
 				commonDetails.View,
-				commonDetails.MinNumMessages,
 			},
 			false,
 		},
@@ -138,7 +132,6 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 					Height: commonDetails.View.Height + 1,
 					Round:  commonDetails.View.Round,
 				},
-				commonDetails.MinNumMessages,
 			},
 			false,
 		},
@@ -169,7 +162,6 @@ func TestEventSubscription_EventSupported(t *testing.T) {
 				subscription.eventSupported(
 					event.messageType,
 					event.view,
-					event.totalMessages,
 				),
 			)
 		})
