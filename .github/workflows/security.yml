@@ -10,7 +10,7 @@ on:  # yamllint disable-line rule:truthy
         required: true
       SNYK_ORG:
         required: true
-  workflow_dispatch: {}
+  workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0'
 

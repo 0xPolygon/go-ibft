@@ -6,8 +6,8 @@ on:  # yamllint disable-line rule:truthy
       - 'v*'
     paths:
       - '**.go'
-  workflow_call: {}
-  workflow_dispatch: {}
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   golangci_lint:
