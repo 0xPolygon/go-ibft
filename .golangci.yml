@@ -8,7 +8,7 @@ run:
   skip-dirs-use-default: true
 
 service:
-  golangci-lint-version: 1.49.0
+  golangci-lint-version: 1.47.3
 
 linters:
   disable-all: true
@@ -47,6 +47,7 @@ linters-settings:
 
 issues:
   new-from-rev: origin/develop # report only new issues with reference to develop branch
+  whole-files: true
   exclude-rules:
     - path: _test\.go
       linters:
