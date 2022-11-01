@@ -8,8 +8,30 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
 
 jobs:
-  go_test:
-    name: Test Go IBFT
+  test:
+    name: Test IBFT
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Go test
+        run: go test -coverprofile coverage.out -timeout 28m ./...
+
+      - name: Upload coverage file to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage.out
+
+  go_test_race:
+    name: Test IBFT with Race
     runs-on: ubuntu-latest
     steps:
       - name: Setup Go
