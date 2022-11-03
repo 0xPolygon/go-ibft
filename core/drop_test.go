@@ -92,15 +92,15 @@ func TestDropMaxFaulty(t *testing.T) {
 			for _, node := range c.nodes {
 				node.core = NewIBFT(
 					mockLogger{
-						debugFn: func(msg string, args ...interface{}) {
-							t.Log(msg, args)
-						},
-						infoFn: func(msg string, args ...interface{}) {
-							t.Log(msg, args)
-						},
-						errorFn: func(msg string, args ...interface{}) {
-							t.Log(msg, args)
-						},
+						// debugFn: func(msg string, args ...interface{}) {
+						// 	t.Log(msg, args)
+						// },
+						// infoFn: func(msg string, args ...interface{}) {
+						// 	t.Log(msg, args)
+						// },
+						// errorFn: func(msg string, args ...interface{}) {
+						// 	t.Log(msg, args)
+						// },
 					},
 					&mockBackend{
 						isValidBlockFn:         isValidProposal,

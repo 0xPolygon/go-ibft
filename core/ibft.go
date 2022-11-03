@@ -200,8 +200,9 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 					Height: height,
 					Round:  nextRound,
 				},
-				QuorumFn:    i.backend.HasQuorum,
-				HasMinRound: true,
+				QuorumFn:       i.backend.HasQuorum,
+				HasMinRound:    true,
+				MinNumMessages: 1,
 			})
 	)
 
@@ -252,7 +253,8 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 			QuorumFn: func(view *proto.View, messages []*proto.Message) bool {
 				return len(messages) >= 1
 			},
-			HasMinRound: true,
+			MinNumMessages: 1,
+			HasMinRound:    true,
 		})
 	)
 
@@ -540,9 +542,10 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 		// Subscribe for PREPREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_PREPREPARE,
-				View:        view,
-				QuorumFn:    i.backend.HasQuorum,
+				MessageType:    proto.MessageType_PREPREPARE,
+				View:           view,
+				QuorumFn:       i.backend.HasQuorum,
+				MinNumMessages: 1,
 			},
 		)
 	)

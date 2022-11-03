@@ -45,6 +45,10 @@ type SubscriptionDetails struct {
 	// being subscribed to
 	View *proto.View
 
+	// MinNumMessages is the threshold of messages
+	// being subscribed to
+	MinNumMessages int
+
 	// QuorumFn is the function used to check for quorum
 	QuorumFn func(view *proto.View, messages []*proto.Message) bool
 
