@@ -23,7 +23,17 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 		func(c *cluster) {
 			for _, node := range c.nodes {
 				node.core = NewIBFT(
-					mockLogger{},
+					mockLogger{
+						debugFn: func(msg string, args ...interface{}) {
+							t.Log(msg, args)
+						},
+						infoFn: func(msg string, args ...interface{}) {
+							t.Log(msg, args)
+						},
+						errorFn: func(msg string, args ...interface{}) {
+							t.Log(msg, args)
+						},
+					},
 					&mockBackend{
 						isValidBlockFn:         isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
@@ -81,7 +91,17 @@ func TestDropMaxFaulty(t *testing.T) {
 		func(c *cluster) {
 			for _, node := range c.nodes {
 				node.core = NewIBFT(
-					mockLogger{},
+					mockLogger{
+						debugFn: func(msg string, args ...interface{}) {
+							t.Log(msg, args)
+						},
+						infoFn: func(msg string, args ...interface{}) {
+							t.Log(msg, args)
+						},
+						errorFn: func(msg string, args ...interface{}) {
+							t.Log(msg, args)
+						},
+					},
 					&mockBackend{
 						isValidBlockFn:         isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,

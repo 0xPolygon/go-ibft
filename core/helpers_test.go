@@ -227,12 +227,16 @@ func (c *cluster) startN(num int) {
 
 func (c *cluster) hasQuorumFn(view *proto.View, messages []*proto.Message) bool {
 	if len(messages) > 0 {
+		// for _, msg := range messages {
+		// 	fmt.Println("has quorum", msg.GetType(), string(msg.From), view.Height, view.Round)
+		// }
 		switch messages[0].GetType() {
 		case proto.MessageType_PREPREPARE:
 			return len(messages) > 1
 		case proto.MessageType_PREPARE:
 			return len(messages) >= len(c.nodes)-1
 		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+
 			return len(messages) >= len(c.nodes)
 		}
 	}
