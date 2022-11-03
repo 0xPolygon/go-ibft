@@ -190,10 +190,6 @@ func (c *cluster) addresses() [][]byte {
 	return addresses
 }
 
-func (c *cluster) quorum(_ uint64) uint64 {
-	return quorum(uint64(len(c.nodes)))
-}
-
 func (c *cluster) isProposer(
 	from []byte,
 	height,
@@ -227,4 +223,19 @@ func (c *cluster) startN(num int) {
 	for i := 0; i < num; i++ {
 		c.nodes[i].offline = false
 	}
+}
+
+func (c *cluster) hasQuorumFn(view *proto.View, messages []*proto.Message) bool {
+	if len(messages) > 0 {
+		switch messages[0].GetType() {
+		case proto.MessageType_PREPREPARE:
+			return len(messages) > 1
+		case proto.MessageType_PREPARE:
+			return len(messages) >= len(c.nodes)-1
+		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+			return len(messages) >= len(c.nodes)
+		}
+	}
+
+	return false
 }

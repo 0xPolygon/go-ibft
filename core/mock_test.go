@@ -32,7 +32,7 @@ type buildRoundChangeMessageDelegate func(
 	*proto.View,
 ) *proto.Message
 
-type hasQuorumDelegate func(view *proto.View, messages []*proto.Message) bool
+type hasQuorumDelegate func(*proto.View, []*proto.Message) bool
 type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type maximumFaultyDelegate func() uint64
