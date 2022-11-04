@@ -121,6 +121,23 @@ func quorum(numNodes uint64) uint64 {
 	}
 }
 
+func commonHasQuorumFn(numNodes uint64) func(view *proto.View, messages []*proto.Message) bool {
+	return func(view *proto.View, messages []*proto.Message) bool {
+		if len(messages) > 0 {
+			switch messages[0].GetType() {
+			case proto.MessageType_PREPREPARE:
+				return len(messages) > 1
+			case proto.MessageType_PREPARE:
+				return len(messages) >= int(numNodes)-1
+			case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+				return len(messages) >= int(numNodes)
+			}
+		}
+
+		return false
+	}
+}
+
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
@@ -151,9 +168,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function requires all nodes
-		backend.quorumFn = func(_ uint64) uint64 {
-			return numNodes
-		}
+		backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
 		// Make sure the node ID is properly relayed
 		backend.idFn = func() []byte {
@@ -311,9 +326,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function is Quorum optimal
-		backend.quorumFn = func(_ uint64) uint64 {
-			return quorum(numNodes)
-		}
+		backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
 		// Make sure the allowed faulty nodes function is accurate
 		backend.maximumFaultyFn = func() uint64 {

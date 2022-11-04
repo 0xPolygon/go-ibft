@@ -83,8 +83,8 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 		// for the Backend, for all nodes
 		commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 			// Make sure the quorum function requires all nodes
-			backend.quorumFn = func(_ uint64) uint64 {
-				return numNodes
+			backend.hasQuorumFn = func(_ *proto.View, messages []*proto.Message) bool {
+				return len(messages) >= int(numNodes)
 			}
 
 			// Make sure the node ID is properly relayed
@@ -267,8 +267,8 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 		// for the Backend, for all nodes
 		commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 			// Make sure the quorum function is Quorum optimal
-			backend.quorumFn = func(_ uint64) uint64 {
-				return quorum(numNodes)
+			backend.hasQuorumFn = func(_ *proto.View, messages []*proto.Message) bool {
+				return len(messages) >= int(numNodes)
 			}
 
 			// Make sure the allowed faulty nodes function is accurate

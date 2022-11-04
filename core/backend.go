@@ -65,10 +65,6 @@ type Backend interface {
 	// on the validator set.
 	MaximumFaulty() uint64
 
-	// Quorum returns what is the quorum size for the
-	// specified block height.
-	Quorum(blockHeight uint64) uint64
-
 	// HasQuorum returns true if the quorum is reached
 	// for the specified block height.
 	HasQuorum(view *proto.View, messages []*proto.Message) bool
