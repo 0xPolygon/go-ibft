@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
+
+	"github.com/0xPolygon/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 // mockInsertedProposals keeps track of inserted proposals for a cluster

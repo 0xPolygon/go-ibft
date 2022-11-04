@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
@@ -53,6 +54,10 @@ func generateRandomMessages(
 	}
 
 	return messages
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
 
 // TestMessages_AddMessage tests if the message addition
@@ -214,8 +219,10 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 
 	for _, testCase := range testTable {
 		testCase := testCase
+
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
+
 			// Add the initial message set
 			messages := NewMessages()
 			defer messages.Close()

@@ -1132,6 +1132,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 
 	for _, testCase := range testTable {
 		testCase := testCase
+
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

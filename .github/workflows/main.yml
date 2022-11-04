@@ -1,4 +1,7 @@
-on:
+---
+name: Main CI
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -26,12 +29,13 @@ jobs:
             --config=./.golangci.yml
 
   test:
+    name: Test IBFT
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.2
+          go-version: 1.18.x
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -46,29 +50,31 @@ jobs:
         with:
           files: coverage.out
 
-  test-race:
+  go_test_race:
+    name: Test IBFT with Race
     runs-on: ubuntu-latest
     steps:
-      - name: Install Go
+      - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.2
+          go-version: 1.18.x
 
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Go race test
+      - name: Run Go Test
         run: go test -race -shuffle=on -timeout 28m ./...
 
   mutating:
+    name: Mutation tests
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.2
+          go-version: 1.18.x
 
       - name: Checkout code
         uses: actions/checkout@v3
