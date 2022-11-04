@@ -52,6 +52,9 @@ type SubscriptionDetails struct {
 	// HasMinRound is the flag indicating if the
 	// round number is a lower bound
 	HasMinRound bool
+
+	// QuorumFn is the function used to check for quorum
+	HasQuorumFn func(view *proto.View, messages []*proto.Message) bool
 }
 
 // subscribe registers a new listener for message events

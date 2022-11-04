@@ -36,6 +36,7 @@ type quorumDelegate func(blockHeight uint64) uint64
 type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type maximumFaultyDelegate func() uint64
+type hasQuorumDelegate func(*proto.View, []*proto.Message) bool
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -54,6 +55,7 @@ type mockBackend struct {
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
 	maximumFaultyFn           maximumFaultyDelegate
+	hasQuorumFn               hasQuorumDelegate
 }
 
 func (m mockBackend) ID() []byte {

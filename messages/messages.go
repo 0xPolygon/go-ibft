@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
@@ -27,12 +28,17 @@ func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 	subscription := ms.eventManager.subscribe(details)
 
 	// Check if any condition is already met
-	if numMessages := ms.numMessages(
-		details.View,
-		details.MessageType,
-	); numMessages >= details.MinNumMessages {
-		// Conditions are already met, alert the event manager
-		ms.eventManager.signalEvent(details.MessageType, details.View)
+	msgs := ms.GetValidMessages(details.View, details.MessageType, func(_ *proto.Message) bool { return true })
+	if details.HasQuorumFn != nil {
+		if details.HasQuorumFn(details.View, msgs) {
+			fmt.Println("Quorum met", len(msgs))
+			ms.eventManager.signalEvent(details.MessageType, details.View)
+		}
+	} else if details.MinNumMessages > 0 {
+		if len(msgs) >= details.MinNumMessages {
+			// Conditions are already met, alert the event manager
+			ms.eventManager.signalEvent(details.MessageType, details.View)
+		}
 	}
 
 	return subscription

@@ -202,6 +202,7 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 				},
 				MinNumMessages: 1,
 				HasMinRound:    true,
+				HasQuorumFn:    i.backend.HasQuorum,
 			})
 	)
 
@@ -252,6 +253,9 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 			},
 			MinNumMessages: 1,
 			HasMinRound:    true,
+			HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
+				return len(messages) >= 1
+			},
 		})
 	)
 
@@ -405,6 +409,7 @@ func (i *IBFT) waitForRCC(
 				MessageType:    proto.MessageType_ROUND_CHANGE,
 				View:           view,
 				MinNumMessages: int(quorum),
+				HasQuorumFn:    i.backend.HasQuorum,
 			},
 		)
 	)
@@ -544,6 +549,9 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 				MessageType:    proto.MessageType_PREPREPARE,
 				View:           view,
 				MinNumMessages: 1,
+				// HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
+				// 	return len(messages) >= 1
+				// },
 			},
 		)
 	)
