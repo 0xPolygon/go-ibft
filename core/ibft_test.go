@@ -2333,7 +2333,10 @@ func TestDummyForMutations(t *testing.T) {
 	tests := map[string]func(t *testing.T){
 		"TestConsensus_ValidFlow":    TestConsensus_ValidFlow,
 		"TestConsensus_InvalidBlock": TestConsensus_InvalidBlock,
+		"TestDropMaxFaultyPlusOne":   TestDropMaxFaultyPlusOne,
+		"TestDropMaxFaulty":          TestDropMaxFaulty,
 
+		// property bases tests
 		//"TestProperty_MajorityHonestNodes": TestProperty_MajorityHonestNodes,
 	}
 
