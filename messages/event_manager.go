@@ -1,10 +1,11 @@
 package messages
 
 import (
-	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/google/uuid"
 	"sync"
 	"sync/atomic"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/google/uuid"
 )
 
 type eventManager struct {
@@ -106,7 +107,6 @@ func (em *eventManager) close() {
 func (em *eventManager) signalEvent(
 	messageType proto.MessageType,
 	view *proto.View,
-	totalMessages int,
 ) {
 	if atomic.LoadInt64(&em.numSubscriptions) == 0 {
 		// No reason to lock the subscriptions map
@@ -121,7 +121,6 @@ func (em *eventManager) signalEvent(
 		subscription.pushEvent(
 			messageType,
 			view,
-			totalMessages,
 		)
 	}
 }

@@ -32,7 +32,7 @@ func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 		details.MessageType,
 	); numMessages >= details.MinNumMessages {
 		// Conditions are already met, alert the event manager
-		ms.eventManager.signalEvent(details.MessageType, details.View, numMessages)
+		ms.eventManager.signalEvent(details.MessageType, details.View)
 	}
 
 	return subscription
@@ -81,7 +81,6 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 			Height: message.View.Height,
 			Round:  message.View.Round,
 		},
-		len(messages),
 	)
 }
 
