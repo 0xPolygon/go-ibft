@@ -403,9 +403,10 @@ func (i *IBFT) waitForRCC(
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_ROUND_CHANGE,
-				View:        view,
-				QuorumFn:    i.backend.HasQuorum,
+				MessageType:    proto.MessageType_ROUND_CHANGE,
+				View:           view,
+				QuorumFn:       i.backend.HasQuorum,
+				MinNumMessages: 3,
 			},
 		)
 	)
@@ -752,9 +753,10 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 		// Subscribe to PREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_PREPARE,
-				View:        view,
-				QuorumFn:    i.backend.HasQuorum,
+				MessageType:    proto.MessageType_PREPARE,
+				View:           view,
+				QuorumFn:       i.backend.HasQuorum,
+				MinNumMessages: 3,
 			},
 		)
 	)
@@ -829,9 +831,10 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 		// Subscribe to COMMIT messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType: proto.MessageType_COMMIT,
-				View:        view,
-				QuorumFn:    i.backend.HasQuorum,
+				MessageType:    proto.MessageType_COMMIT,
+				View:           view,
+				QuorumFn:       i.backend.HasQuorum,
+				MinNumMessages: 4,
 			},
 		)
 	)
