@@ -2337,6 +2337,8 @@ func TestDummyForMutations(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		t.Parallel()
+
 		test := test
 
 		t.Run(name, test)
