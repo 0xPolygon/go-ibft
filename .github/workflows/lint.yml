@@ -10,7 +10,8 @@ on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
 
 jobs:
-  golangci_lint:
+  lint:
+    name: Linters
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
@@ -23,3 +24,14 @@ jobs:
 
       - name: Lint
         uses: golangci/golangci-lint-action@v3
+        with:
+          # Specify a version instead of 'latest'
+          # because of something wrong with 1.48.0
+          version: v1.50.1
+          args:
+            --config=./.golangci.yml
+
+      - name: staticcheck
+        uses: dominikh/staticcheck-action@v1.2.0
+        with:
+          version: "2022.1.1"
