@@ -549,9 +549,9 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 				MessageType:    proto.MessageType_PREPREPARE,
 				View:           view,
 				MinNumMessages: 1,
-				// HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
-				// 	return len(messages) >= 1
-				// },
+				HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
+					return len(messages) >= 1
+				},
 			},
 		)
 	)
