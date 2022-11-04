@@ -61,9 +61,9 @@ type Backend interface {
 	// ID returns the validator's ID
 	ID() []byte
 
-	// MaximumFaultyNodes returns the maximum number of faulty nodes based
+	// MaximumFaulty returns the maximum number of faulty nodes based
 	// on the validator set.
-	MaximumFaultyNodes() uint64
+	MaximumFaulty() uint64
 
 	// Quorum returns what is the quorum size for the
 	// specified block height.

@@ -316,7 +316,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the allowed faulty nodes function is accurate
-		backend.maximumFaultyNodesFn = func() uint64 {
+		backend.maximumFaultyFn = func() uint64 {
 			return maxFaulty(numNodes)
 		}
 
