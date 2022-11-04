@@ -45,4 +45,4 @@ jobs:
           submodules: recursive
 
       - name: Run Go Test
-        run: go test -race -shuffle=on -timeout 28m ./...
+        run: go test -race -shuffle=on -timeout 28m `go list ./... | grep -v rapid`
