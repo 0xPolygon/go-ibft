@@ -32,7 +32,6 @@ type buildRoundChangeMessageDelegate func(
 	*proto.View,
 ) *proto.Message
 
-type quorumDelegate func(blockHeight uint64) uint64
 type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type maximumFaultyDelegate func() uint64
@@ -51,7 +50,6 @@ type mockBackend struct {
 	buildPrepareMessageFn     buildPrepareMessageDelegate
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
-	quorumFn                  quorumDelegate
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
 	maximumFaultyFn           maximumFaultyDelegate
@@ -70,14 +68,6 @@ func (m mockBackend) InsertBlock(proposal []byte, committedSeals []*messages.Com
 	if m.insertBlockFn != nil {
 		m.insertBlockFn(proposal, committedSeals)
 	}
-}
-
-func (m mockBackend) Quorum(blockNumber uint64) uint64 {
-	if m.quorumFn != nil {
-		return m.quorumFn(blockNumber)
-	}
-
-	return 0
 }
 
 func (m mockBackend) IsValidBlock(block []byte) bool {
@@ -184,16 +174,16 @@ func (m mockBackend) BuildRoundChangeMessage(
 }
 
 func (m mockBackend) HasQuorum(view *proto.View, messages []*proto.Message) bool {
-	quorum := m.Quorum(view.Height)
+	numNodes := 0
 
 	if len(messages) > 0 {
 		switch messages[0].GetType() {
 		case proto.MessageType_PREPREPARE:
 			return len(messages) > 1
 		case proto.MessageType_PREPARE:
-			return len(messages) >= int(quorum)-1
+			return len(messages) >= numNodes-1
 		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
-			return len(messages) >= int(quorum)
+			return len(messages) >= numNodes
 		}
 	}
 

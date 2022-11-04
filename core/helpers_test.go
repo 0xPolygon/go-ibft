@@ -190,8 +190,8 @@ func (c *cluster) addresses() [][]byte {
 	return addresses
 }
 
-func (c *cluster) quorum(_ uint64) uint64 {
-	return quorum(uint64(len(c.nodes)))
+func (c *cluster) hasQuorumFn(view *proto.View, messages []*proto.Message) bool {
+	return commonHasQuorumFn(uint64(len(c.nodes)))(view, messages)
 }
 
 func (c *cluster) isProposer(

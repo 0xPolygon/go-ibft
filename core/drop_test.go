@@ -32,7 +32,6 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						isProposerFn:           c.isProposer,
 
 						idFn:            node.addr,
-						quorumFn:        c.quorum,
 						maximumFaultyFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
@@ -41,6 +40,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 						insertBlockFn:             nil,
+						hasQuorumFn:               c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
@@ -90,7 +90,6 @@ func TestDropMaxFaulty(t *testing.T) {
 						isProposerFn:           c.isProposer,
 
 						idFn:            node.addr,
-						quorumFn:        c.quorum,
 						maximumFaultyFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
@@ -99,6 +98,7 @@ func TestDropMaxFaulty(t *testing.T) {
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 						insertBlockFn:             nil,
+						hasQuorumFn:               c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
