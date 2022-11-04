@@ -181,15 +181,17 @@ func (m mockBackend) BuildRoundChangeMessage(
 	}
 }
 
-func (m mockBackend) HasQuorum(blockNumber uint64, messages []*proto.Message) bool {
-	quorum := m.Quorum(blockNumber)
+func (m mockBackend) HasQuorum(view *proto.View, messages []*proto.Message) bool {
+	quorum := m.Quorum(view.Height)
 
 	if len(messages) > 0 {
 		switch messages[0].GetType() {
+		case proto.MessageType_PREPREPARE:
+			return len(messages) > 1
 		case proto.MessageType_PREPARE:
-			return len(messages) < int(quorum)-1
-		case proto.MessageType_ROUND_CHANGE:
-			return len(messages) < int(quorum)
+			return len(messages) >= int(quorum)-1
+		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+			return len(messages) >= int(quorum)
 		}
 	}
 
