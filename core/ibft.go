@@ -243,7 +243,6 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 		view   = i.state.getView()
 		height = view.Height
 		round  = view.Round
-		quorum = i.backend.Quorum(height)
 
 		sub = i.messages.Subscribe(messages.SubscriptionDetails{
 			MessageType: proto.MessageType_ROUND_CHANGE,
@@ -251,8 +250,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				Height: height,
 				Round:  round + 1, // only for higher rounds
 			},
-			MinNumMessages: 1,
-			HasMinRound:    true,
+			HasMinRound: true,
 			HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
 				return len(messages) >= 1
 			},
@@ -271,7 +269,6 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 					Height: height,
 					Round:  round,
 				},
-				quorum,
 			)
 			if rcc == nil {
 				continue
@@ -398,18 +395,16 @@ func (i *IBFT) waitForRCC(
 	round uint64,
 ) *proto.RoundChangeCertificate {
 	var (
-		quorum = i.backend.Quorum(height)
-		view   = &proto.View{
+		view = &proto.View{
 			Height: height,
 			Round:  round,
 		}
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_ROUND_CHANGE,
-				View:           view,
-				MinNumMessages: int(quorum),
-				HasQuorumFn:    i.backend.HasQuorum,
+				MessageType: proto.MessageType_ROUND_CHANGE,
+				View:        view,
+				HasQuorumFn: i.backend.HasQuorum,
 			},
 		)
 	)
@@ -421,7 +416,7 @@ func (i *IBFT) waitForRCC(
 		case <-ctx.Done():
 			return nil
 		case <-sub.SubCh:
-			rcc := i.handleRoundChangeMessage(view, quorum)
+			rcc := i.handleRoundChangeMessage(view)
 			if rcc == nil {
 				continue
 			}
@@ -433,7 +428,7 @@ func (i *IBFT) waitForRCC(
 
 // handleRoundChangeMessage validates the round change message
 // and constructs a RCC if possible
-func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.RoundChangeCertificate {
+func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCertificate {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -755,15 +750,11 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 		// Grab the current view
 		view = i.state.getView()
 
-		// Grab quorum information
-		quorum = i.backend.Quorum(view.Height)
-
 		// Subscribe to PREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_PREPARE,
-				View:           view,
-				MinNumMessages: int(quorum) - 1,
+				MessageType: proto.MessageType_PREPARE,
+				View:        view,
 				HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
 					return len(messages)-1 >= 1
 				},
@@ -781,7 +772,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.SubCh:
-			if !i.handlePrepare(view, quorum) {
+			if !i.handlePrepare(view) {
 				//	quorum of valid prepare messages not received, retry
 				continue
 			}
@@ -793,7 +784,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 
 // handlePrepare parses available prepare messages and performs
 // a transition to COMMIT state, if quorum was reached
-func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
+func (i *IBFT) handlePrepare(view *proto.View) bool {
 	isValidPrepare := func(message *proto.Message) bool {
 		// Verify that the proposal hash is valid
 		return i.backend.IsValidProposalHash(
@@ -838,16 +829,12 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 		// Grab the current view
 		view = i.state.getView()
 
-		// Grab quorum information
-		quorum = i.backend.Quorum(view.Height)
-
 		// Subscribe to COMMIT messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_COMMIT,
-				View:           view,
-				MinNumMessages: int(quorum),
-				HasQuorumFn:    i.backend.HasQuorum,
+				MessageType: proto.MessageType_COMMIT,
+				View:        view,
+				HasQuorumFn: i.backend.HasQuorum,
 			},
 		)
 	)
@@ -862,7 +849,7 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.SubCh:
-			if !i.handleCommit(view, quorum) {
+			if !i.handleCommit(view) {
 				//	quorum not reached, retry
 				continue
 			}
@@ -874,7 +861,7 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 
 // handleCommit parses available commit messages and performs
 // a transition to FIN state, if quorum was reached
-func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
+func (i *IBFT) handleCommit(view *proto.View) bool {
 	isValidCommit := func(message *proto.Message) bool {
 		var (
 			proposalHash  = messages.ExtractCommitHash(message)
