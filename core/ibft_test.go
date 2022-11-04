@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -2319,4 +2320,31 @@ func TestIBFT_ExtendRoundTimer(t *testing.T) {
 
 	// Make sure the round timeout was extended
 	assert.Equal(t, additionalTimeout, i.additionalTimeout)
+}
+
+// A dummy test that is needed only to run all tests with mutations
+func TestDummyForMutations(t *testing.T) {
+	t.Parallel()
+
+	if len(os.Getenv("MUTATION_TEST")) == 0 {
+		t.SkipNow()
+	}
+
+	tests := map[string]func(t *testing.T){
+		"TestConsensus_ValidFlow":    TestConsensus_ValidFlow,
+		"TestConsensus_InvalidBlock": TestConsensus_InvalidBlock,
+		"TestDropMaxFaultyPlusOne":   TestDropMaxFaultyPlusOne,
+		"TestDropMaxFaulty":          TestDropMaxFaulty,
+
+		// property bases tests
+		//"TestProperty_MajorityHonestNodes": TestProperty_MajorityHonestNodes,
+	}
+
+	for name, test := range tests {
+		t.Parallel()
+
+		test := test
+
+		t.Run(name, test)
+	}
 }
