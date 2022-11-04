@@ -764,6 +764,9 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 				MessageType:    proto.MessageType_PREPARE,
 				View:           view,
 				MinNumMessages: int(quorum) - 1,
+				HasQuorumFn: func(view *proto.View, messages []*proto.Message) bool {
+					return len(messages)-1 >= 1
+				},
 			},
 		)
 	)
@@ -844,6 +847,7 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 				MessageType:    proto.MessageType_COMMIT,
 				View:           view,
 				MinNumMessages: int(quorum),
+				HasQuorumFn:    i.backend.HasQuorum,
 			},
 		)
 	)
