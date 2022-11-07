@@ -174,20 +174,11 @@ func (m mockBackend) BuildRoundChangeMessage(
 }
 
 func (m mockBackend) HasQuorum(view *proto.View, messages []*proto.Message) bool {
-	numNodes := 0
-
-	if len(messages) > 0 {
-		switch messages[0].GetType() {
-		case proto.MessageType_PREPREPARE:
-			return len(messages) > 1
-		case proto.MessageType_PREPARE:
-			return len(messages) >= numNodes-1
-		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
-			return len(messages) >= numNodes
-		}
+	if m.hasQuorumFn != nil {
+		return m.hasQuorumFn(view, messages)
 	}
 
-	return false
+	return true
 }
 
 // Define delegation methods
