@@ -23,7 +23,7 @@ jobs:
           submodules: recursive
 
       - name: Go test
-        run: go test -coverprofile coverage.out -timeout 28m ./...
+        run: go test -coverprofile coverage.out -timeout 2m ./...
 
       - name: Upload coverage file to Codecov
         uses: codecov/codecov-action@v3
@@ -45,4 +45,4 @@ jobs:
           submodules: recursive
 
       - name: Run Go Test
-        run: go test -race -shuffle=on -timeout 28m ./...
+        run: go test -race -shuffle=on -timeout 2m ./...
