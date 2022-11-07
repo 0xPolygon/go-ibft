@@ -31,8 +31,8 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
-						idFn:            node.addr,
-						maximumFaultyFn: c.maxFaulty,
+						idFn: node.addr,
+						// maximumFaultyFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
@@ -89,8 +89,8 @@ func TestDropMaxFaulty(t *testing.T) {
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
-						idFn:            node.addr,
-						maximumFaultyFn: c.maxFaulty,
+						idFn: node.addr,
+						// maximumFaultyFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
