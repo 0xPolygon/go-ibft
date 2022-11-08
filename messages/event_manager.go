@@ -53,7 +53,7 @@ type SubscriptionDetails struct {
 	// round number is a lower bound
 	HasMinRound bool
 
-	// QuorumFn is the function used to check for quorum
+	// HasQuorumFn is the function used to check for quorum existence
 	HasQuorumFn func(view *proto.View, messages []*proto.Message) bool
 }
 
