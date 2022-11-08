@@ -32,15 +32,15 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						isProposerFn:           c.isProposer,
 
 						idFn: node.addr,
-						// maximumFaultyFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
-						insertBlockFn:             nil,
-						hasQuorumFn:               c.hasQuorumFn,
+
+						insertBlockFn: nil,
+						hasQuorumFn:   c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
@@ -90,15 +90,15 @@ func TestDropMaxFaulty(t *testing.T) {
 						isProposerFn:           c.isProposer,
 
 						idFn: node.addr,
-						// maximumFaultyFn: c.maxFaulty,
 
 						buildProposalFn:           buildValidProposal,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
-						insertBlockFn:             nil,
-						hasQuorumFn:               c.hasQuorumFn,
+
+						insertBlockFn: nil,
+						hasQuorumFn:   c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
