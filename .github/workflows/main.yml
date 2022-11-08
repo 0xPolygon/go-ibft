@@ -65,6 +65,6 @@ jobs:
           make builds-dummy
           shasum -a256 ./build/ibft1 > ibft1.sha256
           shasum -a256 ./build/ibft2 > ibft2.sha256
-          if ! cmp -s ibft1.sha256 ibft2.sha256; then
+          if !cmp -s ibft1.sha256 ibft2.sha256; then
             echo >&2 "Reproducible build broken"; cat ibft1.sha256; cat ibft2.sha256; exit 1
           fi
