@@ -62,7 +62,7 @@ jobs:
 
       - name: Reproducible build test
         run: |
-          make build-dummy
+          make builds-dummy
           shasum -a256 ./build/ibft1 > ibft1.sha256
           shasum -a256 ./build/ibft2 > ibft2.sha256
           if ! cmp -s ibft1.sha256 ibft2.sha256; then
