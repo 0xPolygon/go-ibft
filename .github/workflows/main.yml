@@ -15,7 +15,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.18.x
+          go-version: 1.19.x
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -23,7 +23,7 @@ jobs:
           submodules: recursive
 
       - name: Go test
-        run: go test -coverprofile coverage.out -timeout 28m ./...
+        run: go test -shuffle=on -coverprofile coverage.out -timeout 28m ./...
 
       - name: Upload coverage file to Codecov
         uses: codecov/codecov-action@v3
@@ -37,12 +37,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.18.x
+          go-version: 1.19.x
 
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Run Go Test
+      - name: Run Go Test with race
         run: go test -race -shuffle=on -timeout 28m ./...
