@@ -15,7 +15,7 @@ import (
 type isValidBlockDelegate func([]byte) bool
 type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
-type buildProposalDelegate func(uint64) []byte
+type buildProposalDelegate func(*proto.View) []byte
 type isValidProposalHashDelegate func([]byte, []byte) bool
 type isValidCommittedSealDelegate func([]byte, *messages.CommittedSeal) bool
 
@@ -102,9 +102,9 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) BuildProposal(blockNumber uint64) []byte {
+func (m mockBackend) BuildProposal(view *proto.View) []byte {
 	if m.buildProposalFn != nil {
-		return m.buildProposalFn(blockNumber)
+		return m.buildProposalFn(view)
 	}
 
 	return nil
