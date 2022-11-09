@@ -732,7 +732,7 @@ func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 		isValidPrePrepare,
 	)
 
-	if i.backend.HasQuorum(view, msgs, proto.MessageType_PREPREPARE) {
+	if len(msgs) < 1 {
 		return nil
 	}
 
