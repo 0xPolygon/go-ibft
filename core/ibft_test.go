@@ -235,7 +235,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					buildProposalFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ *proto.View) []byte {
 						return newProposal
 					},
 					buildPrePrepareMessageFn: func(
@@ -322,7 +322,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					quorumFn: func(_ uint64) uint64 {
 						return quorum
 					},
-					buildProposalFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ *proto.View) []byte {
 						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
@@ -478,7 +478,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					quorumFn: func(_ uint64) uint64 {
 						return quorum
 					},
-					buildProposalFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ *proto.View) []byte {
 						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {

@@ -46,3 +46,25 @@ jobs:
 
       - name: Run Go Test with race
         run: go test -race -shuffle=on -timeout 28m ./...
+
+  reproducible-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19.x
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Reproducible build test
+        run: |
+          make builds-dummy
+          shasum -a256 ./build/ibft1 | cut -d " " -f 1  > ibft1.sha256
+          shasum -a256 ./build/ibft2 | cut -d " " -f 1  > ibft2.sha256
+          if ! cmp ibft1.sha256 ibft2.sha256; then
+            echo >&2 "Reproducible build broken"; cat ibft1.sha256; cat ibft2.sha256; exit 1
+          fi

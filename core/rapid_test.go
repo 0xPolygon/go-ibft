@@ -155,7 +155,7 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 			}
 
 			// Make sure the proposal can be built
-			backend.buildProposalFn = func(u uint64) []byte {
+			backend.buildProposalFn = func(_ *proto.View) []byte {
 				return message.proposal
 			}
 		}
@@ -350,7 +350,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 			}
 
 			// Make sure the proposal can be built
-			backend.buildProposalFn = func(u uint64) []byte {
+			backend.buildProposalFn = func(_ *proto.View) []byte {
 				return message.proposal
 			}
 		}
@@ -536,7 +536,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			}
 
 			// Make sure the proposal can be built
-			backend.buildProposalFn = func(u uint64) []byte {
+			backend.buildProposalFn = func(_ *proto.View) []byte {
 				return message.proposal
 			}
 		}
