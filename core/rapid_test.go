@@ -411,11 +411,11 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 	})
 }
 
-// TestProperty_MajorityHonestNodes_ProposeBadMessage is a property-based test
+// TestProperty_MajorityHonestNodes_BroadcastBadMessage is a property-based test
 // that assures the cluster can reach consensus on if "bad" nodes send
 // wrong message during the round execution. Avoiding a scenario when
 // a bad node is proposer
-func TestProperty_MajorityHonestNodes_ProposeBadMessage(t *testing.T) {
+func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 	t.Parallel()
 
 	rapid.Check(t, func(t *rapid.T) {
