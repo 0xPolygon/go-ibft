@@ -53,7 +53,7 @@ type Backend interface {
 	Verifier
 
 	// BuildProposal builds a new block proposal
-	BuildProposal(blockNumber uint64) []byte
+	BuildProposal(view *proto.View) []byte
 
 	// InsertBlock inserts a proposal with the specified committed seals
 	InsertBlock(proposal []byte, committedSeals []*messages.CommittedSeal)

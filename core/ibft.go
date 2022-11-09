@@ -929,7 +929,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		proposal := i.backend.BuildProposal(height)
+		proposal := i.backend.BuildProposal(view)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
@@ -964,7 +964,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal := i.backend.BuildProposal(height)
+		proposal := i.backend.BuildProposal(view)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
