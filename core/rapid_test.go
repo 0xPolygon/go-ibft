@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -412,10 +411,11 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 	})
 }
 
-// TestProperty_MajorityHonestNodes_BadProposal is a property-based test
-// that assures the cluster can reach consensus on any
-// arbitrary number of valid nodes and byzantine nodes
-func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
+// TestProperty_MajorityHonestNodes_ProposeBadMessage is a property-based test
+// that assures the cluster can reach consensus on if "bad" nodes send
+// wrong message during the round execution. Avoiding a scenario when
+// a bad node is proposer
+func TestProperty_MajorityHonestNodes_ProposeBadMessage(t *testing.T) {
 	t.Parallel()
 
 	rapid.Check(t, func(t *rapid.T) {
@@ -442,23 +442,6 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 			insertedProposals = newMockInsertedProposals(numNodes)
 		)
 
-		commonLoggerCallback := func(logger *mockLogger) {
-			logger.infoFn = func(s string, i ...interface{}) {
-				fmt.Println(append([]interface{}{s}, i...)...)
-				t.Logf(s, i...)
-			}
-
-			logger.errorFn = func(s string, i ...interface{}) {
-				fmt.Println(append([]interface{}{s}, i...)...)
-				t.Errorf(s, i...)
-			}
-
-			logger.debugFn = func(s string, i ...interface{}) {
-				fmt.Println(append([]interface{}{s}, i...)...)
-				t.Logf(s, i...)
-			}
-		}
-
 		// commonTransportCallback is the common method modification
 		// required for Transport, for all nodes
 		commonTransportCallback := func(transport *mockTransport) {
@@ -470,6 +453,7 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 		// commonBackendCallback is the common method modification required
 		// for the Backend, for all nodes
 		commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
+			// Use a bad message if the current node is a malicious one
 			message := correctMessage
 			if uint64(nodeIndex) < numByzantineNodes {
 				message = badMessage
@@ -492,10 +476,13 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 
 			// Make sure the only proposer is picked using Round Robin
 			backend.isProposerFn = func(from []byte, height uint64, round uint64) bool {
-				nodes := nodes[numByzantineNodes:]
+				// Filter out "bad" nodes since this test
+				// does not cover the bad node proposal scenario.
+				trustNodes := nodes[numByzantineNodes:]
+
 				return bytes.Equal(
 					from,
-					nodes[int(height+round)%len(nodes)],
+					trustNodes[int(height+round)%len(trustNodes)],
 				)
 			}
 
@@ -556,7 +543,6 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 
 		// Initialize the backend and transport callbacks for
 		// each node in the arbitrary cluster
-		loggerCallbackMap := make(map[int]loggerConfigCallback)
 		backendCallbackMap := make(map[int]backendConfigCallback)
 		transportCallbackMap := make(map[int]transportConfigCallback)
 
@@ -567,15 +553,13 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 			}
 
 			transportCallbackMap[i] = commonTransportCallback
-
-			loggerCallbackMap[i] = commonLoggerCallback
 		}
 
 		// Create the mock cluster
 		cluster := newMockCluster(
 			numNodes,
 			backendCallbackMap,
-			loggerCallbackMap,
+			nil,
 			transportCallbackMap,
 		)
 
