@@ -328,11 +328,6 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		// Make sure the quorum function is Quorum optimal
 		backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
-		// Make sure the allowed faulty nodes function is accurate
-		backend.maximumFaultyFn = func() uint64 {
-			return maxFaulty(numNodes)
-		}
-
 		// Make sure the node ID is properly relayed
 		backend.idFn = func() []byte {
 			return nodes[nodeIndex]
