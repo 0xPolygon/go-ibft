@@ -391,13 +391,12 @@ func (m *mockCluster) runSequence(height uint64) {
 		go func(
 			ctx context.Context,
 			node *IBFT,
-			height uint64,
 		) {
 			defer m.wg.Done()
 
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
-		}(m.ctxs[nodeIndex].ctx, node, height)
+		}(m.ctxs[nodeIndex].ctx, node)
 	}
 }
 

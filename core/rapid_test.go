@@ -492,6 +492,7 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 
 			// Make sure the only proposer is picked using Round Robin
 			backend.isProposerFn = func(from []byte, height uint64, round uint64) bool {
+				nodes := nodes[numByzantineNodes:]
 				return bytes.Equal(
 					from,
 					nodes[int(height+round)%len(nodes)],
@@ -510,12 +511,12 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 
 			// Make sure the preprepare message is built correctly
 			backend.buildPrePrepareMessageFn = func(
-				msg []byte,
+				proposal []byte,
 				certificate *proto.RoundChangeCertificate,
 				view *proto.View,
 			) *proto.Message {
 				return buildBasicPreprepareMessage(
-					msg,
+					proposal,
 					message.hash,
 					certificate,
 					nodes[nodeIndex],
@@ -524,12 +525,12 @@ func TestProperty_MajorityHonestNodes_BadProposal(t *testing.T) {
 			}
 
 			// Make sure the prepare message is built correctly
-			backend.buildPrepareMessageFn = func(msg []byte, view *proto.View) *proto.Message {
+			backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
 				return buildBasicPrepareMessage(message.hash, nodes[nodeIndex], view)
 			}
 
 			// Make sure the commit message is built correctly
-			backend.buildCommitMessageFn = func(msg []byte, view *proto.View) *proto.Message {
+			backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
 				return buildBasicCommitMessage(message.hash, message.seal, nodes[nodeIndex], view)
 			}
 
