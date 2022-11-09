@@ -393,9 +393,7 @@ func (m *mockCluster) runSequence(height uint64) {
 			node *IBFT,
 			height uint64,
 		) {
-			defer func() {
-				m.wg.Done()
-			}()
+			defer m.wg.Done()
 
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
@@ -437,6 +435,9 @@ func (m *mockCluster) awaitNCompletions(
 				count,
 			)
 		default:
+			if m.wg.getDone() > 0 {
+				fmt.Println("m.wg.getDone()", m.wg.getDone())
+			}
 			if m.wg.getDone() >= count {
 				return nil
 			}
