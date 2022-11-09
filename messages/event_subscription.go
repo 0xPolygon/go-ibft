@@ -65,11 +65,7 @@ func (es *eventSubscription) eventSupported(
 	}
 
 	// The type of message must match
-	if messageType != es.details.MessageType {
-		return false
-	}
-
-	return true
+	return messageType == es.details.MessageType
 }
 
 // pushEvent sends the event off for processing by the subscription. [NON-BLOCKING]
