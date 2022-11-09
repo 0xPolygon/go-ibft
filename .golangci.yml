@@ -123,19 +123,6 @@ linters-settings:
       - sliceClear
       #- ruleguard
 
-    # Which checks should be disabled; can't be combined with 'enabled-checks'; default is empty
-    disabled-checks:
-      - regexpMust
-      - exitAfterDefer
-      - dupBranchBody
-      - singleCaseSwitch
-      - unlambda
-      - captLocal
-      - commentFormatting
-      - ifElseChain
-      - importShadow
-      - builtinShadow
-
     # Enable multiple checks by tags, run `GL_DEBUG=gocritic golangci-lint run` to see all tags and checks.
     # Empty list by default. See https://github.com/go-critic/go-critic#usage -> section "Tags".
     enabled-tags:
