@@ -435,9 +435,6 @@ func (m *mockCluster) awaitNCompletions(
 				count,
 			)
 		default:
-			if m.wg.getDone() > 0 {
-				fmt.Println("m.wg.getDone()", m.wg.getDone())
-			}
 			if m.wg.getDone() >= count {
 				return nil
 			}
