@@ -237,7 +237,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 				// Set the proposal creation method for node 0, since
 				// they are the proposer
-				backend.buildProposalFn = func(u uint64) []byte {
+				backend.buildProposalFn = func(_ *proto.View) []byte {
 					return proposal
 				}
 			},
@@ -401,14 +401,14 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			0: func(backend *mockBackend) {
 				commonBackendCallback(backend, 0)
 
-				backend.buildProposalFn = func(_ uint64) []byte {
+				backend.buildProposalFn = func(_ *proto.View) []byte {
 					return proposals[0]
 				}
 			},
 			1: func(backend *mockBackend) {
 				commonBackendCallback(backend, 1)
 
-				backend.buildProposalFn = func(_ uint64) []byte {
+				backend.buildProposalFn = func(_ *proto.View) []byte {
 					return proposals[1]
 				}
 			},

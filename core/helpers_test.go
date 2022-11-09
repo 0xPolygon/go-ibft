@@ -22,7 +22,7 @@ func isValidProposal(newProposal []byte) bool {
 	return bytes.Equal(newProposal, validProposal)
 }
 
-func buildValidProposal(_ uint64) []byte {
+func buildValidProposal(_ *proto.View) []byte {
 	return validProposal
 }
 
