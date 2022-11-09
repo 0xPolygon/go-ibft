@@ -330,7 +330,7 @@ func TestMessages_EventManager(t *testing.T) {
 	subscription := messages.Subscribe(SubscriptionDetails{
 		MessageType: messageType,
 		View:        baseView,
-		HasQuorumFn: func(_ *proto.View, messages []*proto.Message, _ proto.MessageType) bool {
+		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 			return len(messages) >= numMessages
 		},
 	})

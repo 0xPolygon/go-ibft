@@ -209,7 +209,7 @@ func generateFilledRCMessages(
 }
 
 func defaultHasQuorumFn(quorum uint64) hasQuorumDelegate {
-	return func(_ *proto.View, messages []*proto.Message, msgType proto.MessageType) bool {
+	return func(_ uint64, messages []*proto.Message, msgType proto.MessageType) bool {
 		return len(messages) >= int(quorum)
 	}
 }
@@ -590,7 +590,7 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 			idFn: func() []byte {
 				return []byte("non proposer")
 			},
-			hasQuorumFn: func(_ *proto.View, messages []*proto.Message, _ proto.MessageType) bool {
+			hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 				return len(messages) >= 1
 			},
 			buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
@@ -758,7 +758,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 					idFn: func() []byte {
 						return []byte("non proposer")
 					},
-					hasQuorumFn: func(_ *proto.View, messages []*proto.Message, _ proto.MessageType) bool {
+					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 						return len(messages) >= 1
 					},
 					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
@@ -867,7 +867,7 @@ func TestRunPrepare(t *testing.T) {
 							},
 						}
 					},
-					hasQuorumFn: func(_ *proto.View, messages []*proto.Message, _ proto.MessageType) bool {
+					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 						return len(messages) >= 1
 					},
 					isValidProposalHashFn: func(_ []byte, hash []byte) bool {
@@ -974,7 +974,7 @@ func TestRunCommit(t *testing.T) {
 						insertedProposal = proposal
 						insertedCommittedSeals = committedSeals
 					},
-					hasQuorumFn: func(_ *proto.View, messages []*proto.Message, _ proto.MessageType) bool {
+					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 						return len(messages) >= 1
 					},
 					isValidProposalHashFn: func(_ []byte, hash []byte) bool {

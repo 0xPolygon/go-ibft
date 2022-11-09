@@ -250,7 +250,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				Round:  round + 1, // only for higher rounds
 			},
 			HasMinRound: true,
-			HasQuorumFn: func(view *proto.View, messages []*proto.Message, msgType proto.MessageType) bool {
+			HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 				return len(messages) >= 1
 			},
 		})
@@ -452,7 +452,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 		isValidFn,
 	)
 
-	if !i.backend.HasQuorum(view, msgs, proto.MessageType_ROUND_CHANGE) {
+	if !i.backend.HasQuorum(view.Height, msgs, proto.MessageType_ROUND_CHANGE) {
 		return nil
 	}
 
@@ -542,7 +542,7 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPREPARE,
 				View:        view,
-				HasQuorumFn: func(_ *proto.View, messages []*proto.Message, _ proto.MessageType) bool {
+				HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
 					return len(messages) >= 1
 				},
 			},
@@ -654,7 +654,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	}
 
 	// Make sure there are Quorum RCC
-	if !i.backend.HasQuorum(view, certificate.RoundChangeMessages, proto.MessageType_ROUND_CHANGE) {
+	if !i.backend.HasQuorum(view.Height, certificate.RoundChangeMessages, proto.MessageType_ROUND_CHANGE) {
 		return false
 	}
 
@@ -795,7 +795,7 @@ func (i *IBFT) handlePrepare(view *proto.View) bool {
 		isValidPrepare,
 	)
 
-	if !i.backend.HasQuorum(view, prepareMessages, proto.MessageType_PREPARE) {
+	if !i.backend.HasQuorum(view.Height, prepareMessages, proto.MessageType_PREPARE) {
 		//	quorum not reached, keep polling
 		return false
 	}
@@ -873,7 +873,7 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 	}
 
 	commitMessages := i.messages.GetValidMessages(view, proto.MessageType_COMMIT, isValidCommit)
-	if !i.backend.HasQuorum(view, commitMessages, proto.MessageType_COMMIT) {
+	if !i.backend.HasQuorum(view.Height, commitMessages, proto.MessageType_COMMIT) {
 		//	quorum not reached, keep polling
 		return false
 	}
@@ -1050,10 +1050,7 @@ func (i *IBFT) validPC(
 	)
 
 	// Make sure there are at least Quorum (PP + P) messages
-	if !i.backend.HasQuorum(&proto.View{
-		Height: i.state.getHeight(),
-		Round:  i.state.getRound(),
-	}, allMessages, proto.MessageType_PREPARE) {
+	if !i.backend.HasQuorum(i.state.getHeight(), allMessages, proto.MessageType_PREPARE) {
 		return false
 	}
 

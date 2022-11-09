@@ -34,7 +34,7 @@ type buildRoundChangeMessageDelegate func(
 
 type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
-type hasQuorumDelegate func(*proto.View, []*proto.Message, proto.MessageType) bool
+type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -163,9 +163,9 @@ func (m mockBackend) BuildRoundChangeMessage(
 	}
 }
 
-func (m mockBackend) HasQuorum(view *proto.View, messages []*proto.Message, msgType proto.MessageType) bool {
+func (m mockBackend) HasQuorum(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
 	if m.hasQuorumFn != nil {
-		return m.hasQuorumFn(view, messages, msgType)
+		return m.hasQuorumFn(blockNumber, messages, msgType)
 	}
 
 	return true
