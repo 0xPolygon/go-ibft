@@ -121,19 +121,17 @@ func quorum(numNodes uint64) uint64 {
 	}
 }
 
-func commonHasQuorumFn(numNodes uint64) func(view *proto.View, messages []*proto.Message) bool {
+func commonHasQuorumFn(numNodes uint64) func(view *proto.View, messages []*proto.Message, msgType proto.MessageType) bool {
 	quorum := quorum(numNodes)
 
-	return func(view *proto.View, messages []*proto.Message) bool {
-		if len(messages) > 0 {
-			switch messages[0].GetType() {
-			case proto.MessageType_PREPREPARE:
-				return len(messages) > 1
-			case proto.MessageType_PREPARE:
-				return len(messages) >= int(quorum)-1
-			case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
-				return len(messages) >= int(quorum)
-			}
+	return func(view *proto.View, messages []*proto.Message, msgType proto.MessageType) bool {
+		switch msgType {
+		case proto.MessageType_PREPREPARE:
+			return len(messages) >= 0
+		case proto.MessageType_PREPARE:
+			return len(messages) >= int(quorum)-1
+		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+			return len(messages) >= int(quorum)
 		}
 
 		return false
