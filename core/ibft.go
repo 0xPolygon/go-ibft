@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -510,8 +511,10 @@ func (i *IBFT) runStates(ctx context.Context) {
 		case newRound:
 			timeout = i.runNewRound(ctx)
 		case prepare:
+			fmt.Println("prepare")
 			timeout = i.runPrepare(ctx)
 		case commit:
+			fmt.Println("commit")
 			timeout = i.runCommit(ctx)
 		case fin:
 			i.runFin()
@@ -572,6 +575,8 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			i.sendPrepareMessage(view)
 
 			i.log.Debug("prepare message multicasted")
+
+			fmt.Println("changing state to prepare")
 
 			// Move to the prepare state
 			i.state.changeState(prepare)
@@ -731,6 +736,8 @@ func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 		isValidPrePrepare,
 	)
 
+	fmt.Println("handlePrePrepare", len(msgs))
+
 	if len(msgs) < 1 {
 		return nil
 	}
@@ -764,6 +771,8 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 	// this state is done executing
 	defer i.messages.Unsubscribe(sub.ID)
 
+	fmt.Println("waiting for prepare message")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -796,6 +805,8 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		proto.MessageType_PREPARE,
 		isValidPrepare,
 	)
+
+	fmt.Println("prepareMessages", len(prepareMessages))
 
 	if len(prepareMessages) < int(quorum)-1 {
 		//	quorum not reached, keep polling
