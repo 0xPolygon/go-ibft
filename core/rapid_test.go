@@ -16,6 +16,10 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+const (
+	baseRoundTimeout = time.Second * 2
+)
+
 // roundMessage contains message data within consensus round
 type roundMessage struct {
 	proposal []byte
@@ -249,6 +253,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 			nodes             = generateNodeAddresses(numNodes)
 			insertedProposals = newMockInsertedProposals(numNodes)
 		)
+
 		// Initialize the byzantine nodes
 		byzantineNodes := getByzantineNodes(
 			numByzantineNodes,
@@ -380,7 +385,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 
 		// Set a small timeout, because of situations
 		// where the byzantine node is the proposer
-		cluster.setBaseTimeout(time.Second * 2)
+		cluster.setBaseTimeout(baseRoundTimeout)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -403,6 +408,9 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 			cancelFn()
 		}
 
+		// Make sure proposals map is not empty
+		require.Len(t, insertedProposals.proposals, int(numNodes))
+
 		// Make sure that the inserted proposal is valid for each height
 		for _, proposalMap := range insertedProposals.proposals {
 			for _, insertedProposal := range proposalMap {
@@ -419,218 +427,208 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 	t.Parallel()
 
-	// rapid.Check(t, func(t *rapid.T) {
-	var multicastFn func(message *proto.Message)
+	rapid.Check(t, func(t *rapid.T) {
+		var multicastFn func(message *proto.Message)
 
-	var (
-		correctMessage = roundMessage{
-			proposal: []byte("proposal"),
-			hash:     []byte("proposal hash"),
-			seal:     []byte("seal"),
+		var (
+			correctMessage = roundMessage{
+				proposal: []byte("proposal"),
+				hash:     []byte("proposal hash"),
+				seal:     []byte("seal"),
+			}
+
+			badMessage = roundMessage{
+				proposal: []byte("bad proposal"),
+				hash:     []byte("bad proposal hash"),
+				seal:     []byte("bad seal"),
+			}
+
+			numNodes = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
+			// numNodes = uint64(7)
+			numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
+			// numByzantineNodes = maxFaulty(numNodes)
+			desiredHeight = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
+			// desiredHeight = uint64(5)
+
+			nodes             = generateNodeAddresses(numNodes)
+			insertedProposals = newMockInsertedProposals(numNodes)
+		)
+
+		commonLoggerCallback := func(logger *mockLogger) {
+			logger.infoFn = func(s string, i ...interface{}) {
+				t.Log(append([]interface{}{s}, i...)...)
+			}
+
+			logger.errorFn = func(s string, i ...interface{}) {
+				t.Error(append([]interface{}{s}, i...)...)
+			}
+
+			logger.debugFn = func(s string, i ...interface{}) {
+				t.Log(append([]interface{}{s}, i...)...)
+			}
 		}
 
-		badMessage = roundMessage{
-			proposal: []byte("bad proposal"),
-			hash:     []byte("bad proposal hash"),
-			seal:     []byte("bad seal"),
+		// commonTransportCallback is the common method modification
+		// required for Transport, for all nodes
+		commonTransportCallback := func(transport *mockTransport) {
+			transport.multicastFn = func(message *proto.Message) {
+				multicastFn(message)
+			}
 		}
 
-		// numNodes          = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
-		numNodes = uint64(12)
-		// numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
-		numByzantineNodes = maxFaulty(numNodes)
-		// desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
-		desiredHeight = uint64(2)
+		// commonBackendCallback is the common method modification required
+		// for the Backend, for all nodes
+		commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
+			// Use a bad message if the current node is a malicious one
+			message := correctMessage
+			if uint64(nodeIndex) < numByzantineNodes {
+				message = badMessage
+			}
 
-		nodes             = generateNodeAddresses(numNodes)
-		insertedProposals = newMockInsertedProposals(numNodes)
-	)
+			// Make sure the quorum function is Quorum optimal
+			backend.quorumFn = func(_ uint64) uint64 {
+				return quorum(numNodes)
+			}
 
-	commonLoggerCallback := func(logger *mockLogger) {
-		logger.infoFn = func(s string, i ...interface{}) {
-			t.Log(append([]interface{}{s}, i...)...)
+			// Make sure the allowed faulty nodes function is accurate
+			backend.maximumFaultyNodesFn = func() uint64 {
+				return maxFaulty(numNodes)
+			}
+
+			// Make sure the node ID is properly relayed
+			backend.idFn = func() []byte {
+				return nodes[nodeIndex]
+			}
+
+			// Make sure the only proposer is picked using Round Robin
+			backend.isProposerFn = func(from []byte, height uint64, round uint64) bool {
+				// trustNodes := nodes[:numByzantineNodes]
+
+				return bytes.Equal(
+					from,
+					nodes[int(height+round)%len(nodes)],
+				)
+			}
+
+			// Make sure the proposal is valid if it matches what node 0 proposed
+			backend.isValidBlockFn = func(newProposal []byte) bool {
+				return bytes.Equal(newProposal, message.proposal)
+			}
+
+			// Make sure the proposal hash matches
+			backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
+				return bytes.Equal(p, message.proposal) && bytes.Equal(ph, message.hash)
+			}
+
+			// Make sure the preprepare message is built correctly
+			backend.buildPrePrepareMessageFn = func(
+				proposal []byte,
+				certificate *proto.RoundChangeCertificate,
+				view *proto.View,
+			) *proto.Message {
+				return buildBasicPreprepareMessage(
+					proposal,
+					message.hash,
+					certificate,
+					nodes[nodeIndex],
+					view,
+				)
+			}
+
+			// Make sure the prepare message is built correctly
+			backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+				return buildBasicPrepareMessage(message.hash, nodes[nodeIndex], view)
+			}
+
+			// Make sure the commit message is built correctly
+			backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+				return buildBasicCommitMessage(message.hash, message.seal, nodes[nodeIndex], view)
+			}
+
+			// Make sure the round change message is built correctly
+			backend.buildRoundChangeMessageFn = func(
+				proposal []byte,
+				certificate *proto.PreparedCertificate,
+				view *proto.View,
+			) *proto.Message {
+				return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
+			}
+
+			// Make sure the inserted proposal is noted
+			backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
+				insertedProposals.insertProposal(nodeIndex, proposal)
+			}
+
+			// Make sure the proposal can be built
+			backend.buildProposalFn = func(_ *proto.View) []byte {
+				return message.proposal
+			}
 		}
 
-		logger.errorFn = func(s string, i ...interface{}) {
-			t.Error(append([]interface{}{s}, i...)...)
+		// Initialize the backend and transport callbacks for
+		// each node in the arbitrary cluster
+		loggerCallbackMap := make(map[int]loggerConfigCallback)
+		backendCallbackMap := make(map[int]backendConfigCallback)
+		transportCallbackMap := make(map[int]transportConfigCallback)
+
+		for i := 0; i < int(numNodes); i++ {
+			i := i
+			backendCallbackMap[i] = func(backend *mockBackend) {
+				commonBackendCallback(backend, i)
+			}
+
+			transportCallbackMap[i] = commonTransportCallback
+
+			loggerCallbackMap[i] = commonLoggerCallback
 		}
 
-		logger.debugFn = func(s string, i ...interface{}) {
-			t.Log(append([]interface{}{s}, i...)...)
-		}
-	}
+		// Create the mock cluster
+		cluster := newMockCluster(
+			numNodes,
+			backendCallbackMap,
+			loggerCallbackMap,
+			transportCallbackMap,
+		)
 
-	// commonTransportCallback is the common method modification
-	// required for Transport, for all nodes
-	commonTransportCallback := func(transport *mockTransport) {
-		transport.multicastFn = func(message *proto.Message) {
-			multicastFn(message)
-		}
-	}
+		// Set a small timeout, because of situations
+		// where the byzantine node is the proposer
+		cluster.setBaseTimeout(baseRoundTimeout)
 
-	// commonBackendCallback is the common method modification required
-	// for the Backend, for all nodes
-	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
-		// Use a bad message if the current node is a malicious one
-		message := correctMessage
-		if uint64(nodeIndex) < numByzantineNodes {
-			message = badMessage
+		// Set the multicast callback to relay the message
+		// to the entire cluster
+		multicastFn = func(message *proto.Message) {
+			cluster.pushMessage(message)
 		}
 
-		// Make sure the quorum function is Quorum optimal
-		backend.quorumFn = func(_ uint64) uint64 {
-			return quorum(numNodes)
+		// Run the sequence up until a certain height
+		for height := uint64(0); height < desiredHeight; height++ {
+			// Start the main run loops
+			cluster.runSequence(height)
+
+			// Wait until Quorum nodes finish their run loop
+			ctx, cancelFn := context.WithTimeout(context.Background(), baseRoundTimeout*time.Duration(quorum(numNodes)))
+			err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
+			require.NoError(t, err, "unable to wait for nodes to complete")
+			fmt.Println(height, " => ", err, cluster.wg.getDone())
+
+			// Shutdown the remaining nodes that might be hanging
+			cluster.forceShutdown()
+			cancelFn()
 		}
 
-		// Make sure the allowed faulty nodes function is accurate
-		backend.maximumFaultyNodesFn = func() uint64 {
-			return maxFaulty(numNodes)
+		// Make sure proposals map is not empty
+		require.Len(t, insertedProposals.proposals, int(numNodes))
+
+		// Make sure that the inserted proposal is valid for each height
+		for i, proposalMap := range insertedProposals.proposals {
+			if i < int(numByzantineNodes) {
+				// Proposals map must be empty when a byzantine node is proposer
+				assert.Empty(t, proposalMap)
+			} else {
+				for _, insertedProposal := range proposalMap {
+					assert.Equal(t, correctMessage.proposal, insertedProposal)
+				}
+			}
 		}
-
-		// Make sure the node ID is properly relayed
-		backend.idFn = func() []byte {
-			return nodes[nodeIndex]
-		}
-
-		// Make sure the only proposer is picked using Round Robin
-		backend.isProposerFn = func(from []byte, height uint64, round uint64) bool {
-			// Filter out "bad" nodes since this test
-			// does not cover the bad node proposal scenario.
-			trustNodes := nodes[:numByzantineNodes]
-
-			fmt.Println("proposer: ", int(height+round)%len(trustNodes))
-
-			return bytes.Equal(
-				from,
-				trustNodes[int(height+round)%len(trustNodes)],
-			)
-		}
-
-		// Make sure the proposal is valid if it matches what node 0 proposed
-		backend.isValidBlockFn = func(newProposal []byte) bool {
-			fmt.Println("isValidBlockFn", string(message.proposal))
-			return bytes.Equal(newProposal, message.proposal)
-		}
-
-		// Make sure the proposal hash matches
-		backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
-			fmt.Println("isValidProposalHashFn", string(message.proposal))
-			return bytes.Equal(p, message.proposal) && bytes.Equal(ph, message.hash)
-		}
-
-		// Make sure the preprepare message is built correctly
-		backend.buildPrePrepareMessageFn = func(
-			proposal []byte,
-			certificate *proto.RoundChangeCertificate,
-			view *proto.View,
-		) *proto.Message {
-			fmt.Println("buildPrePrepareMessageFn", string(message.proposal), string(proposal))
-			return buildBasicPreprepareMessage(
-				proposal,
-				message.hash,
-				certificate,
-				nodes[nodeIndex],
-				view,
-			)
-		}
-
-		// Make sure the prepare message is built correctly
-		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			fmt.Println("buildPrepareMessageFn", string(message.proposal))
-			return buildBasicPrepareMessage(message.hash, nodes[nodeIndex], view)
-		}
-
-		// Make sure the commit message is built correctly
-		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			fmt.Println("buildCommitMessageFn", string(message.proposal))
-			return buildBasicCommitMessage(message.hash, message.seal, nodes[nodeIndex], view)
-		}
-
-		// Make sure the round change message is built correctly
-		backend.buildRoundChangeMessageFn = func(
-			proposal []byte,
-			certificate *proto.PreparedCertificate,
-			view *proto.View,
-		) *proto.Message {
-			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
-		}
-
-		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-			fmt.Println("insertBlockFn", string(message.proposal))
-			insertedProposals.insertProposal(nodeIndex, proposal)
-		}
-
-		// Make sure the proposal can be built
-		backend.buildProposalFn = func(_ *proto.View) []byte {
-			fmt.Println("buildProposalFn", string(message.proposal))
-			return message.proposal
-		}
-	}
-
-	// Initialize the backend and transport callbacks for
-	// each node in the arbitrary cluster
-	loggerCallbackMap := make(map[int]loggerConfigCallback)
-	backendCallbackMap := make(map[int]backendConfigCallback)
-	transportCallbackMap := make(map[int]transportConfigCallback)
-
-	for i := 0; i < int(numNodes); i++ {
-		i := i
-		backendCallbackMap[i] = func(backend *mockBackend) {
-			commonBackendCallback(backend, i)
-		}
-
-		transportCallbackMap[i] = commonTransportCallback
-
-		loggerCallbackMap[i] = commonLoggerCallback
-	}
-
-	// Create the mock cluster
-	cluster := newMockCluster(
-		numNodes,
-		backendCallbackMap,
-		loggerCallbackMap,
-		transportCallbackMap,
-	)
-
-	// Set a small timeout, because of situations
-	// where the byzantine node is the proposer
-	cluster.setBaseTimeout(time.Second * 2)
-
-	// Set the multicast callback to relay the message
-	// to the entire cluster
-	multicastFn = func(message *proto.Message) {
-		cluster.pushMessage(message)
-	}
-
-	// Run the sequence up until a certain height
-	for height := uint64(0); height < desiredHeight; height++ {
-
-		// Start the main run loops
-		cluster.runSequence(height)
-
-		// Wait until Quorum nodes finish their run loop
-		ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
-		err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
-		fmt.Println(height, " => ", err, cluster.wg.getDone())
-		// require.NoError(t, err, "unable to wait for nodes to complete")
-
-		// Shutdown the remaining nodes that might be hanging
-		cluster.forceShutdown()
-		cancelFn()
-
-		fmt.Println("")
-		fmt.Println("")
-		fmt.Println("")
-		fmt.Println("")
-		fmt.Println("")
-	}
-
-	// Make sure that the inserted proposal is valid for each height
-	for _, proposalMap := range insertedProposals.proposals {
-		for _, insertedProposal := range proposalMap {
-			assert.Equal(t, correctMessage.proposal, insertedProposal)
-		}
-	}
-	// })
+	})
 }
