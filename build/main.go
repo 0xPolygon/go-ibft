@@ -1,3 +1,4 @@
+// this is a dummy package only for checking builds
 package main
 
 import (
