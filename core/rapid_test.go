@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -587,10 +586,9 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			cluster.runSequence(height)
 
 			// Wait until Quorum nodes finish their run loop
-			ctx, cancelFn := context.WithTimeout(context.Background(), baseRoundTimeout*time.Duration(quorum(numNodes)))
+			ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
 			err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
 			require.NoError(t, err, "unable to wait for nodes to complete")
-			fmt.Println(height, " => ", err, cluster.wg.getDone())
 
 			// Shutdown the remaining nodes that might be hanging
 			cluster.forceShutdown()
