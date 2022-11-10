@@ -436,15 +436,29 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		}
 
 		// numNodes          = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
-		numNodes = uint64(7)
+		numNodes = uint64(12)
 		// numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
 		numByzantineNodes = maxFaulty(numNodes)
 		// desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
-		desiredHeight = uint64(1)
+		desiredHeight = uint64(2)
 
 		nodes             = generateNodeAddresses(numNodes)
 		insertedProposals = newMockInsertedProposals(numNodes)
 	)
+
+	commonLoggerCallback := func(logger *mockLogger) {
+		logger.infoFn = func(s string, i ...interface{}) {
+			t.Log(append([]interface{}{s}, i...)...)
+		}
+
+		logger.errorFn = func(s string, i ...interface{}) {
+			t.Error(append([]interface{}{s}, i...)...)
+		}
+
+		logger.debugFn = func(s string, i ...interface{}) {
+			t.Log(append([]interface{}{s}, i...)...)
+		}
+	}
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
@@ -482,11 +496,13 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		backend.isProposerFn = func(from []byte, height uint64, round uint64) bool {
 			// Filter out "bad" nodes since this test
 			// does not cover the bad node proposal scenario.
-			// trustNodes := nodes[numByzantineNodes:]
+			trustNodes := nodes[:numByzantineNodes]
+
+			fmt.Println("proposer: ", int(height+round)%len(trustNodes))
 
 			return bytes.Equal(
 				from,
-				nodes[int(height+round)%len(nodes)],
+				trustNodes[int(height+round)%len(trustNodes)],
 			)
 		}
 
@@ -554,6 +570,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 
 	// Initialize the backend and transport callbacks for
 	// each node in the arbitrary cluster
+	loggerCallbackMap := make(map[int]loggerConfigCallback)
 	backendCallbackMap := make(map[int]backendConfigCallback)
 	transportCallbackMap := make(map[int]transportConfigCallback)
 
@@ -564,13 +581,15 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		}
 
 		transportCallbackMap[i] = commonTransportCallback
+
+		loggerCallbackMap[i] = commonLoggerCallback
 	}
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
 		backendCallbackMap,
-		nil,
+		loggerCallbackMap,
 		transportCallbackMap,
 	)
 
@@ -586,17 +605,25 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 
 	// Run the sequence up until a certain height
 	for height := uint64(0); height < desiredHeight; height++ {
+
 		// Start the main run loops
 		cluster.runSequence(height)
 
 		// Wait until Quorum nodes finish their run loop
 		ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
 		err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
-		require.NoError(t, err, "unable to wait for nodes to complete")
+		fmt.Println(height, " => ", err, cluster.wg.getDone())
+		// require.NoError(t, err, "unable to wait for nodes to complete")
 
 		// Shutdown the remaining nodes that might be hanging
 		cluster.forceShutdown()
 		cancelFn()
+
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println("")
 	}
 
 	// Make sure that the inserted proposal is valid for each height

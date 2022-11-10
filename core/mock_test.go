@@ -406,6 +406,8 @@ func (m *mockCluster) awaitCompletion() {
 	// Wait for all main run loops to signalize
 	// that they're finished
 	m.wg.Wait()
+
+	m.wg.resetDone()
 }
 
 // forceShutdown sends a stop signal to all running nodes
