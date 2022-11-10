@@ -15,7 +15,7 @@ import (
 type isValidBlockDelegate func([]byte) bool
 type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
-type buildProposalDelegate func(uint64) []byte
+type buildProposalDelegate func(*proto.View) []byte
 type isValidProposalHashDelegate func([]byte, []byte) bool
 type isValidCommittedSealDelegate func([]byte, *messages.CommittedSeal) bool
 
@@ -32,10 +32,9 @@ type buildRoundChangeMessageDelegate func(
 	*proto.View,
 ) *proto.Message
 
-type quorumDelegate func(blockHeight uint64) uint64
 type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
 type idDelegate func() []byte
-type maximumFaultyNodesDelegate func() uint64
+type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -50,10 +49,9 @@ type mockBackend struct {
 	buildPrepareMessageFn     buildPrepareMessageDelegate
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
-	quorumFn                  quorumDelegate
 	insertBlockFn             insertBlockDelegate
 	idFn                      idDelegate
-	maximumFaultyNodesFn      maximumFaultyNodesDelegate
+	hasQuorumFn               hasQuorumDelegate
 }
 
 func (m mockBackend) ID() []byte {
@@ -68,14 +66,6 @@ func (m mockBackend) InsertBlock(proposal []byte, committedSeals []*messages.Com
 	if m.insertBlockFn != nil {
 		m.insertBlockFn(proposal, committedSeals)
 	}
-}
-
-func (m mockBackend) Quorum(blockNumber uint64) uint64 {
-	if m.quorumFn != nil {
-		return m.quorumFn(blockNumber)
-	}
-
-	return 0
 }
 
 func (m mockBackend) IsValidBlock(block []byte) bool {
@@ -102,9 +92,9 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) BuildProposal(blockNumber uint64) []byte {
+func (m mockBackend) BuildProposal(view *proto.View) []byte {
 	if m.buildProposalFn != nil {
-		return m.buildProposalFn(blockNumber)
+		return m.buildProposalFn(view)
 	}
 
 	return nil
@@ -124,14 +114,6 @@ func (m mockBackend) IsValidCommittedSeal(proposal []byte, committedSeal *messag
 	}
 
 	return true
-}
-
-func (m mockBackend) MaximumFaultyNodes() uint64 {
-	if m.maximumFaultyNodesFn != nil {
-		return m.maximumFaultyNodesFn()
-	}
-
-	return 0
 }
 
 func (m mockBackend) BuildPrePrepareMessage(
@@ -179,6 +161,14 @@ func (m mockBackend) BuildRoundChangeMessage(
 		Type:    proto.MessageType_ROUND_CHANGE,
 		Payload: nil,
 	}
+}
+
+func (m mockBackend) HasQuorum(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	if m.hasQuorumFn != nil {
+		return m.hasQuorumFn(blockNumber, messages, msgType)
+	}
+
+	return true
 }
 
 // Define delegation methods

@@ -1,8 +1,13 @@
-.PHONY: lint install-deps
+.PHONY: lint lint-all build-dummy install-deps
 
 FIRST_COMMIT ?= $(shell git rev-list --max-parents=0 HEAD)
+
 lint:
 	./build/bin/golangci-lint run --config ./.golangci.yml
+
+builds-dummy:
+	cd build && go build -o ./ibft1
+	cd build && go build -o ./ibft2
 
 lint-all:
 	./build/bin/golangci-lint run --config ./.golangci.yml --new-from-rev=$(FIRST_COMMIT)
