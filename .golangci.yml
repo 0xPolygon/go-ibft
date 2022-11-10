@@ -87,7 +87,7 @@ linters-settings:
     local-prefixes: github.com/0xPolygon/go-ibft
 
   nestif:
-    min-complexity: 3
+    min-complexity: 4
 
   prealloc:
     for-loops: true
