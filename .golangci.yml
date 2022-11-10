@@ -486,6 +486,8 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new-from-rev: main # report only new issues with reference to develop branch
+  #new-from-rev: ""
+  new: false
   whole-files: true
   exclude-rules:
     - path: _test\.go
