@@ -434,12 +434,9 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 				seal:     []byte("bad seal"),
 			}
 
-			numNodes = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
-			// numNodes = uint64(7)
+			numNodes          = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
 			numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
-			// numByzantineNodes = maxFaulty(numNodes)
-			desiredHeight = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
-			// desiredHeight = uint64(5)
+			desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
 
 			nodes             = generateNodeAddresses(numNodes)
 			insertedProposals = newMockInsertedProposals(numNodes)
@@ -477,14 +474,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			}
 
 			// Make sure the quorum function is Quorum optimal
-			backend.quorumFn = func(_ uint64) uint64 {
-				return quorum(numNodes)
-			}
-
-			// Make sure the allowed faulty nodes function is accurate
-			backend.maximumFaultyNodesFn = func() uint64 {
-				return maxFaulty(numNodes)
-			}
+			backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
 			// Make sure the node ID is properly relayed
 			backend.idFn = func() []byte {
