@@ -382,10 +382,10 @@ func (m *mockCluster) runSequence(height uint64) {
 			ctx context.Context,
 			node *IBFT,
 		) {
-			defer m.wg.Done()
-
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
+
+			m.wg.Done()
 		}(m.ctxs[nodeIndex].ctx, node)
 	}
 }
@@ -396,8 +396,6 @@ func (m *mockCluster) awaitCompletion() {
 	// Wait for all main run loops to signalize
 	// that they're finished
 	m.wg.Wait()
-
-	m.wg.resetDone()
 }
 
 // forceShutdown sends a stop signal to all running nodes
