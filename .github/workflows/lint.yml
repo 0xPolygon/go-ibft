@@ -24,15 +24,15 @@ jobs:
         with:
           fetch-depth: '0'
 
+      - name: fetch main
+        run: git fetch origin master && git branch master remotes/origin/master
+
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.50.1
           args:
             --config=./.golangci.yml
-
-      - name: main
-        run: git fetch origin master && git branch master remotes/origin/master
 
       - name: staticcheck
         uses: dominikh/staticcheck-action@v1.2.0
