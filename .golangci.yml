@@ -63,7 +63,6 @@ linters:
     - errchkjson
     - gochecknoglobals # check that no global variables exist
     - goerr113 # Golang linter to check the errors handling expressions
-    - gomnd # An analyzer to detect magic numbers.
     - ireturn # Accept Interfaces, Return Concrete Types
     - nosprintfhostport # Checks for misuse of Sprintf to construct a host with port in a URL.
     - promlinter # Check Prometheus metrics naming via promlint
@@ -167,11 +166,11 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#add-constant
       - name: add-constant
         severity: warning
-        disabled: false
+        disabled: true
         arguments:
           - maxLitCount: "3"
             allowStrs: '""'
-            allowInts: "0,1,2,3,4,5"
+            allowInts: "0,1,2"
             allowFloats: "0.0,0.,1.0,1.,2.0,2."
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#argument-limit
       - name: argument-limit

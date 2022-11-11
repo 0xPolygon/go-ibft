@@ -12,12 +12,14 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// Logger represents the logger behaviour
 type Logger interface {
 	Info(msg string, args ...interface{})
 	Debug(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
 }
 
+// Messages represents the message managing behaviour
 type Messages interface {
 	// Messages modifiers //
 	AddMessage(message *proto.Message)
@@ -684,11 +686,11 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
 
 	for _, rcMessage := range rcc.RoundChangeMessages {
-		certificate := messages.ExtractLatestPC(rcMessage)
+		cert := messages.ExtractLatestPC(rcMessage)
 
 		// Check if there is a certificate, and if it's a valid PC
-		if certificate != nil && i.validPC(certificate, msg.View.Round, height) {
-			hash := messages.ExtractProposalHash(certificate.ProposalMessage)
+		if cert != nil && i.validPC(cert, msg.View.Round, height) {
+			hash := messages.ExtractProposalHash(cert.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
 				round: rcMessage.View.Round,
