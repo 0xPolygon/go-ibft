@@ -433,7 +433,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 				seal:     []byte("bad seal"),
 			}
 
-			numNodes          = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
+			numNodes          = rapid.Uint64Range(4, 18).Draw(t, "number of cluster nodes")
 			numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
 			desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
 
