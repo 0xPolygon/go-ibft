@@ -389,9 +389,7 @@ func (m *mockCluster) runSequence(height uint64) {
 			node *IBFT,
 		) {
 			// Start the main run loop for the node
-			start := time.Now()
 			node.RunSequence(ctx, height)
-			fmt.Println("RunSequence duration: ", time.Since(start))
 
 			m.wg.Done()
 		}(m.ctxs[nodeIndex].ctx, node)
