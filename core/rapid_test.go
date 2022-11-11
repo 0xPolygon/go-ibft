@@ -15,24 +15,6 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
-const (
-	testRoundTimeout = time.Second
-)
-
-var (
-	correctRoundMessage = roundMessage{
-		proposal: []byte("proposal"),
-		hash:     []byte("proposal hash"),
-		seal:     []byte("seal"),
-	}
-
-	badRoundMessage = roundMessage{
-		proposal: []byte("bad proposal"),
-		hash:     []byte("bad proposal hash"),
-		seal:     []byte("bad seal"),
-	}
-)
-
 // roundMessage contains message data within consensus round
 type roundMessage struct {
 	proposal []byte
@@ -86,12 +68,6 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 		var multicastFn func(message *proto.Message)
 
 		var (
-			message = roundMessage{
-				proposal: []byte("proposal"),
-				hash:     []byte("proposal hash"),
-				seal:     []byte("seal"),
-			}
-
 			numNodes      = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
 			desiredHeight = rapid.Uint64Range(10, 20).Draw(t, "minimum height to be reached")
 
@@ -124,12 +100,12 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 
 			// Make sure the proposal is valid if it matches what node 0 proposed
 			backend.isValidBlockFn = func(newProposal []byte) bool {
-				return bytes.Equal(newProposal, message.proposal)
+				return bytes.Equal(newProposal, correctRoundMessage.proposal)
 			}
 
 			// Make sure the proposal hash matches
 			backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
-				return bytes.Equal(p, message.proposal) && bytes.Equal(ph, message.hash)
+				return bytes.Equal(p, correctRoundMessage.proposal) && bytes.Equal(ph, correctRoundMessage.hash)
 			}
 
 			// Make sure the preprepare message is built correctly
@@ -140,7 +116,7 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 			) *proto.Message {
 				return buildBasicPreprepareMessage(
 					proposal,
-					message.hash,
+					correctRoundMessage.hash,
 					certificate,
 					nodes[nodeIndex],
 					view)
@@ -148,12 +124,12 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 
 			// Make sure the prepare message is built correctly
 			backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-				return buildBasicPrepareMessage(message.hash, nodes[nodeIndex], view)
+				return buildBasicPrepareMessage(correctRoundMessage.hash, nodes[nodeIndex], view)
 			}
 
 			// Make sure the commit message is built correctly
 			backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-				return buildBasicCommitMessage(message.hash, message.seal, nodes[nodeIndex], view)
+				return buildBasicCommitMessage(correctRoundMessage.hash, correctRoundMessage.seal, nodes[nodeIndex], view)
 			}
 
 			// Make sure the round change message is built correctly
@@ -172,12 +148,12 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 
 			// Make sure the proposal can be built
 			backend.buildProposalFn = func(_ *proto.View) []byte {
-				return message.proposal
+				return correctRoundMessage.proposal
 			}
 		}
 
 		// Create default cluster for rapid tests
-		cluster := createCluster(numNodes, commonBackendCallback, commonTransportCallback)
+		cluster := newMockCluster(numNodes, commonBackendCallback, nil, commonTransportCallback)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -200,7 +176,7 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 			assert.Len(t, proposalMap, int(desiredHeight))
 
 			for _, insertedProposal := range proposalMap {
-				assert.Equal(t, message.proposal, insertedProposal)
+				assert.Equal(t, correctRoundMessage.proposal, insertedProposal)
 			}
 		}
 	})
@@ -346,7 +322,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 		}
 
 		// Create default cluster for rapid tests
-		cluster := createCluster(numNodes, commonBackendCallback, commonTransportCallback)
+		cluster := newMockCluster(numNodes, commonBackendCallback, nil, commonTransportCallback)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -489,7 +465,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		}
 
 		// Create default cluster for rapid tests
-		cluster := createCluster(numNodes, commonBackendCallback, commonTransportCallback)
+		cluster := newMockCluster(numNodes, commonBackendCallback, nil, commonTransportCallback)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -530,38 +506,4 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			}
 		}
 	})
-}
-
-func createCluster(
-	numNodes uint64,
-	backendCallback func(backend *mockBackend, i int),
-	transportCallback transportConfigCallback,
-) *mockCluster {
-	// Initialize the backend and transport callbacks for
-	// each node in the arbitrary cluster
-	backendCallbackMap := make(map[int]backendConfigCallback)
-	transportCallbackMap := make(map[int]transportConfigCallback)
-
-	for i := 0; i < int(numNodes); i++ {
-		i := i
-		backendCallbackMap[i] = func(backend *mockBackend) {
-			backendCallback(backend, i)
-		}
-
-		transportCallbackMap[i] = transportCallback
-	}
-
-	// Create the mock cluster
-	cluster := newMockCluster(
-		numNodes,
-		backendCallbackMap,
-		nil,
-		transportCallbackMap,
-	)
-
-	// Set a small timeout, because of situations
-	// where the byzantine node is the proposer
-	cluster.setBaseTimeout(testRoundTimeout)
-
-	return cluster
 }

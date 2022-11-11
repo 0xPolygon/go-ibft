@@ -11,6 +11,24 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+const (
+	testRoundTimeout = time.Second
+)
+
+var (
+	correctRoundMessage = roundMessage{
+		proposal: []byte("proposal"),
+		hash:     []byte("proposal hash"),
+		seal:     []byte("seal"),
+	}
+
+	badRoundMessage = roundMessage{
+		proposal: []byte("bad proposal"),
+		hash:     []byte("bad proposal hash"),
+		seal:     []byte("bad seal"),
+	}
+)
+
 // Define delegation methods
 type isValidBlockDelegate func([]byte) bool
 type isValidSenderDelegate func(*proto.Message) bool
@@ -281,12 +299,36 @@ type transportConfigCallback func(*mockTransport)
 // newMockCluster creates a new IBFT cluster
 func newMockCluster(
 	numNodes uint64,
-	backendCallbackMap map[int]backendConfigCallback,
-	loggerCallbackMap map[int]loggerConfigCallback,
-	transportCallbackMap map[int]transportConfigCallback,
+	backendCallback func(backend *mockBackend, i int),
+	loggerCallback loggerConfigCallback,
+	transportCallback transportConfigCallback,
 ) *mockCluster {
 	if numNodes < 1 {
 		return nil
+	}
+
+	// Initialize the backend and transport callbacks for
+	// each node in the arbitrary cluster
+	backendCallbackMap := make(map[int]backendConfigCallback)
+	loggerCallbackMap := make(map[int]loggerConfigCallback)
+	transportCallbackMap := make(map[int]transportConfigCallback)
+
+	for i := 0; i < int(numNodes); i++ {
+		i := i
+
+		if backendCallback != nil {
+			backendCallbackMap[i] = func(backend *mockBackend) {
+				backendCallback(backend, i)
+			}
+		}
+
+		if transportCallback != nil {
+			transportCallbackMap[i] = transportCallback
+		}
+
+		if loggerCallback != nil {
+			loggerCallbackMap[i] = loggerCallback
+		}
 	}
 
 	nodes := make([]*IBFT, numNodes)
@@ -300,21 +342,21 @@ func newMockCluster(
 		)
 
 		// Execute set callbacks, if any
-		if backendCallbackMap != nil {
-			if backendCallback, isSet := backendCallbackMap[index]; isSet {
-				backendCallback(backend)
+		if len(backendCallbackMap) > 0 {
+			if bc, isSet := backendCallbackMap[index]; isSet {
+				bc(backend)
 			}
 		}
 
-		if loggerCallbackMap != nil {
-			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
-				loggerCallback(logger)
+		if len(loggerCallbackMap) > 0 {
+			if lc, isSet := loggerCallbackMap[index]; isSet {
+				lc(logger)
 			}
 		}
 
-		if transportCallbackMap != nil {
-			if transportCallback, isSet := transportCallbackMap[index]; isSet {
-				transportCallback(transport)
+		if len(transportCallbackMap) > 0 {
+			if tc, isSet := transportCallbackMap[index]; isSet {
+				tc(transport)
 			}
 		}
 
@@ -325,10 +367,16 @@ func newMockCluster(
 		nodeCtxs[index] = newMockNodeContext()
 	}
 
-	return &mockCluster{
+	cr := &mockCluster{
 		nodes: nodes,
 		ctxs:  nodeCtxs,
 	}
+
+	// Set a small timeout, because of situations
+	// where the byzantine node is the proposer
+	cr.setBaseTimeout(testRoundTimeout)
+
+	return cr
 }
 
 // mockNodeContext keeps track of the node runtime context
