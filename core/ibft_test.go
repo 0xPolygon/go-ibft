@@ -209,6 +209,12 @@ func generateFilledRCMessages(
 	return roundChangeMessages
 }
 
+func defaultHasQuorumFn(quorum uint64) hasQuorumDelegate {
+	return func(_ uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+		return len(messages) >= int(quorum)
+	}
+}
+
 // TestRunNewRound_Proposer checks that the node functions
 // correctly as the proposer for a block
 func TestRunNewRound_Proposer(t *testing.T) {
@@ -236,7 +242,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					buildProposalFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ *proto.View) []byte {
 						return newProposal
 					},
 					buildPrePrepareMessageFn: func(
@@ -320,10 +326,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					quorumFn: func(_ uint64) uint64 {
-						return quorum
-					},
-					buildProposalFn: func(_ uint64) []byte {
+					hasQuorumFn: defaultHasQuorumFn(quorum),
+					buildProposalFn: func(_ *proto.View) []byte {
 						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
@@ -476,10 +480,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					quorumFn: func(_ uint64) uint64 {
-						return quorum
-					},
-					buildProposalFn: func(_ uint64) []byte {
+					hasQuorumFn: defaultHasQuorumFn(quorum),
+					buildProposalFn: func(_ *proto.View) []byte {
 						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
@@ -589,8 +591,8 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 			idFn: func() []byte {
 				return []byte("non proposer")
 			},
-			quorumFn: func(_ uint64) uint64 {
-				return 1
+			hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+				return len(messages) >= 1
 			},
 			buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
 				return &proto.Message{
@@ -757,8 +759,8 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 					idFn: func() []byte {
 						return []byte("non proposer")
 					},
-					quorumFn: func(_ uint64) uint64 {
-						return 1
+					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+						return len(messages) >= 1
 					},
 					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
@@ -866,8 +868,8 @@ func TestRunPrepare(t *testing.T) {
 							},
 						}
 					},
-					quorumFn: func(_ uint64) uint64 {
-						return 1
+					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+						return len(messages) >= 1
 					},
 					isValidProposalHashFn: func(_ []byte, hash []byte) bool {
 						return bytes.Equal(proposalHash, hash)
@@ -973,8 +975,8 @@ func TestRunCommit(t *testing.T) {
 						insertedProposal = proposal
 						insertedCommittedSeals = committedSeals
 					},
-					quorumFn: func(_ uint64) uint64 {
-						return 1
+					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+						return len(messages) >= 1
 					},
 					isValidProposalHashFn: func(_ []byte, hash []byte) bool {
 						return bytes.Equal(proposalHash, hash)
@@ -1356,9 +1358,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 					isValidProposalHashFn: func(p []byte, hash []byte) bool {
 						return bytes.Equal(hash, proposalHash) && bytes.Equal(p, proposal)
 					},
-					quorumFn: func(_ uint64) uint64 {
-						return quorum
-					},
+					hasQuorumFn: defaultHasQuorumFn(quorum),
 				}
 				transport = mockTransport{}
 				mMessages = mockMessages{
@@ -1475,9 +1475,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 		)
 
@@ -1500,9 +1498,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 		)
 
@@ -1527,9 +1523,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 		)
 
@@ -1558,9 +1552,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 		)
 
@@ -1587,9 +1579,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 		)
 
@@ -1621,9 +1611,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 		)
 
@@ -1660,9 +1648,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return !bytes.Equal(proposer, sender)
 				},
@@ -1705,9 +1691,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return !bytes.Equal(proposer, sender)
 				},
@@ -1747,9 +1731,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
@@ -1793,9 +1775,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
@@ -1969,9 +1949,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 					return true
 				},
-				quorumFn: func(_ uint64) uint64 {
-					return quorum
-				},
+				hasQuorumFn: defaultHasQuorumFn(quorum),
 			}
 			transport = mockTransport{}
 		)
@@ -2106,9 +2084,7 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 		log       = mockLogger{}
 		transport = mockTransport{}
 		backend   = mockBackend{
-			quorumFn: func(_ uint64) uint64 {
-				return quorum
-			},
+			hasQuorumFn: defaultHasQuorumFn(quorum),
 			isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 				return true
 			},
@@ -2203,9 +2179,7 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 
 		log     = mockLogger{}
 		backend = mockBackend{
-			quorumFn: func(_ uint64) uint64 {
-				return quorum
-			},
+			hasQuorumFn: defaultHasQuorumFn(quorum),
 		}
 		transport = mockTransport{}
 	)
@@ -2265,9 +2239,7 @@ func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
 
 		log     = mockLogger{}
 		backend = mockBackend{
-			quorumFn: func(_ uint64) uint64 {
-				return quorum
-			},
+			hasQuorumFn: defaultHasQuorumFn(quorum),
 		}
 		transport = mockTransport{}
 	)

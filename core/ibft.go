@@ -200,8 +200,8 @@ func (i *IBFT) watchForFutureProposal(ctx context.Context) {
 					Height: height,
 					Round:  nextRound,
 				},
-				MinNumMessages: 1,
-				HasMinRound:    true,
+				HasMinRound: true,
+				HasQuorumFn: i.backend.HasQuorum,
 			})
 	)
 
@@ -242,7 +242,6 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 		view   = i.state.getView()
 		height = view.Height
 		round  = view.Round
-		quorum = i.backend.Quorum(height)
 
 		sub = i.messages.Subscribe(messages.SubscriptionDetails{
 			MessageType: proto.MessageType_ROUND_CHANGE,
@@ -250,8 +249,10 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				Height: height,
 				Round:  round + 1, // only for higher rounds
 			},
-			MinNumMessages: 1,
-			HasMinRound:    true,
+			HasMinRound: true,
+			HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+				return len(messages) >= 1
+			},
 		})
 	)
 
@@ -267,7 +268,6 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 					Height: height,
 					Round:  round,
 				},
-				quorum,
 			)
 			if rcc == nil {
 				continue
@@ -394,17 +394,16 @@ func (i *IBFT) waitForRCC(
 	round uint64,
 ) *proto.RoundChangeCertificate {
 	var (
-		quorum = i.backend.Quorum(height)
-		view   = &proto.View{
+		view = &proto.View{
 			Height: height,
 			Round:  round,
 		}
 
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_ROUND_CHANGE,
-				View:           view,
-				MinNumMessages: int(quorum),
+				MessageType: proto.MessageType_ROUND_CHANGE,
+				View:        view,
+				HasQuorumFn: i.backend.HasQuorum,
 			},
 		)
 	)
@@ -416,7 +415,7 @@ func (i *IBFT) waitForRCC(
 		case <-ctx.Done():
 			return nil
 		case <-sub.SubCh:
-			rcc := i.handleRoundChangeMessage(view, quorum)
+			rcc := i.handleRoundChangeMessage(view)
 			if rcc == nil {
 				continue
 			}
@@ -428,7 +427,7 @@ func (i *IBFT) waitForRCC(
 
 // handleRoundChangeMessage validates the round change message
 // and constructs a RCC if possible
-func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.RoundChangeCertificate {
+func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCertificate {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -453,7 +452,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View, quorum uint64) *proto.
 		isValidFn,
 	)
 
-	if len(msgs) < int(quorum) {
+	if !i.backend.HasQuorum(view.Height, msgs, proto.MessageType_ROUND_CHANGE) {
 		return nil
 	}
 
@@ -541,9 +540,11 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 		// Subscribe for PREPREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_PREPREPARE,
-				View:           view,
-				MinNumMessages: 1,
+				MessageType: proto.MessageType_PREPREPARE,
+				View:        view,
+				HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+					return len(messages) >= 1
+				},
 			},
 		)
 	)
@@ -653,7 +654,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	}
 
 	// Make sure there are Quorum RCC
-	if len(certificate.RoundChangeMessages) < int(i.backend.Quorum(height)) {
+	if !i.backend.HasQuorum(view.Height, certificate.RoundChangeMessages, proto.MessageType_ROUND_CHANGE) {
 		return false
 	}
 
@@ -747,15 +748,12 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 		// Grab the current view
 		view = i.state.getView()
 
-		// Grab quorum information
-		quorum = i.backend.Quorum(view.Height)
-
 		// Subscribe to PREPARE messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_PREPARE,
-				View:           view,
-				MinNumMessages: int(quorum) - 1,
+				MessageType: proto.MessageType_PREPARE,
+				View:        view,
+				HasQuorumFn: i.backend.HasQuorum,
 			},
 		)
 	)
@@ -770,7 +768,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.SubCh:
-			if !i.handlePrepare(view, quorum) {
+			if !i.handlePrepare(view) {
 				//	quorum of valid prepare messages not received, retry
 				continue
 			}
@@ -782,7 +780,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 
 // handlePrepare parses available prepare messages and performs
 // a transition to COMMIT state, if quorum was reached
-func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
+func (i *IBFT) handlePrepare(view *proto.View) bool {
 	isValidPrepare := func(message *proto.Message) bool {
 		// Verify that the proposal hash is valid
 		return i.backend.IsValidProposalHash(
@@ -797,7 +795,7 @@ func (i *IBFT) handlePrepare(view *proto.View, quorum uint64) bool {
 		isValidPrepare,
 	)
 
-	if len(prepareMessages) < int(quorum)-1 {
+	if !i.backend.HasQuorum(view.Height, prepareMessages, proto.MessageType_PREPARE) {
 		//	quorum not reached, keep polling
 		return false
 	}
@@ -827,15 +825,12 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 		// Grab the current view
 		view = i.state.getView()
 
-		// Grab quorum information
-		quorum = i.backend.Quorum(view.Height)
-
 		// Subscribe to COMMIT messages
 		sub = i.messages.Subscribe(
 			messages.SubscriptionDetails{
-				MessageType:    proto.MessageType_COMMIT,
-				View:           view,
-				MinNumMessages: int(quorum),
+				MessageType: proto.MessageType_COMMIT,
+				View:        view,
+				HasQuorumFn: i.backend.HasQuorum,
 			},
 		)
 	)
@@ -850,7 +845,7 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 			// Stop signal received, exit
 			return errTimeoutExpired
 		case <-sub.SubCh:
-			if !i.handleCommit(view, quorum) {
+			if !i.handleCommit(view) {
 				//	quorum not reached, retry
 				continue
 			}
@@ -862,7 +857,7 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 
 // handleCommit parses available commit messages and performs
 // a transition to FIN state, if quorum was reached
-func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
+func (i *IBFT) handleCommit(view *proto.View) bool {
 	isValidCommit := func(message *proto.Message) bool {
 		var (
 			proposalHash  = messages.ExtractCommitHash(message)
@@ -878,7 +873,7 @@ func (i *IBFT) handleCommit(view *proto.View, quorum uint64) bool {
 	}
 
 	commitMessages := i.messages.GetValidMessages(view, proto.MessageType_COMMIT, isValidCommit)
-	if len(commitMessages) < int(quorum) {
+	if !i.backend.HasQuorum(view.Height, commitMessages, proto.MessageType_COMMIT) {
 		//	quorum not reached, keep polling
 		return false
 	}
@@ -929,7 +924,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		proposal := i.backend.BuildProposal(height)
+		proposal := i.backend.BuildProposal(view)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
@@ -964,7 +959,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal := i.backend.BuildProposal(height)
+		proposal := i.backend.BuildProposal(view)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
@@ -1033,7 +1028,7 @@ func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 	i.additionalTimeout = amount
 }
 
-// validPC verifies that  the prepared certificate is valid
+// validPC verifies that the prepared certificate is valid
 func (i *IBFT) validPC(
 	certificate *proto.PreparedCertificate,
 	rLimit,
@@ -1055,7 +1050,7 @@ func (i *IBFT) validPC(
 	)
 
 	// Make sure there are at least Quorum (PP + P) messages
-	if len(allMessages) < int(i.backend.Quorum(i.state.getHeight())) {
+	if !i.backend.HasQuorum(i.state.getHeight(), allMessages, proto.MessageType_PREPARE) {
 		return false
 	}
 

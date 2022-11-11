@@ -1,6 +1,6 @@
 module github.com/0xPolygon/go-ibft
 
-go 1.18
+go 1.19
 
 require (
 	github.com/JekaMas/go-mutesting v1.1.1

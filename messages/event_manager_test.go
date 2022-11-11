@@ -49,7 +49,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 	go func() {
 		for {
-			em.signalEvent(baseDetails.MessageType, baseDetails.View, baseDetails.MinNumMessages)
+			em.signalEvent(baseDetails.MessageType, baseDetails.View)
 
 			select {
 			case <-quitCh:

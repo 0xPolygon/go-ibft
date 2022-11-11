@@ -121,6 +121,23 @@ func quorum(numNodes uint64) uint64 {
 	}
 }
 
+func commonHasQuorumFn(numNodes uint64) func(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	quorum := quorum(numNodes)
+
+	return func(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+		switch msgType {
+		case proto.MessageType_PREPREPARE:
+			return len(messages) >= 0
+		case proto.MessageType_PREPARE:
+			return len(messages) >= int(quorum)-1
+		case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
+			return len(messages) >= int(quorum)
+		}
+
+		return false
+	}
+}
+
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
@@ -151,9 +168,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function requires all nodes
-		backend.quorumFn = func(_ uint64) uint64 {
-			return numNodes
-		}
+		backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
 		// Make sure the node ID is properly relayed
 		backend.idFn = func() []byte {
@@ -222,7 +237,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 				// Set the proposal creation method for node 0, since
 				// they are the proposer
-				backend.buildProposalFn = func(u uint64) []byte {
+				backend.buildProposalFn = func(_ *proto.View) []byte {
 					return proposal
 				}
 			},
@@ -311,14 +326,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	// for the Backend, for all nodes
 	commonBackendCallback := func(backend *mockBackend, nodeIndex int) {
 		// Make sure the quorum function is Quorum optimal
-		backend.quorumFn = func(_ uint64) uint64 {
-			return quorum(numNodes)
-		}
-
-		// Make sure the allowed faulty nodes function is accurate
-		backend.maximumFaultyNodesFn = func() uint64 {
-			return maxFaulty(numNodes)
-		}
+		backend.hasQuorumFn = commonHasQuorumFn(numNodes)
 
 		// Make sure the node ID is properly relayed
 		backend.idFn = func() []byte {
@@ -393,14 +401,14 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			0: func(backend *mockBackend) {
 				commonBackendCallback(backend, 0)
 
-				backend.buildProposalFn = func(_ uint64) []byte {
+				backend.buildProposalFn = func(_ *proto.View) []byte {
 					return proposals[0]
 				}
 			},
 			1: func(backend *mockBackend) {
 				commonBackendCallback(backend, 1)
 
-				backend.buildProposalFn = func(_ uint64) []byte {
+				backend.buildProposalFn = func(_ *proto.View) []byte {
 					return proposals[1]
 				}
 			},
