@@ -2132,6 +2132,8 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 // TestState_String makes sure the string representation
 // of states is correct
 func TestState_String(t *testing.T) {
+	t.Parallel()
+
 	stringMap := map[stateType]string{
 		newRound: "new round",
 		prepare:  "prepare",
