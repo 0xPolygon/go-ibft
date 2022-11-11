@@ -14,7 +14,7 @@ lint-all:
 
 install-deps:
 	go get github.com/JekaMas/go-mutesting/cmd/go-mutesting@v1.1.1
-    go install github.com/JekaMas/go-mutesting/...
+	go install github.com/JekaMas/go-mutesting/...
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./build/bin v1.50.1
 
 mut:
