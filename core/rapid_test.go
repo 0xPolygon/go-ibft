@@ -5,7 +5,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -330,13 +329,16 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 			cluster.pushMessage(message)
 		}
 
+		// Create context timeout based on the bad nodes number
+		ctxTimeout := getRoundTimeout(testRoundTimeout, 0, numByzantineNodes+1)
+
 		// Run the sequence up until a certain height
 		for height := uint64(0); height < desiredHeight; height++ {
 			// Start the main run loops
 			cluster.runSequence(height)
 
 			// Wait until Quorum nodes finish their run loop
-			ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
+			ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
 			err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
 			assert.NoError(t, err, "unable to wait for nodes to complete")
 
