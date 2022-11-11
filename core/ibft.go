@@ -1144,6 +1144,13 @@ func (i *IBFT) sendCommitMessage(view *proto.View) {
 	)
 }
 
+// getRoundTimeout creates a round timeout based on the base timeout and the current round.
+// Exponentially increases timeout depending on the round number.
+// For instance:
+//   - round 1: 1 sec
+//   - round 2: 2 sec
+//   - round 3: 4 sec
+//   - round 4: 8 sec
 func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round uint64) time.Duration {
 	var (
 		duration     = int(baseRoundTimeout)
