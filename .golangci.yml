@@ -496,6 +496,7 @@ issues:
         - containedctx
         - goerr113
         - revive
+        - gochecknoglobals
   include:
     - EXC0012 # Exported (.+) should have comment( \(or a comment on this block\))? or be unexported
     - EXC0013 # Package comment should be of the form "(.+)...
