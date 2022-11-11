@@ -128,14 +128,10 @@ func NewIBFT(
 func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 	defer i.wg.Done()
 
-	var (
-		duration     = int(i.baseRoundTimeout)
-		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
-		roundTimeout = time.Duration(duration * roundFactor)
-	)
+	roundTimeout := getRoundTimeout(i.baseRoundTimeout, i.additionalTimeout, round)
 
 	//	Create a new timer instance
-	timer := time.NewTimer(roundTimeout + i.additionalTimeout)
+	timer := time.NewTimer(roundTimeout)
 
 	select {
 	case <-ctx.Done():
@@ -1146,4 +1142,14 @@ func (i *IBFT) sendCommitMessage(view *proto.View) {
 			view,
 		),
 	)
+}
+
+func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round uint64) time.Duration {
+	var (
+		duration     = int(baseRoundTimeout)
+		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
+		roundTimeout = time.Duration(duration * roundFactor)
+	)
+
+	return roundTimeout + additionalTimeout
 }
