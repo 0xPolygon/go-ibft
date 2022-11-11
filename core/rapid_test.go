@@ -435,7 +435,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		}
 
 		// numNodes          = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
-		numNodes = uint64(12)
+		numNodes = uint64(7)
 		// numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
 		numByzantineNodes = maxFaulty(numNodes)
 		// desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
@@ -445,17 +445,19 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		insertedProposals = newMockInsertedProposals(numNodes)
 	)
 
-	commonLoggerCallback := func(logger *mockLogger) {
+	fmt.Println(numNodes, numByzantineNodes)
+
+	commonLoggerCallback := func(id string, logger *mockLogger) {
 		logger.infoFn = func(s string, i ...interface{}) {
-			t.Log(append([]interface{}{s}, i...)...)
+			t.Log(append([]interface{}{id, s}, i...)...)
 		}
 
 		logger.errorFn = func(s string, i ...interface{}) {
-			t.Error(append([]interface{}{s}, i...)...)
+			t.Error(append([]interface{}{id, s}, i...)...)
 		}
 
 		logger.debugFn = func(s string, i ...interface{}) {
-			t.Log(append([]interface{}{s}, i...)...)
+			t.Log(append([]interface{}{id, s}, i...)...)
 		}
 	}
 
@@ -592,7 +594,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		// Wait until Quorum nodes finish their run loop
 		ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
 		err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
-		assert.NoError(t, err, "unable to wait for nodes to complete")
+		require.NoError(t, err, "unable to wait for nodes to complete")
 		fmt.Println(height, " => ", err)
 
 		// Shutdown the remaining nodes that might be hanging

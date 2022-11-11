@@ -275,7 +275,7 @@ func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.
 }
 
 type backendConfigCallback func(*mockBackend)
-type loggerConfigCallback func(*mockLogger)
+type loggerConfigCallback func(string, *mockLogger)
 type transportConfigCallback func(*mockTransport)
 
 // newMockCluster creates a new IBFT cluster
@@ -308,7 +308,7 @@ func newMockCluster(
 
 		if loggerCallbackMap != nil {
 			if loggerCallback, isSet := loggerCallbackMap[index]; isSet {
-				loggerCallback(logger)
+				loggerCallback(fmt.Sprintf("node_%d", index), logger)
 			}
 		}
 
