@@ -340,6 +340,7 @@ type mockNodeContext struct {
 // newMockNodeContext is the constructor of mockNodeContext
 func newMockNodeContext() mockNodeContext {
 	ctx, cancelFn := context.WithCancel(context.Background())
+
 	return mockNodeContext{
 		ctx:      ctx,
 		cancelFn: cancelFn,
@@ -410,6 +411,7 @@ func (m *mockCluster) forceShutdown() {
 	// Send a stop signal to all the nodes
 	for i, ctx := range m.ctxs {
 		ctx.cancelFn()
+
 		m.ctxs[i] = newMockNodeContext()
 	}
 
