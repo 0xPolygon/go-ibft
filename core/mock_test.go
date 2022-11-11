@@ -382,6 +382,7 @@ func (m *mockCluster) runSequence(height uint64) {
 			ctx context.Context,
 			node *IBFT,
 		) {
+
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
 
