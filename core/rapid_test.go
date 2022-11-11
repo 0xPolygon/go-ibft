@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	baseRoundTimeout = time.Second * 2
+	baseRoundTimeout = time.Second
 )
 
 // roundMessage contains message data within consensus round
@@ -439,7 +439,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 		// numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
 		numByzantineNodes = maxFaulty(numNodes)
 		// desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
-		desiredHeight = uint64(5)
+		desiredHeight = uint64(3)
 
 		nodes             = generateNodeAddresses(numNodes)
 		insertedProposals = newMockInsertedProposals(numNodes)
@@ -486,7 +486,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 
 		// Make sure the only proposer is picked using Round Robin
 		backend.isProposerFn = func(from []byte, height uint64, round uint64) bool {
-			// trustNodes := nodes[:numByzantineNodes]
+			fmt.Println("proposer for height and round", height, round, int(height+round)%len(nodes))
 
 			return bytes.Equal(
 				from,
