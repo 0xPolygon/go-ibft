@@ -322,11 +322,7 @@ func newMockCluster(
 		nodes[index] = NewIBFT(logger, backend, transport)
 
 		// Instantiate context for the nodes
-		ctx, cancelFn := context.WithCancel(context.Background())
-		nodeCtxs[index] = mockNodeContext{
-			ctx:      ctx,
-			cancelFn: cancelFn,
-		}
+		nodeCtxs[index] = newMockNodeContext()
 	}
 
 	return &mockCluster{
@@ -339,6 +335,15 @@ func newMockCluster(
 type mockNodeContext struct {
 	ctx      context.Context
 	cancelFn context.CancelFunc
+}
+
+// newMockNodeContext is the constructor of mockNodeContext
+func newMockNodeContext() mockNodeContext {
+	ctx, cancelFn := context.WithCancel(context.Background())
+	return mockNodeContext{
+		ctx:      ctx,
+		cancelFn: cancelFn,
+	}
 }
 
 // mockNodeWg is the WaitGroup wrapper for the cluster nodes
@@ -383,12 +388,10 @@ func (m *mockCluster) runSequence(height uint64) {
 			node *IBFT,
 			height uint64,
 		) {
-			defer func() {
-				m.wg.Done()
-			}()
-
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
+
+			m.wg.Done()
 		}(m.ctxs[nodeIndex].ctx, node, height)
 	}
 }
@@ -405,8 +408,9 @@ func (m *mockCluster) awaitCompletion() {
 // in the cluster, and awaits their completion
 func (m *mockCluster) forceShutdown() {
 	// Send a stop signal to all the nodes
-	for _, ctx := range m.ctxs {
+	for i, ctx := range m.ctxs {
 		ctx.cancelFn()
+		m.ctxs[i] = newMockNodeContext()
 	}
 
 	// Wait for all the nodes to finish

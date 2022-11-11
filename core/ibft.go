@@ -344,7 +344,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			teardown()
 
 			return
-		case <-ctx.Done():
+		case <-ctxRound.Done():
 			teardown()
 			i.log.Debug("sequence cancelled")
 
