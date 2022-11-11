@@ -441,20 +441,6 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			insertedProposals = newMockInsertedProposals(numNodes)
 		)
 
-		commonLoggerCallback := func(logger *mockLogger, node int) {
-			logger.infoFn = func(s string, i ...interface{}) {
-				t.Log(append([]interface{}{node, " => ", s, "time", time.Now()}, i...)...)
-			}
-
-			logger.errorFn = func(s string, i ...interface{}) {
-				t.Error(append([]interface{}{node, " => ", s, "time", time.Now()}, i...)...)
-			}
-
-			logger.debugFn = func(s string, i ...interface{}) {
-				t.Log(append([]interface{}{node, " => ", s, "time", time.Now()}, i...)...)
-			}
-		}
-
 		// commonTransportCallback is the common method modification
 		// required for Transport, for all nodes
 		commonTransportCallback := func(transport *mockTransport) {
@@ -545,7 +531,6 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 
 		// Initialize the backend and transport callbacks for
 		// each node in the arbitrary cluster
-		loggerCallbackMap := make(map[int]loggerConfigCallback)
 		backendCallbackMap := make(map[int]backendConfigCallback)
 		transportCallbackMap := make(map[int]transportConfigCallback)
 
@@ -556,17 +541,13 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			}
 
 			transportCallbackMap[i] = commonTransportCallback
-
-			loggerCallbackMap[i] = func(logger *mockLogger) {
-				commonLoggerCallback(logger, i)
-			}
 		}
 
 		// Create the mock cluster
 		cluster := newMockCluster(
 			numNodes,
 			backendCallbackMap,
-			loggerCallbackMap,
+			nil,
 			transportCallbackMap,
 		)
 
