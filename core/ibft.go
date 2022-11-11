@@ -36,10 +36,12 @@ type Messages interface {
 	Unsubscribe(id messages.SubscriptionID)
 }
 
+const (
+	round0Timeout = 10 * time.Second
+)
+
 var (
 	errTimeoutExpired = errors.New("round timeout expired")
-
-	round0Timeout = 10 * time.Second
 )
 
 // IBFT represents a single instance of the IBFT state machine
