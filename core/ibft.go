@@ -703,8 +703,8 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 
 	// Find the max round
 	var (
-		maxRound     uint64 = 0
-		expectedHash []byte = nil
+		maxRound     uint64
+		expectedHash []byte
 	)
 
 	for _, tuple := range roundsAndPreparedBlockHashes {
