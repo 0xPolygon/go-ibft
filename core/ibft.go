@@ -37,7 +37,8 @@ type Messages interface {
 }
 
 const (
-	round0Timeout = 10 * time.Second
+	round0Timeout   = 10 * time.Second
+	roundFactorBase = float64(2)
 )
 
 var (
@@ -127,7 +128,7 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 
 	var (
 		duration     = int(i.baseRoundTimeout)
-		roundFactor  = int(math.Pow(float64(2), float64(round)))
+		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
 		roundTimeout = time.Duration(duration * roundFactor)
 	)
 
