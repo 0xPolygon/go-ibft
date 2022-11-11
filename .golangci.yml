@@ -58,12 +58,10 @@ linters:
     - typecheck # Like the front-end of a Go compiler, parses and type-checks Go code
     - unused # Checks Go code for unused constants, variables, functions and types
     - containedctx # containedctx is a linter that detects struct contained context.Context field
-    - cyclop # checks function and package cyclomatic complexity
     - durationcheck # check for two durations multiplied together
     - errchkjson
     - gochecknoglobals # check that no global variables exist
     - goerr113 # Golang linter to check the errors handling expressions
-    - gomnd # An analyzer to detect magic numbers.
     - ireturn # Accept Interfaces, Return Concrete Types
     - nosprintfhostport # Checks for misuse of Sprintf to construct a host with port in a URL.
     - promlinter # Check Prometheus metrics naming via promlint
@@ -167,7 +165,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#add-constant
       - name: add-constant
         severity: warning
-        disabled: false
+        disabled: true
         arguments:
           - maxLitCount: "3"
             allowStrs: '""'
@@ -206,7 +204,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#cognitive-complexity
       - name: cognitive-complexity
         severity: warning
-        disabled: false
+        disabled: true
         arguments: [ 7 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#confusing-naming
       - name: confusing-naming
@@ -233,7 +231,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#cyclomatic
       - name: cyclomatic
         severity: warning
-        disabled: false
+        disabled: true
         arguments: [ 3 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#datarace
       - name: datarace
@@ -310,7 +308,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#function-length
       - name: function-length
         severity: warning
-        disabled: false
+        disabled: true
         arguments: [ 10, 0 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#get-return
       - name: get-return
@@ -495,6 +493,9 @@ issues:
         - gosec
         - unparam
         - lll
+        - containedctx
+        - goerr113
+        - revive
   include:
     - EXC0012 # Exported (.+) should have comment( \(or a comment on this block\))? or be unexported
     - EXC0013 # Package comment should be of the form "(.+)...

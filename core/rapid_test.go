@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +12,10 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
+)
+
+const (
+	testRoundTimeout = time.Second
 )
 
 // mockInsertedProposals keeps track of inserted proposals for a cluster
@@ -359,7 +362,7 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 
 		// Set a small timeout, because of situations
 		// where the byzantine node is the proposer
-		cluster.setBaseTimeout(time.Second * 2)
+		cluster.setBaseTimeout(testRoundTimeout)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -374,14 +377,8 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 
 			// Wait until Quorum nodes finish their run loop
 			ctx, cancelFn := context.WithTimeout(context.Background(), time.Second*5)
-			if err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes))); err != nil {
-				t.Fatalf(
-					fmt.Sprintf(
-						"unable to wait for nodes to complete, %v",
-						err,
-					),
-				)
-			}
+			err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
+			assert.NoError(t, err, "unable to wait for nodes to complete")
 
 			// Shutdown the remaining nodes that might be hanging
 			cluster.forceShutdown()

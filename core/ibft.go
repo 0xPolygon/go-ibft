@@ -12,12 +12,14 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// Logger represents the logger behaviour
 type Logger interface {
 	Info(msg string, args ...interface{})
 	Debug(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
 }
 
+// Messages represents the message managing behaviour
 type Messages interface {
 	// Messages modifiers //
 	AddMessage(message *proto.Message)
@@ -36,10 +38,13 @@ type Messages interface {
 	Unsubscribe(id messages.SubscriptionID)
 }
 
+const (
+	round0Timeout   = 10 * time.Second
+	roundFactorBase = float64(2)
+)
+
 var (
 	errTimeoutExpired = errors.New("round timeout expired")
-
-	round0Timeout = 10 * time.Second
 )
 
 // IBFT represents a single instance of the IBFT state machine
@@ -125,7 +130,7 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 
 	var (
 		duration     = int(i.baseRoundTimeout)
-		roundFactor  = int(math.Pow(float64(2), float64(round)))
+		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
 		roundTimeout = time.Duration(duration * roundFactor)
 	)
 
@@ -344,7 +349,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			teardown()
 
 			return
-		case <-ctx.Done():
+		case <-ctxRound.Done():
 			teardown()
 			i.log.Debug("sequence cancelled")
 
@@ -681,11 +686,11 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
 
 	for _, rcMessage := range rcc.RoundChangeMessages {
-		certificate := messages.ExtractLatestPC(rcMessage)
+		cert := messages.ExtractLatestPC(rcMessage)
 
 		// Check if there is a certificate, and if it's a valid PC
-		if certificate != nil && i.validPC(certificate, msg.View.Round, height) {
-			hash := messages.ExtractProposalHash(certificate.ProposalMessage)
+		if cert != nil && i.validPC(cert, msg.View.Round, height) {
+			hash := messages.ExtractProposalHash(cert.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
 				round: rcMessage.View.Round,
@@ -700,8 +705,8 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 
 	// Find the max round
 	var (
-		maxRound     uint64 = 0
-		expectedHash []byte = nil
+		maxRound     uint64
+		expectedHash []byte
 	)
 
 	for _, tuple := range roundsAndPreparedBlockHashes {
