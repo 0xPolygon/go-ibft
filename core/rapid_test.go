@@ -162,27 +162,8 @@ func TestProperty_AllHonestNodes(t *testing.T) {
 			}
 		}
 
-		// Initialize the backend and transport callbacks for
-		// each node in the arbitrary cluster
-		backendCallbackMap := make(map[int]backendConfigCallback)
-		transportCallbackMap := make(map[int]transportConfigCallback)
-
-		for i := 0; i < int(numNodes); i++ {
-			i := i
-			backendCallbackMap[i] = func(backend *mockBackend) {
-				commonBackendCallback(backend, i)
-			}
-
-			transportCallbackMap[i] = commonTransportCallback
-		}
-
-		// Create the mock cluster
-		cluster := newMockCluster(
-			numNodes,
-			backendCallbackMap,
-			nil,
-			transportCallbackMap,
-		)
+		// Create default cluster for rapid tests
+		cluster := createCluster(numNodes, commonBackendCallback, commonTransportCallback)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -351,31 +332,8 @@ func TestProperty_MajorityHonestNodes(t *testing.T) {
 			}
 		}
 
-		// Initialize the backend and transport callbacks for
-		// each node in the arbitrary cluster
-		backendCallbackMap := make(map[int]backendConfigCallback)
-		transportCallbackMap := make(map[int]transportConfigCallback)
-
-		for i := 0; i < int(numNodes); i++ {
-			i := i
-			backendCallbackMap[i] = func(backend *mockBackend) {
-				commonBackendCallback(backend, i)
-			}
-
-			transportCallbackMap[i] = commonTransportCallback
-		}
-
-		// Create the mock cluster
-		cluster := newMockCluster(
-			numNodes,
-			backendCallbackMap,
-			nil,
-			transportCallbackMap,
-		)
-
-		// Set a small timeout, because of situations
-		// where the byzantine node is the proposer
-		cluster.setBaseTimeout(testRoundTimeout)
+		// Create default cluster for rapid tests
+		cluster := createCluster(numNodes, commonBackendCallback, commonTransportCallback)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -433,7 +391,7 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 				seal:     []byte("bad seal"),
 			}
 
-			numNodes          = rapid.Uint64Range(4, 18).Draw(t, "number of cluster nodes")
+			numNodes          = rapid.Uint64Range(4, 15).Draw(t, "number of cluster nodes")
 			numByzantineNodes = rapid.Uint64Range(1, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
 			desiredHeight     = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
 
@@ -529,31 +487,8 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			}
 		}
 
-		// Initialize the backend and transport callbacks for
-		// each node in the arbitrary cluster
-		backendCallbackMap := make(map[int]backendConfigCallback)
-		transportCallbackMap := make(map[int]transportConfigCallback)
-
-		for i := 0; i < int(numNodes); i++ {
-			i := i
-			backendCallbackMap[i] = func(backend *mockBackend) {
-				commonBackendCallback(backend, i)
-			}
-
-			transportCallbackMap[i] = commonTransportCallback
-		}
-
-		// Create the mock cluster
-		cluster := newMockCluster(
-			numNodes,
-			backendCallbackMap,
-			nil,
-			transportCallbackMap,
-		)
-
-		// Set a small timeout, because of situations
-		// where the byzantine node is the proposer
-		cluster.setBaseTimeout(testRoundTimeout)
+		// Create default cluster for rapid tests
+		cluster := createCluster(numNodes, commonBackendCallback, commonTransportCallback)
 
 		// Set the multicast callback to relay the message
 		// to the entire cluster
@@ -561,13 +496,15 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			cluster.pushMessage(message)
 		}
 
+		// Create context timeout based on the bad nodes number
+		ctxTimeout := getRoundTimeout(testRoundTimeout, 0, numByzantineNodes+1)
+
 		// Run the sequence up until a certain height
 		for height := uint64(0); height < desiredHeight; height++ {
 			// Start the main run loops
 			cluster.runSequence(height)
 
 			// Wait until Quorum nodes finish their run loop
-			ctxTimeout := getRoundTimeout(testRoundTimeout, 0, numByzantineNodes+1)
 			ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
 			err := cluster.awaitNCompletions(ctx, int64(quorum(numNodes)))
 			assert.NoError(t, err, "unable to wait for nodes to complete")
@@ -592,4 +529,38 @@ func TestProperty_MajorityHonestNodes_BroadcastBadMessage(t *testing.T) {
 			}
 		}
 	})
+}
+
+func createCluster(
+	numNodes uint64,
+	backendCallback func(backend *mockBackend, i int),
+	transportCallback transportConfigCallback,
+) *mockCluster {
+	// Initialize the backend and transport callbacks for
+	// each node in the arbitrary cluster
+	backendCallbackMap := make(map[int]backendConfigCallback)
+	transportCallbackMap := make(map[int]transportConfigCallback)
+
+	for i := 0; i < int(numNodes); i++ {
+		i := i
+		backendCallbackMap[i] = func(backend *mockBackend) {
+			backendCallback(backend, i)
+		}
+
+		transportCallbackMap[i] = transportCallback
+	}
+
+	// Create the mock cluster
+	cluster := newMockCluster(
+		numNodes,
+		backendCallbackMap,
+		nil,
+		transportCallbackMap,
+	)
+
+	// Set a small timeout, because of situations
+	// where the byzantine node is the proposer
+	cluster.setBaseTimeout(testRoundTimeout)
+
+	return cluster
 }
