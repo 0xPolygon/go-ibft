@@ -59,20 +59,31 @@ func (m *mockInsertedProposals) insertProposal(
 
 // propertyTestEvent contains randomly-generated data for rapid testing
 type propertyTestEvent struct {
-	nodes                uint64
-	byzantineNodes       uint64
+	// nodes is the total number of nodes
+	nodes uint64
+
+	// byzantineNodes is the total number of byzantine nodes
+	byzantineNodes uint64
+
+	// silentByzantineNodes is the number of byzantine nodes
+	// that are going to be silent, i.e. do not respond
 	silentByzantineNodes uint64
-	badByzantineNodes    uint64
-	desiredHeight        uint64
+
+	// badByzantineNodes is the number of byzantine nodes
+	// that are going to send bad messages
+	badByzantineNodes uint64
+
+	// desiredHeight is the desired height number
+	desiredHeight uint64
 }
 
 // generatePropertyTestEvent generates propertyTestEvent model
 func generatePropertyTestEvent(t *rapid.T) *propertyTestEvent {
 	var (
 		numNodes             = rapid.Uint64Range(4, 15).Draw(t, "number of cluster nodes")
-		numByzantineNodes    = rapid.Uint64Max(maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
-		silentByzantineNodes = rapid.Uint64Max(numByzantineNodes).Draw(t, "number of silent byzantine nodes")
-		desiredHeight        = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
+		numByzantineNodes    = rapid.Uint64Range(0, maxFaulty(numNodes)).Draw(t, "number of byzantine nodes")
+		silentByzantineNodes = rapid.Uint64Range(0, numByzantineNodes).Draw(t, "number of silent byzantine nodes")
+		desiredHeight        = rapid.Uint64Range(10, 20).Draw(t, "minimum height to be reached")
 	)
 
 	return &propertyTestEvent{
@@ -199,22 +210,33 @@ func TestProperty(t *testing.T) {
 		// to the entire cluster
 		multicastFn = cluster.pushMessage
 
+		// Minimum one round is required
+		minRounds := uint64(1)
+		if testEvent.byzantineNodes > minRounds {
+			minRounds = testEvent.byzantineNodes
+		}
+
 		// Create context timeout based on the bad nodes number
-		ctxTimeout := getRoundTimeout(testRoundTimeout, 0, testEvent.byzantineNodes+1)
+		ctxTimeout := getRoundTimeout(testRoundTimeout, testRoundTimeout, minRounds+1)
 
 		// Run the sequence up until a certain height
 		for height := uint64(0); height < testEvent.desiredHeight; height++ {
 			// Start the main run loops
 			cluster.runSequence(height)
 
-			// Wait until Quorum nodes finish their run loop
-			ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
-			err := cluster.awaitNCompletions(ctx, int64(quorum(testEvent.nodes)))
-			assert.NoError(t, err, "unable to wait for nodes to complete on height %d", height)
+			if testEvent.byzantineNodes == 0 {
+				// Wait until all nodes propose messages
+				cluster.awaitCompletion()
+			} else {
+				// Wait until Quorum nodes finish their run loop
+				ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
+				err := cluster.awaitNCompletions(ctx, int64(quorum(testEvent.nodes)))
+				assert.NoError(t, err, "unable to wait for nodes to complete on height %d", height)
+				cancelFn()
+			}
 
 			// Shutdown the remaining nodes that might be hanging
 			cluster.forceShutdown()
-			cancelFn()
 		}
 
 		// Make sure proposals map is not empty
@@ -222,13 +244,12 @@ func TestProperty(t *testing.T) {
 
 		// Make sure that the inserted proposal is valid for each height
 		for i, proposalMap := range insertedProposals.proposals {
-
 			if i < int(testEvent.byzantineNodes) {
 				// Proposals map must be empty when a byzantine node is proposer
 				assert.Empty(t, proposalMap)
 			} else {
 				// Make sure the node has the adequate number of inserted proposals
-				assert.Len(t, proposalMap, int(testEvent.desiredHeight))
+				assert.GreaterOrEqual(t, len(proposalMap), int(quorum(testEvent.nodes)))
 
 				// Check values
 				for _, insertedProposal := range proposalMap {
