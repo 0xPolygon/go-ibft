@@ -47,6 +47,27 @@ jobs:
       - name: Run Go Test with race
         run: go test -test.short -race -shuffle=on -timeout 5m ./...
 
+  mutating:
+    name: Mutation tests
+    runs-on: ubuntu-latest
+    if: false # skipped, should be restored and fixed
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19.x
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: make install-deps
+
+      - name: Mutating testing
+        run: make mut
+
   reproducible-builds:
     runs-on: ubuntu-latest
     steps:
