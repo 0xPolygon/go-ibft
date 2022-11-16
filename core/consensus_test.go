@@ -157,7 +157,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
-	commonTransportCallback := func(transport *mockTransport) {
+	commonTransportCallback := func(transport *mockTransport, _ int) {
 		transport.multicastFn = func(message *proto.Message) {
 			multicastFn(message)
 		}
@@ -290,7 +290,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
-	commonTransportCallback := func(transport *mockTransport) {
+	commonTransportCallback := func(transport *mockTransport, _ int) {
 		transport.multicastFn = func(message *proto.Message) {
 			multicastFn(message)
 		}
