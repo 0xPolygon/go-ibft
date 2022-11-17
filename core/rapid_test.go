@@ -105,6 +105,7 @@ func TestProperty(t *testing.T) {
 
 		var (
 			testEvent         = generatePropertyTestEvent(t)
+			currentQuorum     = quorum(testEvent.nodes)
 			nodes             = generateNodeAddresses(testEvent.nodes)
 			insertedProposals = newMockInsertedProposals(testEvent.nodes)
 		)
@@ -230,7 +231,7 @@ func TestProperty(t *testing.T) {
 			} else {
 				// Wait until Quorum nodes finish their run loop
 				ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
-				err := cluster.awaitNCompletions(ctx, int64(quorum(testEvent.nodes)))
+				err := cluster.awaitNCompletions(ctx, int64(currentQuorum))
 				assert.NoError(t, err, "unable to wait for nodes to complete on height %d", height)
 				cancelFn()
 			}
@@ -248,8 +249,8 @@ func TestProperty(t *testing.T) {
 				// Proposals map must be empty when a byzantine node is proposer
 				assert.Empty(t, proposalMap)
 			} else {
-				// Make sure the node has the adequate number of inserted proposals
-				assert.GreaterOrEqual(t, len(proposalMap), int(quorum(testEvent.nodes)))
+				// Make sure the node has proposals
+				assert.NotEmpty(t, proposalMap)
 
 				// Check values
 				for _, insertedProposal := range proposalMap {
