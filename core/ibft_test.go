@@ -2283,3 +2283,49 @@ func TestIBFT_ExtendRoundTimer(t *testing.T) {
 	// Make sure the round timeout was extended
 	assert.Equal(t, additionalTimeout, i.additionalTimeout)
 }
+
+func Test_getRoundTimeout(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		baseRoundTimeout  time.Duration
+		additionalTimeout time.Duration
+		round             uint64
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want time.Duration
+	}{
+		{
+			name: "first round duration",
+			args: args{
+				baseRoundTimeout:  time.Second,
+				additionalTimeout: time.Second,
+				round:             0,
+			},
+			want: time.Second * 2,
+		},
+		{
+			name: "zero round duration",
+			args: args{
+				baseRoundTimeout:  time.Second,
+				additionalTimeout: time.Second,
+				round:             1,
+			},
+			want: time.Second * 3,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := getRoundTimeout(tt.args.baseRoundTimeout, tt.args.additionalTimeout, tt.args.round)
+			assert.Equalf(t, tt.want, got, "getRoundTimeout(%v, %v, %v)", tt.args.baseRoundTimeout, tt.args.additionalTimeout, tt.args.round)
+		})
+	}
+}

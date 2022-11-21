@@ -299,9 +299,9 @@ type transportConfigCallback func(*mockTransport)
 // newMockCluster creates a new IBFT cluster
 func newMockCluster(
 	numNodes uint64,
-	backendCallback func(backend *mockBackend, i int),
-	loggerCallback loggerConfigCallback,
-	transportCallback transportConfigCallback,
+	backendCallback func(*mockBackend, int),
+	loggerCallback func(*mockLogger, int),
+	transportCallback func(*mockTransport, int),
 ) *mockCluster {
 	if numNodes < 1 {
 		return nil
@@ -323,11 +323,15 @@ func newMockCluster(
 		}
 
 		if transportCallback != nil {
-			transportCallbackMap[i] = transportCallback
+			transportCallbackMap[i] = func(backend *mockTransport) {
+				transportCallback(backend, i)
+			}
 		}
 
 		if loggerCallback != nil {
-			loggerCallbackMap[i] = loggerCallback
+			loggerCallbackMap[i] = func(backend *mockLogger) {
+				loggerCallback(backend, i)
+			}
 		}
 	}
 
