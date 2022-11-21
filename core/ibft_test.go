@@ -2285,6 +2285,8 @@ func TestIBFT_ExtendRoundTimer(t *testing.T) {
 }
 
 func Test_getRoundTimeout(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		baseRoundTimeout  time.Duration
 		additionalTimeout time.Duration
