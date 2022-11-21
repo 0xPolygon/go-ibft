@@ -2292,6 +2292,7 @@ func Test_getRoundTimeout(t *testing.T) {
 		additionalTimeout time.Duration
 		round             uint64
 	}
+
 	tests := []struct {
 		name string
 		args args
@@ -2316,8 +2317,11 @@ func Test_getRoundTimeout(t *testing.T) {
 			want: time.Second * 3,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := getRoundTimeout(tt.args.baseRoundTimeout, tt.args.additionalTimeout, tt.args.round)
 			assert.Equalf(t, tt.want, got, "getRoundTimeout(%v, %v, %v)", tt.args.baseRoundTimeout, tt.args.additionalTimeout, tt.args.round)
 		})
