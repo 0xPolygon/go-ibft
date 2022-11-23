@@ -410,8 +410,8 @@ func (wg *mockNodeWg) Add(delta int) {
 }
 
 func (wg *mockNodeWg) Done() {
-	wg.WaitGroup.Done()
 	atomic.AddInt64(&wg.count, 1)
+	wg.WaitGroup.Done()
 }
 
 func (wg *mockNodeWg) getDone() int64 {
@@ -436,10 +436,7 @@ func (m *mockCluster) runSequence(height uint64) {
 	for nodeIndex, node := range m.nodes {
 		m.wg.Add(1)
 
-		go func(
-			ctx context.Context,
-			node *IBFT,
-		) {
+		go func(ctx context.Context, node *IBFT) {
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
 
@@ -515,5 +512,19 @@ func (m *mockCluster) areAllNodesOnRound(round uint64) bool {
 func (m *mockCluster) setBaseTimeout(timeout time.Duration) {
 	for _, node := range m.nodes {
 		node.baseRoundTimeout = timeout
+	}
+}
+
+func defaultLoggerCallback(logger *mockLogger, nodeIndex int) {
+	logger.debugFn = func(s string, i ...interface{}) {
+		fmt.Println(nodeIndex, "=>", s, i)
+	}
+
+	logger.infoFn = func(s string, i ...interface{}) {
+		fmt.Println(nodeIndex, "=>", s, i)
+	}
+
+	logger.errorFn = func(s string, i ...interface{}) {
+		fmt.Println(nodeIndex, "=>", s, i)
 	}
 }

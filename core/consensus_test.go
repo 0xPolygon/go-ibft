@@ -388,9 +388,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 	// Set the multicast callback to relay the message
 	// to the entire cluster
-	multicastFn = func(message *proto.Message) {
-		cluster.pushMessage(message)
-	}
+	multicastFn = cluster.pushMessage
 
 	// Start the main run loops
 	cluster.runSequence(1)
