@@ -3,13 +3,11 @@ package core
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"pgregory.net/rapid"
 
 	"github.com/0xPolygon/go-ibft/messages"
@@ -145,15 +143,10 @@ func (s *propertyTestSetup) lastRound(height uint64) propertyTestEvent {
 	return s.events[height][len(s.events[height])-1]
 }
 
-func (s *propertyTestSetup) lastRoundQuorum(height uint64) int64 {
-	lastRound := s.lastRound(height)
-	return int64(s.nodes - lastRound.badNodes())
-}
-
 // generatePropertyTestEvent generates propertyTestEvent model
 func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 	var (
-		numNodes      = rapid.Uint64Range(4, 15).Draw(t, "number of cluster nodes")
+		numNodes      = rapid.Uint64Range(4, 20).Draw(t, "number of cluster nodes")
 		desiredHeight = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
 		maxBadNodes   = maxFaulty(numNodes)
 	)
@@ -190,7 +183,7 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 		}
 	}
 
-	fmt.Printf("nodes: %d, height: %d, faulty: %d\n", numNodes, desiredHeight, maxFaulty(numNodes))
+	/*fmt.Printf("nodes: %d, height: %d, faulty: %d\n", numNodes, desiredHeight, maxFaulty(numNodes))
 	for height, rounds := range setup.events {
 		for round, data := range rounds {
 			fmt.Println(" ",
@@ -201,7 +194,7 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 			)
 		}
 		fmt.Println()
-	}
+	}*/
 
 	return setup
 }
@@ -321,7 +314,7 @@ func TestProperty(t *testing.T) {
 		cluster := newMockCluster(
 			setup.nodes,
 			commonBackendCallback,
-			defaultLoggerCallback,
+			nil,
 			commonTransportCallback,
 		)
 
@@ -335,62 +328,49 @@ func TestProperty(t *testing.T) {
 			rounds := uint64(len(setup.events[height]))
 			ctxTimeout := getRoundTimeout(testRoundTimeout, testRoundTimeout, rounds*2)
 
-			// Get number of valid nodes in the last round per height
-			currentQuorum := setup.lastRoundQuorum(height)
-
 			// Start the main run loops
 			cluster.runSequence(height)
 
-			if uint64(currentQuorum) == setup.nodes {
-				// Wait until all nodes finish their run loop
-				cluster.awaitCompletion()
-			} else {
-				// Wait until Quorum nodes finish their run loop
-				ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
-				err := cluster.awaitNCompletions(ctx, currentQuorum)
-				assert.NoError(t, err, "unable to wait for nodes to complete on height %d", height)
-				cancelFn()
-			}
+			ctx, cancelFn := context.WithTimeout(context.Background(), ctxTimeout)
+			err := cluster.awaitNCompletions(ctx, int64(quorum(setup.nodes)))
+			assert.NoError(t, err, "unable to wait for nodes to complete on height %d", height)
+			cancelFn()
 
 			// Shutdown the remaining nodes that might be hanging
 			cluster.forceShutdown()
 
+			// Increment current height
 			setup.incHeight()
-		}
 
-		// Make sure proposals map is not empty
-		require.Len(t, insertedProposals.proposals, int(setup.nodes))
+			// Make sure proposals map is not empty
+			assert.Len(t, insertedProposals.proposals, int(setup.nodes))
 
-		// Make sure that the inserted proposal is valid for each height
-		nodesToBlocks := make(map[int]int)
-		for height := range setup.events {
-			lastRound := setup.lastRound(uint64(height))
+			// Make sure bad nodes were out of the last round.
+			// Make sure we have inserted blocks >= quorum per round.
+			lastRound := setup.lastRound(height)
 			badNodes := lastRound.badNodes() - 1
-
-			for nodeID := 0; nodeID < int(setup.nodes); nodeID++ {
-				if _, ok := nodesToBlocks[nodeID]; !ok {
-					nodesToBlocks[nodeID] = 0
-				}
-
+			var proposalsNumber int
+			for nodeID, proposalMap := range insertedProposals.proposals {
 				if nodeID > int(badNodes) {
-					nodesToBlocks[nodeID]++
+					// Only one inserted block per valid round
+					assert.LessOrEqual(t, len(proposalMap), 1)
+					proposalsNumber++
+
+					// Make sure inserted block value is correct
+					for _, val := range proposalMap {
+						assert.Equal(t, correctRoundMessage.proposal, val)
+					}
+				} else {
+					// There should not be inserted blocks in bad nodes
+					assert.Empty(t, proposalMap)
 				}
 			}
+
+			// Make sure the total number of inserted blocks >= quorum
+			assert.GreaterOrEqual(t, proposalsNumber, int(quorum(setup.nodes)))
+
+			// Reset proposals map for the next height
+			insertedProposals = newMockInsertedProposals(setup.nodes)
 		}
-
-		proposalsRaw, _ := json.MarshalIndent(insertedProposals.proposals, "", "  ")
-		nodesToBlocksRaw, _ := json.MarshalIndent(nodesToBlocks, "", "  ")
-		fmt.Println(string(proposalsRaw))
-		fmt.Println(string(nodesToBlocksRaw))
-
-		for nodeID, proposalMap := range insertedProposals.proposals {
-			assert.Len(t, proposalMap, nodesToBlocks[nodeID])
-
-			for _, val := range proposalMap {
-				assert.Equal(t, correctRoundMessage.proposal, val)
-			}
-		}
-
-		fmt.Println("---------------------------------------------------------")
 	})
 }
