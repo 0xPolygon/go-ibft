@@ -348,10 +348,10 @@ func TestProperty(t *testing.T) {
 			// Make sure bad nodes were out of the last round.
 			// Make sure we have inserted blocks >= quorum per round.
 			lastRound := setup.lastRound(height)
-			badNodes := lastRound.badNodes() - 1
+			badNodes := lastRound.badNodes()
 			var proposalsNumber int
 			for nodeID, proposalMap := range insertedProposals.proposals {
-				if nodeID > int(badNodes) {
+				if nodeID >= int(badNodes) {
 					// Only one inserted block per valid round
 					assert.LessOrEqual(t, len(proposalMap), 1)
 					proposalsNumber++
