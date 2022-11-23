@@ -190,19 +190,6 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 		}
 	}
 
-	/*fmt.Printf("nodes: %d, height: %d, faulty: %d\n", numNodes, desiredHeight, maxFaulty(numNodes))
-	for height, rounds := range setup.events {
-		for round, data := range rounds {
-			fmt.Println(" ",
-				"height:", height,
-				"round:", round,
-				"proposer:", getProposer(uint64(height), uint64(round), setup.nodes),
-				"byz:", data.silentByzantineNodes+data.badByzantineNodes,
-			)
-		}
-		fmt.Println()
-	}*/
-
 	return setup
 }
 
