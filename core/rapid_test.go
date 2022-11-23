@@ -128,9 +128,11 @@ func (s *propertyTestSetup) incHeight() {
 func (s *propertyTestSetup) getEvent(nodeIndex int) propertyTestEvent {
 	s.Lock()
 
-	height := int(s.currentHeight[nodeIndex])
-	roundNumber := int(s.currentRound[nodeIndex])
-	var round propertyTestEvent
+	var (
+		height      = int(s.currentHeight[nodeIndex])
+		roundNumber = int(s.currentRound[nodeIndex])
+		round       propertyTestEvent
+	)
 
 	if roundNumber >= len(s.events[height]) {
 		round = s.events[height][len(s.events[height])-1]
@@ -316,6 +318,7 @@ func TestProperty(t *testing.T) {
 			// Make sure the proposal can be built
 			backend.buildProposalFn = func(view *proto.View) []byte {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
+
 				return message.proposal
 			}
 		}
