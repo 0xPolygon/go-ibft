@@ -514,17 +514,3 @@ func (m *mockCluster) setBaseTimeout(timeout time.Duration) {
 		node.baseRoundTimeout = timeout
 	}
 }
-
-func defaultLoggerCallback(logger *mockLogger, nodeIndex int) {
-	logger.debugFn = func(s string, i ...interface{}) {
-		fmt.Println(nodeIndex, "=>", s, i)
-	}
-
-	logger.infoFn = func(s string, i ...interface{}) {
-		fmt.Println(nodeIndex, "=>", s, i)
-	}
-
-	logger.errorFn = func(s string, i ...interface{}) {
-		fmt.Println(nodeIndex, "=>", s, i)
-	}
-}

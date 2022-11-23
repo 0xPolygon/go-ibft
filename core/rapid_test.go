@@ -87,6 +87,7 @@ func (e propertyTestEvent) getMessage(nodeIndex int) *roundMessage {
 	if uint64(nodeIndex) < e.badNodes() {
 		message = badRoundMessage
 	}
+
 	return &message
 }
 
@@ -115,10 +116,12 @@ func (s *propertyTestSetup) setRound(nodeIndex int, round uint64) {
 
 func (s *propertyTestSetup) incHeight() {
 	s.Lock()
+
 	for nodeIndex := 0; uint64(nodeIndex) < s.nodes; nodeIndex++ {
 		s.currentHeight[nodeIndex]++
 		s.currentRound[nodeIndex] = 0
 	}
+
 	s.Unlock()
 }
 
@@ -128,6 +131,7 @@ func (s *propertyTestSetup) getEvent(nodeIndex int) propertyTestEvent {
 	height := int(s.currentHeight[nodeIndex])
 	roundNumber := int(s.currentRound[nodeIndex])
 	var round propertyTestEvent
+
 	if roundNumber >= len(s.events[height]) {
 		round = s.events[height][len(s.events[height])-1]
 	} else {
@@ -147,7 +151,7 @@ func (s *propertyTestSetup) lastRound(height uint64) propertyTestEvent {
 func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 	var (
 		numNodes      = rapid.Uint64Range(4, 20).Draw(t, "number of cluster nodes")
-		desiredHeight = rapid.Uint64Range(1, 5).Draw(t, "minimum height to be reached")
+		desiredHeight = rapid.Uint64Range(4, 10).Draw(t, "minimum height to be reached")
 		maxBadNodes   = maxFaulty(numNodes)
 	)
 
@@ -161,6 +165,7 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 
 	for height := uint64(0); height < desiredHeight; height++ {
 		var round uint64
+
 		for {
 			numByzantineNodes := rapid.
 				Uint64Range(0, maxBadNodes).
@@ -252,12 +257,14 @@ func TestProperty(t *testing.T) {
 			// Make sure the proposal is valid if it matches what node 0 proposed
 			backend.isValidBlockFn = func(newProposal []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
+
 				return bytes.Equal(newProposal, message.proposal)
 			}
 
 			// Make sure the proposal hash matches
 			backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
+
 				return bytes.Equal(p, message.proposal) && bytes.Equal(ph, message.hash)
 			}
 
@@ -268,6 +275,7 @@ func TestProperty(t *testing.T) {
 				view *proto.View,
 			) *proto.Message {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
+
 				return buildBasicPreprepareMessage(
 					proposal,
 					message.hash,
@@ -280,12 +288,14 @@ func TestProperty(t *testing.T) {
 			// Make sure the prepare message is built correctly
 			backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
+
 				return buildBasicPrepareMessage(message.hash, nodes[nodeIndex], view)
 			}
 
 			// Make sure the commit message is built correctly
 			backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
+
 				return buildBasicCommitMessage(message.hash, message.seal, nodes[nodeIndex], view)
 			}
 
