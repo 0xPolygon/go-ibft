@@ -150,8 +150,8 @@ func (s *propertyTestSetup) lastRound(height uint64) propertyTestEvent {
 // generatePropertyTestEvent generates propertyTestEvent model
 func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 	var (
-		numNodes      = rapid.Uint64Range(4, 20).Draw(t, "number of cluster nodes")
-		desiredHeight = rapid.Uint64Range(4, 10).Draw(t, "minimum height to be reached")
+		numNodes      = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
+		desiredHeight = rapid.Uint64Range(5, 20).Draw(t, "minimum height to be reached")
 		maxBadNodes   = maxFaulty(numNodes)
 	)
 
