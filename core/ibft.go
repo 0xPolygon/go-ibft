@@ -22,8 +22,10 @@ type Logger interface {
 // Messages represents the message managing behaviour
 type Messages interface {
 	// Messages modifiers //
-	AddMessage(message *proto.Message, shouldSignalEvent func([]*proto.Message) bool)
+	AddMessage(message *proto.Message)
 	PruneByHeight(height uint64)
+
+	SignalEvent(message *proto.Message)
 
 	// Messages fetchers //
 	GetValidMessages(
@@ -251,9 +253,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				Round:  round + 1, // only for higher rounds
 			},
 			HasMinRound: true,
-			HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
-				return len(messages) >= 1
-			},
+			HasQuorumFn: i.backend.HasQuorum,
 		})
 	)
 
@@ -543,9 +543,7 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPREPARE,
 				View:        view,
-				HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
-					return len(messages) >= 1
-				},
+				HasQuorumFn: i.backend.HasQuorum,
 			},
 		)
 	)
@@ -998,9 +996,15 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 
 	// Check if the message should even be considered
 	if i.isAcceptableMessage(message) {
-		i.messages.AddMessage(message, func(allMessages []*proto.Message) bool {
-			return i.backend.HasQuorum(message.View.Height, allMessages, message.Type)
-		})
+		i.messages.AddMessage(message)
+
+		msgs := i.messages.GetValidMessages(
+			message.View,
+			message.Type,
+			func(_ *proto.Message) bool { return true })
+		if i.backend.HasQuorum(message.View.Height, msgs, message.Type) {
+			i.messages.SignalEvent(message)
+		}
 	}
 }
 

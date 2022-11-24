@@ -84,7 +84,7 @@ func TestMessages_AddMessage(t *testing.T) {
 	)
 
 	for _, message := range randomMessages {
-		messages.AddMessage(message, func(m []*proto.Message) bool { return true })
+		messages.AddMessage(message)
 	}
 
 	// Make sure that the messages are present
@@ -120,7 +120,7 @@ func TestMessages_AddDuplicates(t *testing.T) {
 
 	for _, message := range randomMessages {
 		message.From = []byte(commonSender)
-		messages.AddMessage(message, func(m []*proto.Message) bool { return true })
+		messages.AddMessage(message)
 	}
 
 	// Check that only 1 message has been added
@@ -161,7 +161,7 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	for _, message := range randomMessages {
-		messages.AddMessage(message, func(m []*proto.Message) bool { return true })
+		messages.AddMessage(message)
 	}
 
 	// Prune out the messages from this view
@@ -236,7 +236,7 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 
 			// Add the messages to the corresponding queue
 			for _, message := range randomMessages {
-				messages.AddMessage(message, func(m []*proto.Message) bool { return true })
+				messages.AddMessage(message)
 			}
 
 			// Make sure the messages are there
@@ -298,7 +298,7 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	// Add the messages
 	for _, roundMessages := range randomMessages {
 		for _, message := range roundMessages {
-			messages.AddMessage(message, func(m []*proto.Message) bool { return true })
+			messages.AddMessage(message)
 		}
 	}
 
@@ -340,7 +340,8 @@ func TestMessages_EventManager(t *testing.T) {
 	// Push random messages
 	randomMessages := generateRandomMessages(numMessages, baseView, messageType)
 	for _, message := range randomMessages {
-		messages.AddMessage(message, func(m []*proto.Message) bool { return true })
+		messages.AddMessage(message)
+		messages.SignalEvent(message)
 	}
 
 	// Wait for the subscription event to happen
