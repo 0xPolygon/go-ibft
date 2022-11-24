@@ -151,6 +151,7 @@ func (s *propertyTestSetup) lastRound(height uint64) propertyTestEvent {
 
 // generatePropertyTestEvent generates propertyTestEvent model
 func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
+	// Generate random setup of the nodes number, byzantine nodes number, and desired height
 	var (
 		numNodes      = rapid.Uint64Range(4, 30).Draw(t, "number of cluster nodes")
 		desiredHeight = rapid.Uint64Range(5, 20).Draw(t, "minimum height to be reached")
@@ -165,9 +166,13 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 		currentRound:  map[int]uint64{},
 	}
 
+	// Go over the desired height and generate random number of rounds
+	// depending on the round result: success or fail.
 	for height := uint64(0); height < desiredHeight; height++ {
 		var round uint64
 
+		// Generate random rounds until we reach a state where to expect a successfully
+		// met consensus. Meaning >= 2/3 of all nodes would reach the consensus.
 		for {
 			numByzantineNodes := rapid.
 				Uint64Range(0, maxBadNodes).
@@ -182,6 +187,9 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 				badByzantineNodes:    numByzantineNodes - silentByzantineNodes,
 			})
 
+			// If the proposer per the current round is not byzantine node,
+			// it is expected the consensus should be met, so the loop
+			// could be stopped for the running height.
 			if proposerIdx >= numByzantineNodes {
 				break
 			}
