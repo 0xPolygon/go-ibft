@@ -61,10 +61,26 @@ func NewMessages() *Messages {
 }
 
 // AddMessage adds a new message to the message queue
-func (ms *Messages) AddMessage(message *proto.Message) {
+func (ms *Messages) AddMessage(
+	message *proto.Message,
+	shouldSignalEvent func([]*proto.Message) bool) {
 	mux := ms.muxMap[message.Type]
 	mux.Lock()
-	defer mux.Unlock()
+	defer func() {
+		mux.Unlock()
+
+		// emit signal event if needed
+		msgs := ms.GetValidMessages(message.View, message.Type, func(_ *proto.Message) bool { return true })
+		if shouldSignalEvent(msgs) {
+			ms.eventManager.signalEvent(
+				message.Type,
+				&proto.View{
+					Height: message.View.Height,
+					Round:  message.View.Round,
+				},
+			)
+		}
+	}()
 
 	// Get the corresponding height map
 	heightMsgMap := ms.getMessageMap(message.Type)
@@ -72,16 +88,9 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
 	messages[string(message.From)] = message
-
-	ms.eventManager.signalEvent(
-		message.Type,
-		&proto.View{
-			Height: message.View.Height,
-			Round:  message.View.Round,
-		},
-	)
 }
 
+// Close closes event manager
 func (ms *Messages) Close() {
 	ms.eventManager.close()
 }

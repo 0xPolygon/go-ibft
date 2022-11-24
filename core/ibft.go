@@ -22,7 +22,7 @@ type Logger interface {
 // Messages represents the message managing behaviour
 type Messages interface {
 	// Messages modifiers //
-	AddMessage(message *proto.Message)
+	AddMessage(message *proto.Message, shouldSignalEvent func([]*proto.Message) bool)
 	PruneByHeight(height uint64)
 
 	// Messages fetchers //
@@ -998,7 +998,9 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 
 	// Check if the message should even be considered
 	if i.isAcceptableMessage(message) {
-		i.messages.AddMessage(message)
+		i.messages.AddMessage(message, func(allMessages []*proto.Message) bool {
+			return i.backend.HasQuorum(message.View.Height, allMessages, message.Type)
+		})
 	}
 }
 
