@@ -545,7 +545,9 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 			messages.SubscriptionDetails{
 				MessageType: proto.MessageType_PREPREPARE,
 				View:        view,
-				HasQuorumFn: i.backend.HasQuorum,
+				HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+					return len(messages) >= 1
+				},
 			},
 		)
 	)
