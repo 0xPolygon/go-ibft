@@ -1051,6 +1051,8 @@ func (i *IBFT) validPC(
 		return false
 	}
 
+	// Order of messages is important!
+	// Mesage with type of MessageType_PREPREPARE must be the first element of allMessages slice
 	allMessages := append(
 		[]*proto.Message{certificate.ProposalMessage},
 		certificate.PrepareMessages...,
