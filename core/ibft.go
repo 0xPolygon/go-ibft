@@ -253,7 +253,9 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				Round:  round + 1, // only for higher rounds
 			},
 			HasMinRound: true,
-			HasQuorumFn: i.backend.HasQuorum,
+			HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+				return len(messages) >= 1
+			},
 		})
 	)
 
