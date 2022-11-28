@@ -417,8 +417,8 @@ func (wg *mockNodeWg) Add(delta int) {
 }
 
 func (wg *mockNodeWg) Done() {
-	wg.WaitGroup.Done()
 	atomic.AddInt64(&wg.count, 1)
+	wg.WaitGroup.Done()
 }
 
 func (wg *mockNodeWg) getDone() int64 {
@@ -443,10 +443,7 @@ func (m *mockCluster) runSequence(height uint64) {
 	for nodeIndex, node := range m.nodes {
 		m.wg.Add(1)
 
-		go func(
-			ctx context.Context,
-			node *IBFT,
-		) {
+		go func(ctx context.Context, node *IBFT) {
 			// Start the main run loop for the node
 			node.RunSequence(ctx, height)
 
