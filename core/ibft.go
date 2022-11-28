@@ -25,6 +25,8 @@ type Messages interface {
 	AddMessage(message *proto.Message)
 	PruneByHeight(height uint64)
 
+	SignalEvent(message *proto.Message)
+
 	// Messages fetchers //
 	GetValidMessages(
 		view *proto.View,
@@ -999,6 +1001,14 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 	// Check if the message should even be considered
 	if i.isAcceptableMessage(message) {
 		i.messages.AddMessage(message)
+
+		msgs := i.messages.GetValidMessages(
+			message.View,
+			message.Type,
+			func(_ *proto.Message) bool { return true })
+		if i.backend.HasQuorum(message.View.Height, msgs, message.Type) {
+			i.messages.SignalEvent(message)
+		}
 	}
 }
 
@@ -1045,6 +1055,8 @@ func (i *IBFT) validPC(
 		return false
 	}
 
+	// Order of messages is important!
+	// Mesage with type of MessageType_PREPREPARE must be the first element of allMessages slice
 	allMessages := append(
 		[]*proto.Message{certificate.ProposalMessage},
 		certificate.PrepareMessages...,

@@ -2329,3 +2329,132 @@ func Test_getRoundTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestIBFT_AddMessage(t *testing.T) {
+	t.Parallel()
+
+	const (
+		validHeight  = uint64(10)
+		validRound   = uint64(7)
+		validMsgType = proto.MessageType_PREPREPARE
+	)
+
+	var validSender = []byte{1, 2, 3}
+
+	executeTest := func(
+		msg *proto.Message,
+		hasQuorum, shouldAddMessageCalled, shouldHasQuorumCalled, shouldSignalEventCalled bool) {
+		var (
+			hasQuorumCalled   = false
+			signalEventCalled = false
+			addMessageCalled  = false
+			log               = mockLogger{}
+			backend           = mockBackend{}
+			transport         = mockTransport{}
+			messages          = mockMessages{}
+		)
+
+		backend.isValidSenderFn = func(m *proto.Message) bool {
+			return bytes.Equal(m.From, validSender)
+		}
+
+		backend.hasQuorumFn = func(height uint64, _ []*proto.Message, msgType proto.MessageType) bool {
+			hasQuorumCalled = true
+
+			assert.Equal(t, validHeight, height)
+			assert.Equal(t, validMsgType, msgType)
+
+			return hasQuorum
+		}
+
+		messages.addMessageFn = func(m *proto.Message) {
+			addMessageCalled = true
+
+			assert.Equal(t, msg, m)
+		}
+
+		messages.signalEventFn = func(*proto.Message) {
+			signalEventCalled = true
+		}
+
+		i := NewIBFT(log, backend, transport)
+		i.messages = messages
+		i.state.view = &proto.View{Height: validHeight, Round: validRound}
+
+		i.AddMessage(msg)
+
+		assert.Equal(t, shouldAddMessageCalled, addMessageCalled)
+		assert.Equal(t, shouldHasQuorumCalled, hasQuorumCalled)
+		assert.Equal(t, shouldSignalEventCalled, signalEventCalled)
+	}
+
+	t.Run("nil message case", func(t *testing.T) {
+		t.Parallel()
+
+		executeTest(nil, true, false, false, false)
+	})
+
+	t.Run("!isAcceptableMessage - invalid sender", func(t *testing.T) {
+		t.Parallel()
+
+		msg := &proto.Message{
+			View: &proto.View{Height: validHeight, Round: validRound},
+			Type: validMsgType,
+		}
+		executeTest(msg, true, false, false, false)
+	})
+
+	t.Run("!isAcceptableMessage - invalid view", func(t *testing.T) {
+		t.Parallel()
+
+		msg := &proto.Message{
+			From: validSender,
+			Type: validMsgType,
+		}
+		executeTest(msg, true, false, false, false)
+	})
+
+	t.Run("!isAcceptableMessage - invalid height", func(t *testing.T) {
+		t.Parallel()
+
+		msg := &proto.Message{
+			From: validSender,
+			Type: validMsgType,
+			View: &proto.View{Height: validHeight - 1, Round: validRound},
+		}
+		executeTest(msg, true, false, false, false)
+	})
+
+	t.Run("!isAcceptableMessage - invalid round", func(t *testing.T) {
+		t.Parallel()
+
+		msg := &proto.Message{
+			From: validSender,
+			Type: validMsgType,
+			View: &proto.View{Height: validHeight, Round: validRound - 1},
+		}
+		executeTest(msg, true, false, false, false)
+	})
+
+	t.Run("correct - but quorum not reached", func(t *testing.T) {
+		t.Parallel()
+
+		msg := &proto.Message{
+			From: validSender,
+			Type: validMsgType,
+			View: &proto.View{Height: validHeight, Round: validRound},
+		}
+		executeTest(msg, false, true, true, false)
+	})
+
+	t.Run("correct - quorum reached", func(t *testing.T) {
+		t.Parallel()
+
+		msg := &proto.Message{
+			From: validSender,
+			Type: validMsgType,
+			View: &proto.View{Height: validHeight, Round: validRound},
+		}
+		executeTest(msg, true, true, true, true)
+	})
+}
