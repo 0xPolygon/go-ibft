@@ -569,10 +569,8 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 				continue
 			}
 
-			// Accept the proposal since it's valid
-			i.acceptProposal(proposalMessage)
-
 			// Multicast the PREPARE message
+			i.state.setProposalMessage(proposalMessage)
 			i.sendPrepareMessage(view)
 
 			i.log.Debug("prepare message multicasted")
