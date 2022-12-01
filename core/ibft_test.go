@@ -2255,8 +2255,8 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 		transport = mockTransport{}
 		backend   = mockBackend{
 			hasQuorumFn: defaultHasQuorumFn(quorum),
-			isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
-				return true
+			isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+				return bytes.Equal(proposer, []byte("unique node"))
 			},
 		}
 		messages = mockMessages{
