@@ -183,6 +183,24 @@ func AllHaveLowerRound(messages []*proto.Message, round uint64) bool {
 	return true
 }
 
+// AllHaveSameRound checks if all messages have the same round
+func AllHaveSameRound(messages []*proto.Message) bool {
+	if len(messages) <= 1 {
+		return false
+	}
+
+	var round = messages[0].View.Round
+
+	for _, message := range messages[1:] {
+
+		if message.View.Round != round {
+			return false
+		}
+	}
+
+	return true
+}
+
 // AllHaveSameHeight checks if all messages have the same height
 func AllHaveSameHeight(messages []*proto.Message, height uint64) bool {
 	if len(messages) < 1 {
