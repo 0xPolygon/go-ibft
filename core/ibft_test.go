@@ -156,7 +156,7 @@ func generateFilledRCMessages(
 	proposal,
 	proposalHash []byte) []*proto.Message {
 	// Generate random RC messages
-	roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
+	roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
 	prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
 
 	// Fill up the prepare message hashes
@@ -1267,9 +1267,9 @@ func TestIBFT_FutureProposal(t *testing.T) {
 	proposer := []byte("proposer")
 	quorum := uint64(4)
 
-	generateEmptyRCMessages := func(count uint64) []*proto.Message {
+	generateEmptyRCMessages := func(count uint64, round uint64) []*proto.Message {
 		// Generate random RC messages
-		roundChangeMessages := generateMessages(count, proto.MessageType_ROUND_CHANGE)
+		roundChangeMessages := generateMessagesWithUniqueSender(count, proto.MessageType_ROUND_CHANGE)
 
 		// Fill up their certificates
 		for _, message := range roundChangeMessages {
@@ -1279,9 +1279,18 @@ func TestIBFT_FutureProposal(t *testing.T) {
 					LatestPreparedCertificate: nil,
 				},
 			}
+
+			message.View.Round = round
 		}
 
 		return roundChangeMessages
+	}
+
+	generateFilledRCMessagesWithRound := func(quorum, round uint64) []*proto.Message {
+		messages := generateFilledRCMessages(quorum, correctRoundMessage.proposal, correctRoundMessage.hash)
+		setRoundForMessages(messages, round)
+
+		return messages
 	}
 
 	testTable := []struct {
@@ -1296,7 +1305,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 				Height: 0,
 				Round:  1,
 			},
-			generateEmptyRCMessages(quorum),
+			generateEmptyRCMessages(quorum, 1),
 			1,
 		},
 		{
@@ -1305,11 +1314,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 				Height: 0,
 				Round:  2,
 			},
-			generateFilledRCMessages(
-				quorum,
-				correctRoundMessage.proposal,
-				correctRoundMessage.hash,
-			),
+			generateFilledRCMessagesWithRound(quorum, 2),
 			2,
 		},
 	}
