@@ -1821,12 +1821,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 				},
 				isValidSenderFn: func(message *proto.Message) bool {
 					// Proposer is invalid
-					if bytes.Equal(message.From, sender) {
-						return false
-					}
-
-					// Everyone else is valid sender
-					return true
+					return !bytes.Equal(message.From, sender)
 				},
 			}
 		)
@@ -2079,11 +2074,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 					return self
 				},
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
-					if bytes.Equal(proposer, self) {
-						return false
-					}
-
-					return true
+					return !bytes.Equal(proposer, self)
 				},
 			}
 		)
