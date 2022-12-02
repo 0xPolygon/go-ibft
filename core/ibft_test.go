@@ -457,6 +457,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			}
 
 			var (
+				proposerID                           = []byte("unique node")
 				multicastedPreprepare *proto.Message = nil
 				multicastedPrepare    *proto.Message = nil
 				proposal                             = []byte("proposal")
@@ -473,9 +474,9 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					}
 				}}
 				backend = mockBackend{
-					idFn: func() []byte { return nil },
-					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
-						return true
+					idFn: func() []byte { return proposerID },
+					isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+						return bytes.Equal(proposerID, proposer)
 					},
 					hasQuorumFn: defaultHasQuorumFn(quorum),
 					buildProposalFn: func(_ *proto.View) []byte {
