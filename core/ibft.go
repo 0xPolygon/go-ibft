@@ -689,12 +689,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		}
 
 		// Sender of RCC is valid
-		if !i.backend.IsValidSender(msg) {
-			return false
-		}
-
-		// Sender of RCC is not a proposer
-		if i.backend.IsProposer(msg.From, height, round) {
+		if !i.backend.IsValidSender(rc) {
 			return false
 		}
 	}
