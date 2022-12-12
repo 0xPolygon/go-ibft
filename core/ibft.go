@@ -481,8 +481,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 
 		msgsByRound[msgRound] = append(msgsByRound[msgRound], msgs[idx])
 
-		if i.backend.HasQuorum(view.Height, msgsByRound[msgRound], proto.MessageType_ROUND_CHANGE) &&
-			msgRound > highestRound {
+		if msgRound > highestRound && i.backend.HasQuorum(view.Height, msgsByRound[msgRound], proto.MessageType_ROUND_CHANGE) {
 			highestRound = msgRound
 		}
 	}
