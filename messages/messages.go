@@ -212,6 +212,48 @@ func (ms *Messages) GetValidMessages(
 	return validMessages
 }
 
+// GetExtendedRCC returns Round-Change-Certificate for the highest round
+func (ms *Messages) GetExtendedRCC(
+	height uint64,
+	isValidMessage func(message *proto.Message) bool,
+	isValidRCC func(round uint64, messages []*proto.Message) bool,
+) []*proto.Message {
+	messageType := proto.MessageType_ROUND_CHANGE
+
+	mux := ms.muxMap[messageType]
+	mux.Lock()
+	defer mux.Unlock()
+
+	// Get all ROUND-CHANGE messages for the height
+	roundMessageMap := ms.getMessageMap(messageType)[height]
+
+	var (
+		highestRound uint64
+		extendedRCC  []*proto.Message
+	)
+
+	for round, messages := range roundMessageMap {
+		validMessages := make([]*proto.Message, 0, len(messages))
+
+		for _, msg := range messages {
+			if !isValidMessage(msg) {
+				continue
+			}
+
+			validMessages = append(validMessages, msg)
+		}
+
+		if round <= highestRound || !isValidRCC(round, validMessages) {
+			continue
+		}
+
+		highestRound = round
+		extendedRCC = validMessages
+	}
+
+	return extendedRCC
+}
+
 // GetMostRoundChangeMessages fetches most round change messages
 // for the minimum round and above
 func (ms *Messages) GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message {
