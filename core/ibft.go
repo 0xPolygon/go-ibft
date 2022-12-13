@@ -36,7 +36,7 @@ type Messages interface {
 	GetExtendedRCC(
 		height uint64,
 		isValidMessage func(message *proto.Message) bool,
-		isValidRCC func(round uint64, messages []*proto.Message) bool,
+		isValidRCC func(round uint64, msgs []*proto.Message) bool,
 	) []*proto.Message
 	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
 
@@ -456,14 +456,14 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 		return i.proposalMatchesCertificate(proposal, certificate)
 	}
 
-	isValidRCCFn := func(round uint64, messages []*proto.Message) bool {
+	isValidRCCFn := func(round uint64, msgs []*proto.Message) bool {
 		// In case of that ROUND-CHANGE message's round match validator's round
 		// Accept such messages only if the validator has not accepted a proposal at the round
 		if round == view.Round && hasAcceptedProposal {
 			return false
 		}
 
-		return i.backend.HasQuorum(height, messages, proto.MessageType_ROUND_CHANGE)
+		return i.backend.HasQuorum(height, msgs, proto.MessageType_ROUND_CHANGE)
 	}
 
 	extendedRCC := i.messages.GetExtendedRCC(

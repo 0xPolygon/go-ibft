@@ -275,7 +275,7 @@ func TestMessages_GetExtendedRCC(t *testing.T) {
 
 	var (
 		height uint64 = 0
-		quorum int    = 5
+		quorum        = 5
 	)
 
 	messages := NewMessages()
