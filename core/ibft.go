@@ -640,7 +640,6 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		round  = view.Round
 
 		proposalHash = messages.ExtractProposalHash(msg)
-		certificate  = messages.ExtractRoundChangeCertificate(msg)
 		rcc          = messages.ExtractRoundChangeCertificate(msg)
 	)
 
@@ -650,12 +649,12 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	}
 
 	// Make sure there is a certificate
-	if certificate == nil {
+	if rcc == nil {
 		return false
 	}
 
 	// Make sure there are Quorum RCC
-	if !i.backend.HasQuorum(view.Height, certificate.RoundChangeMessages, proto.MessageType_ROUND_CHANGE) {
+	if !i.backend.HasQuorum(view.Height, rcc.RoundChangeMessages, proto.MessageType_ROUND_CHANGE) {
 		return false
 	}
 
@@ -665,7 +664,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	}
 
 	// Make sure all messages in the RCC are valid Round Change messages
-	for _, rc := range certificate.RoundChangeMessages {
+	for _, rc := range rcc.RoundChangeMessages {
 		// Make sure the message is a Round Change message
 		if rc.Type != proto.MessageType_ROUND_CHANGE {
 			return false
