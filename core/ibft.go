@@ -987,6 +987,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 		if msgRound > maxRound {
 			previousProposal = lastPB
+			maxRound = msgRound
 		}
 	}
 
