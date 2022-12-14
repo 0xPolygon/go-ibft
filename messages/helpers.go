@@ -2,29 +2,20 @@ package messages
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+var (
+	// ErrWrongCommitMessageType is an error indicating wrong type in commit messages
+	ErrWrongCommitMessageType = errors.New("wrong type message is included in COMMIT messages")
+)
+
+// CommittedSeal is an object for validator's signature for a proposal
 type CommittedSeal struct {
 	Signer    []byte
 	Signature []byte
-}
-
-func createWrongMessageTypeError(
-	expected, actual proto.MessageType,
-) error {
-	actualMessageTypeName, ok := proto.MessageType_name[int32(actual)]
-	if !ok {
-		actualMessageTypeName = "undefined"
-	}
-
-	return fmt.Errorf(
-		"wrong message type, expected=%s, got=%s",
-		proto.MessageType_name[int32(expected)],
-		actualMessageTypeName,
-	)
 }
 
 // ExtractCommittedSeals extracts the committed seals from the passed in messages
@@ -33,7 +24,8 @@ func ExtractCommittedSeals(commitMessages []*proto.Message) ([]*CommittedSeal, e
 
 	for _, commitMessage := range commitMessages {
 		if commitMessage.Type != proto.MessageType_COMMIT {
-			return nil, createWrongMessageTypeError(proto.MessageType_COMMIT, commitMessage.Type)
+			// safe check
+			return nil, ErrWrongCommitMessageType
 		}
 
 		committedSeals = append(committedSeals, ExtractCommittedSeal(commitMessage))
@@ -165,6 +157,8 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 			extractedHash = ExtractProposalHash(message)
 		case proto.MessageType_PREPARE:
 			extractedHash = ExtractPrepareHash(message)
+		case proto.MessageType_COMMIT, proto.MessageType_ROUND_CHANGE:
+			return false
 		default:
 			return false
 		}

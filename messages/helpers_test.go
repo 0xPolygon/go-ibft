@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,11 +65,7 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 				createWrongMessage("signer2", proto.MessageType_PREPREPARE),
 			},
 			expected: nil,
-			err: fmt.Errorf(
-				"wrong message type, expected=%s, got=%s",
-				proto.MessageType_name[int32(proto.MessageType_COMMIT)],
-				proto.MessageType_name[int32(proto.MessageType_PREPREPARE)],
-			),
+			err:      ErrWrongCommitMessageType,
 		},
 	}
 
@@ -83,12 +78,7 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 			seals, err := ExtractCommittedSeals(test.messages)
 
 			assert.Equal(t, test.expected, seals)
-
-			if test.err == nil {
-				assert.NoError(t, err)
-			} else {
-				assert.ErrorContains(t, err, test.err.Error())
-			}
+			assert.Equal(t, test.err, err)
 		})
 	}
 }
