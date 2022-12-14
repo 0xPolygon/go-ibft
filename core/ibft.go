@@ -878,10 +878,16 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 		return false
 	}
 
+	commitSeals, err := messages.ExtractCommittedSeals(commitMessages)
+	if err != nil {
+		// safe check
+		i.log.Error("failed to extract committed seals from commit messages: %+v", err)
+
+		return false
+	}
+
 	// Set the committed seals
-	i.state.setCommittedSeals(
-		messages.ExtractCommittedSeals(commitMessages),
-	)
+	i.state.setCommittedSeals(commitSeals)
 
 	//	Move to the fin state
 	i.state.changeState(fin)

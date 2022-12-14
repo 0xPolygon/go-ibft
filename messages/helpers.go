@@ -2,6 +2,7 @@ package messages
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
@@ -11,19 +12,34 @@ type CommittedSeal struct {
 	Signature []byte
 }
 
+func createWrongMessageTypeError(
+	expected, actual proto.MessageType,
+) error {
+	actualMessageTypeName, ok := proto.MessageType_name[int32(actual)]
+	if !ok {
+		actualMessageTypeName = "undefined"
+	}
+
+	return fmt.Errorf(
+		"wrong message type, expected=%s, got=%s",
+		proto.MessageType_name[int32(expected)],
+		actualMessageTypeName,
+	)
+}
+
 // ExtractCommittedSeals extracts the committed seals from the passed in messages
-func ExtractCommittedSeals(commitMessages []*proto.Message) []*CommittedSeal {
+func ExtractCommittedSeals(commitMessages []*proto.Message) ([]*CommittedSeal, error) {
 	committedSeals := make([]*CommittedSeal, 0)
 
 	for _, commitMessage := range commitMessages {
 		if commitMessage.Type != proto.MessageType_COMMIT {
-			continue
+			return nil, createWrongMessageTypeError(proto.MessageType_COMMIT, commitMessage.Type)
 		}
 
 		committedSeals = append(committedSeals, ExtractCommittedSeal(commitMessage))
 	}
 
-	return committedSeals
+	return committedSeals, nil
 }
 
 // ExtractCommittedSeal extracts the committed seal from the passed in message
