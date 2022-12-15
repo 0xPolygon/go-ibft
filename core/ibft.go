@@ -1119,7 +1119,7 @@ func (i *IBFT) validPC(
 		return false
 	}
 
-	//Make sure all have the same round
+	// Make sure all have the same round
 	if !messages.AllHaveSameRound(allMessages) {
 		return false
 	}
@@ -1143,6 +1143,7 @@ func (i *IBFT) validPC(
 			return false
 		}
 
+		// Make sure the current node is not the proposer
 		if i.backend.IsProposer(message.From, message.View.Height, message.View.Round) {
 			return false
 		}

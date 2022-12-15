@@ -2086,7 +2086,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Round:  0,
 		}
 
-		//Make sure all rcc are from same node
+		// Make sure all rcc are from same node
 		messages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
 		for _, msg := range messages {
 			msg.From = []byte("non unique node id")
