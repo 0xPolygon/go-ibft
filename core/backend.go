@@ -31,7 +31,7 @@ type MessageConstructor interface {
 // Verifier defines the verifier interface
 type Verifier interface {
 	// IsValidBlock checks if the proposed block is child of parent
-	IsValidBlock(block []byte) bool
+	IsValidBlock(ethereumBlock []byte) bool
 
 	// IsValidSender checks if signature is from sender
 	IsValidSender(msg *proto.Message) bool
@@ -40,7 +40,7 @@ type Verifier interface {
 	IsProposer(id []byte, height, round uint64) bool
 
 	// IsValidProposalHash checks if the hash matches the proposal
-	IsValidProposalHash(proposal, hash []byte) bool
+	IsValidProposalHash(proposal *proto.ProposedBlock, hash []byte) bool
 
 	// IsValidCommittedSeal checks if the seal for the proposal is valid
 	IsValidCommittedSeal(proposal []byte, committedSeal *messages.CommittedSeal) bool
@@ -52,11 +52,12 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildProposal builds a new block proposal
-	BuildProposal(view *proto.View) []byte
+	// BuildProposal builds a new ethereum block
+	BuildEthereumBlock(height uint64) []byte
 
 	// InsertBlock inserts a proposal with the specified committed seals
-	InsertBlock(proposal []byte, committedSeals []*messages.CommittedSeal)
+	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
+	InsertBlock(ethereumBlock []byte, round uint64, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte

@@ -1,15 +1,17 @@
 package core
 
 import (
+	"github.com/0xPolygon/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages/proto"
+	"time"
+)
+
+import (
 	"bytes"
 	"context"
 	"errors"
 	"math"
 	"sync"
-	"time"
-
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 // Logger represents the logger behaviour
@@ -925,10 +927,20 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		proposal := i.backend.BuildProposal(view)
+		ethereumBlock := i.backend.BuildEthereumBlock(height)
+
+		// greska je ovde zato sto u BuildPrePrepareMessage, mi prakticno samo izracunamo hash od bloka i njega smestimo
+		// kao proposal hash
+		// zapravo ono sto bi trebalo da se desava je da sastavimo poruku od (EB,r) i to hashujemo i to posaljemo
+
+		// sada bi trebalo da stavimo EB i round u neku strukturu, i uradimo KEC na njoj
+
+		//hasher := sha3.NewLegacyKeccak256()
+		//hasher.Write(proposedBlockRaw)
+		//proposedBlockHash := hasher.Sum(nil)
 
 		return i.backend.BuildPrePrepareMessage(
-			proposal,
+			ethereumBlock,
 			nil,
 			&proto.View{
 				Height: height,

@@ -47,8 +47,8 @@ func ExtractCommitHash(commitMessage *proto.Message) []byte {
 	return commitData.CommitData.ProposalHash
 }
 
-// ExtractProposal extracts the proposal from the passed in message
-func ExtractProposal(proposalMessage *proto.Message) []byte {
+// ExtractProposedBlock extracts the (EB,r) proposal from the passed in message
+func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
 	if proposalMessage.Type != proto.MessageType_PREPREPARE {
 		return nil
 	}
@@ -56,6 +56,17 @@ func ExtractProposal(proposalMessage *proto.Message) []byte {
 	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
 
 	return preprepareData.PreprepareData.Proposal
+}
+
+func ExtractEthereumBlock(proposalMessage *proto.Message) []byte {
+	if proposalMessage.Type != proto.MessageType_PREPREPARE {
+		return nil
+	}
+
+	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
+	proposal := preprepareData.PreprepareData.Proposal
+
+	return proposal.EthereumBlock
 }
 
 // ExtractProposalHash extracts the proposal hash from the passed in message

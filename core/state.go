@@ -132,7 +132,7 @@ func (s *state) getHeight() uint64 {
 	return s.view.Height
 }
 
-func (s *state) getProposal() []byte {
+func (s *state) getProposal() *proto.ProposedBlock {
 	s.RLock()
 	defer s.RUnlock()
 

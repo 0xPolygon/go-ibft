@@ -46,7 +46,7 @@ message Message {
 // PrePrepareMessage is the message for the PREPREPARE phase
 message PrePrepareMessage {
   // proposal is the actual data being proposed for consensus
-  bytes proposal = 1;
+  ProposedBlock proposal = 1;
 
   // proposalHash is the Keccak hash of the proposal
   bytes proposalHash = 2;
@@ -98,4 +98,18 @@ message PreparedCertificate {
 message RoundChangeCertificate {
   // roundChangeMessages are the ROUND CHANGE messages
   repeated Message roundChangeMessages = 1;
+}
+
+message ProposedBlock {
+  bytes ethereumBlock = 1;
+
+  uint64 round = 2;
+}
+
+message FinalisedBlock {
+  bytes ethereumBlock = 1;
+
+  uint64 round = 2;
+
+  repeated  bytes commitSeals = 3;
 }
