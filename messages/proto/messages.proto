@@ -75,7 +75,7 @@ message CommitMessage {
 message RoundChangeMessage {
   // lastPreparedProposedBlock is the last block
   // to reach Q(N) - 1 PREPARE messages
-  bytes lastPreparedProposedBlock = 1;
+  ProposedBlock lastPreparedProposedBlock = 1;
 
   // latestPreparedCertificate is the PC that accompanies
   // the last proposal

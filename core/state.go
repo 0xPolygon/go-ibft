@@ -42,7 +42,7 @@ type state struct {
 
 	// latestPreparedProposedBlock is the block
 	// for which Q(N)-1 PREPARE messages were received
-	latestPreparedProposedBlock []byte
+	latestPreparedProposedBlock *proto.ProposedBlock
 
 	//	accepted block proposal for current round
 	proposalMessage *proto.Message
@@ -90,7 +90,7 @@ func (s *state) getLatestPC() *proto.PreparedCertificate {
 	return s.latestPC
 }
 
-func (s *state) getLatestPreparedProposedBlock() []byte {
+func (s *state) getLatestPreparedProposedBlock() *proto.ProposedBlock {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -208,7 +208,7 @@ func (s *state) newRound() {
 
 func (s *state) finalizePrepare(
 	certificate *proto.PreparedCertificate,
-	latestPPB []byte,
+	latestPPB *proto.ProposedBlock,
 ) {
 	s.Lock()
 	defer s.Unlock()

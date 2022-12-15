@@ -9,7 +9,7 @@ import (
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
 	BuildPrePrepareMessage(
-		proposal []byte,
+		ethereumBlock []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -22,7 +22,7 @@ type MessageConstructor interface {
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
 	BuildRoundChangeMessage(
-		proposal []byte,
+		proposal *proto.ProposedBlock,
 		certificate *proto.PreparedCertificate,
 		view *proto.View,
 	) *proto.Message

@@ -114,7 +114,7 @@ func ExtractLatestPC(roundChangeMessage *proto.Message) *proto.PreparedCertifica
 }
 
 // ExtractLastPreparedProposedBlock extracts the latest prepared proposed block from the passed in message
-func ExtractLastPreparedProposedBlock(roundChangeMessage *proto.Message) []byte {
+func ExtractLastPreparedProposedBlock(roundChangeMessage *proto.Message) *proto.ProposedBlock {
 	if roundChangeMessage.Type != proto.MessageType_ROUND_CHANGE {
 		return nil
 	}

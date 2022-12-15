@@ -469,7 +469,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 // proposalMatchesCertificate checks a prepared certificate
 // against a proposal
 func (i *IBFT) proposalMatchesCertificate(
-	proposal []byte,
+	proposal *proto.ProposedBlock,
 	certificate *proto.PreparedCertificate,
 ) bool {
 	// Both the certificate and proposal need to be set
@@ -607,7 +607,7 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 	}
 
 	//	is valid block
-	return i.backend.IsValidBlock(proposal)
+	return i.backend.IsValidBlock(proposal.GetEthereumBlock())
 }
 
 // validateProposal0 validates the proposal for round 0
@@ -958,7 +958,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	}
 
 	//	check the messages for any previous proposal (if they have any, it's the same proposal)
-	var previousProposal []byte
+	var previousProposal *proto.ProposedBlock
 
 	for _, msg := range rcc.RoundChangeMessages {
 		//	if message contains block, break
@@ -973,7 +973,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal := i.backend.BuildProposal(view)
+		proposal := i.backend.BuildEthereumBlock(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
@@ -986,7 +986,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	}
 
 	return i.backend.BuildPrePrepareMessage(
-		previousProposal,
+		previousProposal.GetEthereumBlock(),
 		rcc,
 		&proto.View{
 			Height: height,
