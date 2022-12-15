@@ -70,5 +70,5 @@ type Backend interface {
 
 	// HasQuorum returns true if the quorum is reached
 	// for the specified block height.
-	HasQuorum(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool
+	HasQuorum(blockNumber uint64, msgs []*proto.Message, msgType proto.MessageType) bool
 }
