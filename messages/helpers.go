@@ -66,7 +66,7 @@ func ExtractEthereumBlock(proposalMessage *proto.Message) []byte {
 	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
 	proposal := preprepareData.PreprepareData.Proposal
 
-	return proposal.EthereumBlock
+	return proposal.GetEthereumBlock()
 }
 
 // ExtractProposalHash extracts the proposal hash from the passed in message

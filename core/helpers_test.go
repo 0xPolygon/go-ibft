@@ -13,6 +13,7 @@ import (
 /*	HELPERS */
 
 var (
+	validEthereumBlock = []byte("valid ethereum block")
 	validProposal      = []byte("valid proposal")
 	validProposalHash  = []byte("valid proposal hash")
 	validCommittedSeal = []byte("valid committed seal")
@@ -22,18 +23,20 @@ func isValidProposal(newProposal []byte) bool {
 	return bytes.Equal(newProposal, validProposal)
 }
 
-func buildValidProposal(_ *proto.View) []byte {
-	return validProposal
+func buildValidEthereumBlock(_ uint64) []byte {
+	return validEthereumBlock
 }
 
-func isValidProposalHash(proposal, proposalHash []byte) bool {
-	return bytes.Equal(
-		proposal,
-		validProposal,
-	) && bytes.Equal(
-		proposalHash,
-		validProposalHash,
-	)
+func isValidProposalHash(proposal *proto.ProposedBlock, proposalHash []byte) bool {
+	return true
+	// TODO:
+	//return bytes.Equal(
+	//	proposal,
+	//	validProposal,
+	//) && bytes.Equal(
+	//	proposalHash,
+	//	validProposalHash,
+	//)
 }
 
 type node struct {
@@ -47,12 +50,12 @@ func (n *node) addr() []byte {
 }
 
 func (n *node) buildPrePrepare(
-	proposal []byte,
+	ethereumBlock []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicPreprepareMessage(
-		proposal,
+		ethereumBlock,
 		validProposalHash,
 		certificate,
 		n.address,
@@ -84,7 +87,7 @@ func (n *node) buildCommit(
 }
 
 func (n *node) buildRoundChange(
-	proposal []byte,
+	proposal *proto.ProposedBlock,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 ) *proto.Message {

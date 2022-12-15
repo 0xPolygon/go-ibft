@@ -93,11 +93,11 @@ func TestMessages_ExtractCommitHash(t *testing.T) {
 func TestMessages_ExtractProposal(t *testing.T) {
 	t.Parallel()
 
-	proposal := []byte("proposal")
+	proposal := &proto.ProposedBlock{}
 
 	testTable := []struct {
 		name             string
-		expectedProposal []byte
+		expectedProposal *proto.ProposedBlock
 		message          *proto.Message
 	}{
 		{
@@ -328,11 +328,11 @@ func TestMessages_ExtractLatestPC(t *testing.T) {
 func TestMessages_ExtractLPPB(t *testing.T) {
 	t.Parallel()
 
-	latestPPB := []byte("latest block")
+	latestPPB := &proto.ProposedBlock{}
 
 	testTable := []struct {
 		name         string
-		expectedLPPB []byte
+		expectedLPPB *proto.ProposedBlock
 		message      *proto.Message
 	}{
 		{

@@ -17,15 +17,21 @@ const (
 
 var (
 	correctRoundMessage = roundMessage{
-		proposal: []byte("proposal"),
-		hash:     []byte("proposal hash"),
-		seal:     []byte("seal"),
+		proposal: &proto.ProposedBlock{
+			EthereumBlock: validEthereumBlock,
+			Round:         0, // TODO: correctRound
+		},
+		hash: []byte("proposal hash"),
+		seal: []byte("seal"),
 	}
 
 	badRoundMessage = roundMessage{
-		proposal: []byte("bad proposal"),
-		hash:     []byte("bad proposal hash"),
-		seal:     []byte("bad seal"),
+		proposal: &proto.ProposedBlock{
+			EthereumBlock: []byte("bad"), // TODO: invalidEthereumBlock
+			Round:         100,           // TODO: incorrectRound
+		},
+		hash: []byte("bad proposal hash"),
+		seal: []byte("bad seal"),
 	}
 )
 
@@ -33,8 +39,8 @@ var (
 type isValidBlockDelegate func([]byte) bool
 type isValidSenderDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
-type buildProposalDelegate func(*proto.View) []byte
-type isValidProposalHashDelegate func([]byte, []byte) bool
+type buildEthereumBlockDelegate func(uint64) []byte
+type isValidProposalHashDelegate func(*proto.ProposedBlock, []byte) bool
 type isValidCommittedSealDelegate func([]byte, *messages.CommittedSeal) bool
 
 type buildPrePrepareMessageDelegate func(
@@ -45,7 +51,7 @@ type buildPrePrepareMessageDelegate func(
 type buildPrepareMessageDelegate func([]byte, *proto.View) *proto.Message
 type buildCommitMessageDelegate func([]byte, *proto.View) *proto.Message
 type buildRoundChangeMessageDelegate func(
-	[]byte,
+	*proto.ProposedBlock,
 	*proto.PreparedCertificate,
 	*proto.View,
 ) *proto.Message
@@ -59,7 +65,7 @@ type mockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
 	isValidSenderFn        isValidSenderDelegate
 	isProposerFn           isProposerDelegate
-	buildProposalFn        buildProposalDelegate
+	buildEthereumBlockFn   buildEthereumBlockDelegate
 	isValidProposalHashFn  isValidProposalHashDelegate
 	isValidCommittedSealFn isValidCommittedSealDelegate
 
@@ -80,7 +86,7 @@ func (m mockBackend) ID() []byte {
 	return nil
 }
 
-func (m mockBackend) InsertBlock(proposal []byte, committedSeals []*messages.CommittedSeal) {
+func (m mockBackend) InsertBlock(proposal []byte, round uint64, committedSeals []*messages.CommittedSeal) {
 	if m.insertBlockFn != nil {
 		m.insertBlockFn(proposal, committedSeals)
 	}
@@ -110,15 +116,15 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) BuildProposal(view *proto.View) []byte {
-	if m.buildProposalFn != nil {
-		return m.buildProposalFn(view)
+func (m mockBackend) BuildEthereumBlock(height uint64) []byte {
+	if m.buildEthereumBlockFn != nil {
+		return m.buildEthereumBlockFn(height)
 	}
 
 	return nil
 }
 
-func (m mockBackend) IsValidProposalHash(proposal, hash []byte) bool {
+func (m mockBackend) IsValidProposalHash(proposal *proto.ProposedBlock, hash []byte) bool {
 	if m.isValidProposalHashFn != nil {
 		return m.isValidProposalHashFn(proposal, hash)
 	}
@@ -135,12 +141,12 @@ func (m mockBackend) IsValidCommittedSeal(proposal []byte, committedSeal *messag
 }
 
 func (m mockBackend) BuildPrePrepareMessage(
-	proposal []byte,
+	ethereumBlock []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	if m.buildPrePrepareMessageFn != nil {
-		return m.buildPrePrepareMessageFn(proposal, certificate, view)
+		return m.buildPrePrepareMessageFn(ethereumBlock, certificate, view)
 	}
 
 	return nil
@@ -163,7 +169,7 @@ func (m mockBackend) BuildCommitMessage(proposalHash []byte, view *proto.View) *
 }
 
 func (m mockBackend) BuildRoundChangeMessage(
-	proposal []byte,
+	proposal *proto.ProposedBlock,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 ) *proto.Message {

@@ -8,12 +8,12 @@ import (
 )
 
 /*
-	Scenario:
-	1. Cluster can reach height 5
-	2. Stop MaxFaulty+1 nodes
-	3. Cluster cannot reach height 10
-	4. Start MaxFaulty+1 nodes
-	5. Cluster can reach height 10
+Scenario:
+1. Cluster can reach height 5
+2. Stop MaxFaulty+1 nodes
+3. Cluster cannot reach height 10
+4. Start MaxFaulty+1 nodes
+5. Cluster can reach height 10
 */
 func TestDropMaxFaultyPlusOne(t *testing.T) {
 	t.Parallel()
@@ -33,7 +33,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildEthereumBlockFn:      buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
@@ -68,10 +68,10 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 }
 
 /*
-	Scenario:
-	1. Cluster can reach height 5
-	2. Stop MaxFaulty nodes
-	3. Cluster can still reach height 10
+Scenario:
+1. Cluster can reach height 5
+2. Stop MaxFaulty nodes
+3. Cluster can still reach height 10
 */
 func TestDropMaxFaulty(t *testing.T) {
 	t.Parallel()
@@ -91,7 +91,7 @@ func TestDropMaxFaulty(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildEthereumBlockFn:      buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
