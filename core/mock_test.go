@@ -31,7 +31,7 @@ var (
 
 // Define delegation methods
 type isValidBlockDelegate func([]byte) bool
-type isValidSenderDelegate func(*proto.Message) bool
+type IsValidValidatorDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
 type buildProposalDelegate func(*proto.View) []byte
 type isValidProposalHashDelegate func([]byte, []byte) bool
@@ -57,7 +57,7 @@ type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
-	isValidSenderFn        isValidSenderDelegate
+	IsValidValidatorFn     IsValidValidatorDelegate
 	isProposerFn           isProposerDelegate
 	buildProposalFn        buildProposalDelegate
 	isValidProposalHashFn  isValidProposalHashDelegate
@@ -94,9 +94,9 @@ func (m mockBackend) IsValidBlock(block []byte) bool {
 	return true
 }
 
-func (m mockBackend) IsValidSender(msg *proto.Message) bool {
-	if m.isValidSenderFn != nil {
-		return m.isValidSenderFn(msg)
+func (m mockBackend) IsValidValidator(msg *proto.Message) bool {
+	if m.IsValidValidatorFn != nil {
+		return m.IsValidValidatorFn(msg)
 	}
 
 	return true

@@ -1013,7 +1013,7 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 // isAcceptableMessage checks if the message can even be accepted
 func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 	//	Make sure the message sender is ok
-	if !i.backend.IsValidSender(message) {
+	if !i.backend.IsValidValidator(message) {
 		return false
 	}
 
@@ -1107,7 +1107,7 @@ func (i *IBFT) validPC(
 	// Make sure the Prepare messages are validators, apart from the proposer
 	for _, message := range certificate.PrepareMessages {
 		// Make sure the sender is part of the validator set
-		if !i.backend.IsValidSender(message) {
+		if !i.backend.IsValidValidator(message) {
 			return false
 		}
 	}

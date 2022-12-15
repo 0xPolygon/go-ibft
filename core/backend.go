@@ -40,7 +40,7 @@ type Verifier interface {
 	// Must check the following things:
 	// (1) recover the signature and the signer matches from address in message
 	// (2) the signer address is one of the validators at the height in message
-	IsValidSender(msg *proto.Message) bool
+	IsValidValidator(msg *proto.Message) bool
 
 	// IsProposer checks if the passed in ID is the Proposer for current view (sequence, round)
 	IsProposer(id []byte, height, round uint64) bool

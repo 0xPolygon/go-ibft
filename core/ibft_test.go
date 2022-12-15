@@ -1134,7 +1134,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					isValidSenderFn: func(message *proto.Message) bool {
+					IsValidValidatorFn: func(message *proto.Message) bool {
 						return !testCase.invalidSender
 					},
 				}
@@ -1726,7 +1726,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
-				isValidSenderFn: func(message *proto.Message) bool {
+				IsValidValidatorFn: func(message *proto.Message) bool {
 					// One of the messages will be invalid
 					return !bytes.Equal(message.From, []byte("node 1"))
 				},
@@ -1769,7 +1769,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
-				isValidSenderFn: func(message *proto.Message) bool {
+				IsValidValidatorFn: func(message *proto.Message) bool {
 					return true
 				},
 			}
@@ -2354,7 +2354,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			messages          = mockMessages{}
 		)
 
-		backend.isValidSenderFn = func(m *proto.Message) bool {
+		backend.IsValidValidatorFn = func(m *proto.Message) bool {
 			return bytes.Equal(m.From, validSender)
 		}
 
