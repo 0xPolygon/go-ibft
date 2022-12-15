@@ -100,16 +100,9 @@ message RoundChangeCertificate {
   repeated Message roundChangeMessages = 1;
 }
 
+// Proposed block is the tuple (EB, r)
 message ProposedBlock {
   bytes ethereumBlock = 1;
 
   uint64 round = 2;
-}
-
-message FinalisedBlock {
-  bytes ethereumBlock = 1;
-
-  uint64 round = 2;
-
-  repeated  bytes commitSeals = 3;
 }

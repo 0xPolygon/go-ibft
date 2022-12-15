@@ -624,6 +624,7 @@ func (x *RoundChangeCertificate) GetRoundChangeMessages() []*Message {
 	return nil
 }
 
+// Proposed block is the tuple (EB, r)
 type ProposedBlock struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -677,69 +678,6 @@ func (x *ProposedBlock) GetRound() uint64 {
 		return x.Round
 	}
 	return 0
-}
-
-type FinalisedBlock struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	EthereumBlock []byte   `protobuf:"bytes,1,opt,name=ethereumBlock,proto3" json:"ethereumBlock,omitempty"`
-	Round         uint64   `protobuf:"varint,2,opt,name=round,proto3" json:"round,omitempty"`
-	CommitSeals   [][]byte `protobuf:"bytes,3,rep,name=commitSeals,proto3" json:"commitSeals,omitempty"`
-}
-
-func (x *FinalisedBlock) Reset() {
-	*x = FinalisedBlock{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_messages_proto_messages_proto_msgTypes[9]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *FinalisedBlock) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FinalisedBlock) ProtoMessage() {}
-
-func (x *FinalisedBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_messages_proto_msgTypes[9]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FinalisedBlock.ProtoReflect.Descriptor instead.
-func (*FinalisedBlock) Descriptor() ([]byte, []int) {
-	return file_messages_proto_messages_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *FinalisedBlock) GetEthereumBlock() []byte {
-	if x != nil {
-		return x.EthereumBlock
-	}
-	return nil
-}
-
-func (x *FinalisedBlock) GetRound() uint64 {
-	if x != nil {
-		return x.Round
-	}
-	return 0
-}
-
-func (x *FinalisedBlock) GetCommitSeals() [][]byte {
-	if x != nil {
-		return x.CommitSeals
-	}
-	return nil
 }
 
 var File_messages_proto_messages_proto protoreflect.FileDescriptor
@@ -821,14 +759,7 @@ var file_messages_proto_messages_proto_rawDesc = []byte{
 	0x63, 0x6b, 0x12, 0x24, 0x0a, 0x0d, 0x65, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x42, 0x6c,
 	0x6f, 0x63, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0d, 0x65, 0x74, 0x68, 0x65, 0x72,
 	0x65, 0x75, 0x6d, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x12, 0x14, 0x0a, 0x05, 0x72, 0x6f, 0x75, 0x6e,
-	0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x72, 0x6f, 0x75, 0x6e, 0x64, 0x22, 0x6e,
-	0x0a, 0x0e, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x69, 0x73, 0x65, 0x64, 0x42, 0x6c, 0x6f, 0x63, 0x6b,
-	0x12, 0x24, 0x0a, 0x0d, 0x65, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75, 0x6d, 0x42, 0x6c, 0x6f, 0x63,
-	0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0d, 0x65, 0x74, 0x68, 0x65, 0x72, 0x65, 0x75,
-	0x6d, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x12, 0x14, 0x0a, 0x05, 0x72, 0x6f, 0x75, 0x6e, 0x64, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x72, 0x6f, 0x75, 0x6e, 0x64, 0x12, 0x20, 0x0a, 0x0b,
-	0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x53, 0x65, 0x61, 0x6c, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28,
-	0x0c, 0x52, 0x0b, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x53, 0x65, 0x61, 0x6c, 0x73, 0x2a, 0x48,
+	0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x05, 0x72, 0x6f, 0x75, 0x6e, 0x64, 0x2a, 0x48,
 	0x0a, 0x0b, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0e, 0x0a,
 	0x0a, 0x50, 0x52, 0x45, 0x50, 0x52, 0x45, 0x50, 0x41, 0x52, 0x45, 0x10, 0x00, 0x12, 0x0b, 0x0a,
 	0x07, 0x50, 0x52, 0x45, 0x50, 0x41, 0x52, 0x45, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x43, 0x4f,
@@ -851,7 +782,7 @@ func file_messages_proto_messages_proto_rawDescGZIP() []byte {
 }
 
 var file_messages_proto_messages_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_messages_proto_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_messages_proto_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_messages_proto_messages_proto_goTypes = []interface{}{
 	(MessageType)(0),               // 0: MessageType
 	(*View)(nil),                   // 1: View
@@ -863,7 +794,6 @@ var file_messages_proto_messages_proto_goTypes = []interface{}{
 	(*PreparedCertificate)(nil),    // 7: PreparedCertificate
 	(*RoundChangeCertificate)(nil), // 8: RoundChangeCertificate
 	(*ProposedBlock)(nil),          // 9: ProposedBlock
-	(*FinalisedBlock)(nil),         // 10: FinalisedBlock
 }
 var file_messages_proto_messages_proto_depIdxs = []int32{
 	1,  // 0: Message.view:type_name -> View
@@ -1000,18 +930,6 @@ func file_messages_proto_messages_proto_init() {
 				return nil
 			}
 		}
-		file_messages_proto_messages_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FinalisedBlock); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
 	}
 	file_messages_proto_messages_proto_msgTypes[1].OneofWrappers = []interface{}{
 		(*Message_PreprepareData)(nil),
@@ -1025,7 +943,7 @@ func file_messages_proto_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_messages_proto_messages_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
