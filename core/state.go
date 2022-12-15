@@ -143,6 +143,16 @@ func (s *state) getProposal() *proto.ProposedBlock {
 	return nil
 }
 
+func (s *state) getEthereumBlockFromProposal() []byte {
+	proposedBlock := s.getProposal()
+
+	if proposedBlock != nil {
+		return proposedBlock.EthereumBlock
+	}
+
+	return nil
+}
+
 func (s *state) getCommittedSeals() []*messages.CommittedSeal {
 	s.RLock()
 	defer s.RUnlock()
