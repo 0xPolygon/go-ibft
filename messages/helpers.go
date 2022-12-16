@@ -6,6 +6,7 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// CommittedSeal Validator proof of signing a committed block
 type CommittedSeal struct {
 	Signer    []byte
 	Signature []byte
