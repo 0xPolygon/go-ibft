@@ -689,7 +689,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 			hash := messages.ExtractProposalHash(cert.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
-				round: rcMessage.View.Round,
+				round: cert.ProposalMessage.View.Round,
 				hash:  hash,
 			})
 		}
