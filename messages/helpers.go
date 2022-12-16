@@ -139,7 +139,7 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 		return false
 	}
 
-	var hash []byte = nil
+	var hash []byte
 
 	for _, message := range messages {
 		var extractedHash []byte
@@ -149,6 +149,10 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 			extractedHash = ExtractProposalHash(message)
 		case proto.MessageType_PREPARE:
 			extractedHash = ExtractPrepareHash(message)
+		case proto.MessageType_COMMIT:
+			return false
+		case proto.MessageType_ROUND_CHANGE:
+			return false
 		default:
 			return false
 		}
