@@ -40,7 +40,7 @@ func buildBasicPreprepareMessage(
 			PreprepareData: &proto.PrePrepareMessage{
 				Proposal: &proto.ProposedBlock{
 					EthereumBlock: ethereumBlock,
-					Round:         0, //TODO:
+					Round:         view.Round,
 				},
 				Certificate:  certificate,
 				ProposalHash: proposalHash,
@@ -329,13 +329,11 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the proposal hash matches
 		backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, proposalHash []byte) bool {
-			return true
-			// TODO:
-			//if bytes.Equal(proposal, proposals[0]) {
-			//	return bytes.Equal(proposalHash, proposalHashes[0])
-			//}
+			if bytes.Equal(proposal.EthereumBlock, proposals[0]) {
+				return bytes.Equal(proposalHash, proposalHashes[0])
+			}
 
-			//return bytes.Equal(proposalHash, proposalHashes[1])
+			return bytes.Equal(proposalHash, proposalHashes[1])
 		}
 
 		// Make sure the preprepare message is built correctly

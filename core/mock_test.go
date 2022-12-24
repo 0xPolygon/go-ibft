@@ -16,14 +16,7 @@ const (
 )
 
 var (
-	correctRoundMessage = roundMessage{
-		proposal: &proto.ProposedBlock{
-			EthereumBlock: validEthereumBlock,
-			Round:         0, // TODO: correctRound
-		},
-		hash: []byte("proposal hash"),
-		seal: []byte("seal"),
-	}
+	correctRoundMessage = newCorrectRoundMessage(0)
 
 	badRoundMessage = roundMessage{
 		proposal: &proto.ProposedBlock{
@@ -34,6 +27,17 @@ var (
 		seal: []byte("bad seal"),
 	}
 )
+
+func newCorrectRoundMessage(round uint64) roundMessage {
+	return roundMessage{
+		proposal: &proto.ProposedBlock{
+			EthereumBlock: validEthereumBlock,
+			Round:         round,
+		},
+		hash: []byte("proposal hash"),
+		seal: []byte("seal"),
+	}
+}
 
 // Define delegation methods
 type isValidBlockDelegate func([]byte) bool

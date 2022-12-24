@@ -14,13 +14,12 @@ import (
 
 var (
 	validEthereumBlock = []byte("valid ethereum block")
-	validProposal      = []byte("valid proposal")
 	validProposalHash  = []byte("valid proposal hash")
 	validCommittedSeal = []byte("valid committed seal")
 )
 
 func isValidProposal(newProposal []byte) bool {
-	return bytes.Equal(newProposal, validProposal)
+	return bytes.Equal(newProposal, validEthereumBlock)
 }
 
 func buildValidEthereumBlock(_ uint64) []byte {
