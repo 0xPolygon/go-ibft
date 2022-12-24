@@ -16,19 +16,19 @@ const (
 	fin
 )
 
-func (s stateType) String() (str string) {
+func (s stateType) String() string {
 	switch s {
 	case newRound:
-		str = "new round"
+		return "new round"
 	case prepare:
-		str = "prepare"
+		return "prepare"
 	case commit:
-		str = "commit"
+		return "commit"
 	case fin:
-		str = "fin"
+		return "fin"
 	}
 
-	return
+	return ""
 }
 
 type state struct {

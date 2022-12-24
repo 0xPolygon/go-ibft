@@ -19,12 +19,13 @@ func proposalMatches(proposal *proto.ProposedBlock, message *proto.Message) bool
 		return false
 	}
 
-	return true
+	extractedProposal := messages.ExtractProposal(message)
+	if extractedProposal == nil {
+		return false
+	}
 
-	//TODO:
-	//preprepareData, _ := message.Payload.(*proto.Message_PreprepareData)
-	//extractedProposal := preprepareData.PreprepareData.Proposal
-	//return bytes.Equal(proposal, extractedProposal)
+	return proposal.Round == extractedProposal.Round &&
+		bytes.Equal(proposal.EthereumBlock, extractedProposal.EthereumBlock)
 }
 
 func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
@@ -258,7 +259,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal: &proto.ProposedBlock{
 										EthereumBlock: ethereumBlock,
-										Round:         0, // TODO:
+										Round:         0,
 									},
 									Certificate: certificate,
 								},
@@ -293,8 +294,14 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			assert.Equal(t, multicastedProposal, i.state.proposalMessage)
 
 			// Make sure the accepted proposal matches what was built
-			//TODO:
-			assert.True(t, proposalMatches(&proto.ProposedBlock{}, multicastedProposal))
+			assert.True(
+				t,
+				proposalMatches(&proto.ProposedBlock{
+					EthereumBlock: newEthereumBlock,
+					Round:         0,
+				}, multicastedProposal,
+				),
+			)
 		},
 	)
 

@@ -6,6 +6,7 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// CommittedSeal is an object that holds CommittedSeal signature and signer identifier
 type CommittedSeal struct {
 	Signer    []byte
 	Signature []byte
@@ -47,7 +48,7 @@ func ExtractCommitHash(commitMessage *proto.Message) []byte {
 	return commitData.CommitData.ProposalHash
 }
 
-// ExtractProposedBlock extracts the (EB,r) proposal from the passed in message
+// ExtractProposal extracts the (EB,r) proposal from the passed in message
 func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
 	if proposalMessage.Type != proto.MessageType_PREPREPARE {
 		return nil
@@ -58,6 +59,7 @@ func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
 	return preprepareData.PreprepareData.Proposal
 }
 
+// ExtractEthereumBlock extracts the EB (EthereumBlock) from the passed in message
 func ExtractEthereumBlock(proposalMessage *proto.Message) []byte {
 	if proposalMessage.Type != proto.MessageType_PREPREPARE {
 		return nil
@@ -150,7 +152,7 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 		return false
 	}
 
-	var hash []byte = nil
+	var hash []byte
 
 	for _, message := range messages {
 		var extractedHash []byte
@@ -160,6 +162,8 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 			extractedHash = ExtractProposalHash(message)
 		case proto.MessageType_PREPARE:
 			extractedHash = ExtractPrepareHash(message)
+		case proto.MessageType_COMMIT, proto.MessageType_ROUND_CHANGE:
+			return false
 		default:
 			return false
 		}
