@@ -52,8 +52,8 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildProposal builds a new ethereum block
-	BuildEthereumBlock(height uint64) []byte
+	// BuildBlock builds a new ethereum block
+	BuildBlock(height uint64) []byte
 
 	// InsertBlock inserts a proposal with the specified committed seals
 	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)

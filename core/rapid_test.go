@@ -312,7 +312,7 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the proposal can be built
-			backend.buildEthereumBlockFn = func(_ uint64) []byte {
+			backend.buildEBlockFn = func(_ uint64) []byte {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return message.proposal.GetRawProposal()

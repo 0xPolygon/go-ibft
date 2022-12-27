@@ -233,7 +233,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Set the proposal creation method
-		backend.buildEthereumBlockFn = func(_ uint64) []byte {
+		backend.buildEBlockFn = func(_ uint64) []byte {
 			return correctRoundMessage.proposal.GetRawProposal()
 		}
 	}
@@ -376,7 +376,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Build proposal function
-		backend.buildEthereumBlockFn = func(_ uint64) []byte {
+		backend.buildEBlockFn = func(_ uint64) []byte {
 			return proposals[nodeIndex]
 		}
 	}

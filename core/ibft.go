@@ -931,7 +931,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		rawProposal := i.backend.BuildEthereumBlock(height)
+		rawProposal := i.backend.BuildBlock(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			rawProposal,
@@ -966,7 +966,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal := i.backend.BuildEthereumBlock(height)
+		proposal := i.backend.BuildBlock(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,

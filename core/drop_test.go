@@ -33,7 +33,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildEthereumBlockFn:      buildValidEthereumBlock,
+						buildEBlockFn:             buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
@@ -91,7 +91,7 @@ func TestDropMaxFaulty(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildEthereumBlockFn:      buildValidEthereumBlock,
+						buildEBlockFn:             buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,

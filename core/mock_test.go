@@ -69,7 +69,7 @@ type mockBackend struct {
 	isValidBlockFn         isValidBlockDelegate
 	isValidSenderFn        isValidSenderDelegate
 	isProposerFn           isProposerDelegate
-	buildEthereumBlockFn   buildEthereumBlockDelegate
+	buildEBlockFn          buildEthereumBlockDelegate
 	isValidProposalHashFn  isValidProposalHashDelegate
 	isValidCommittedSealFn isValidCommittedSealDelegate
 
@@ -120,9 +120,9 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) BuildEthereumBlock(height uint64) []byte {
-	if m.buildEthereumBlockFn != nil {
-		return m.buildEthereumBlockFn(height)
+func (m mockBackend) BuildBlock(height uint64) []byte {
+	if m.buildEBlockFn != nil {
+		return m.buildEBlockFn(height)
 	}
 
 	return nil

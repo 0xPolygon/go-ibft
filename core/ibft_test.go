@@ -244,7 +244,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					buildEthereumBlockFn: func(_ uint64) []byte {
+					buildEBlockFn: func(_ uint64) []byte {
 						return newRawProposal
 					},
 					buildPrePrepareMessageFn: func(
@@ -337,7 +337,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						return true
 					},
 					hasQuorumFn: defaultHasQuorumFn(quorum),
-					buildEthereumBlockFn: func(_ uint64) []byte {
+					buildEBlockFn: func(_ uint64) []byte {
 						return correctRoundMessage.proposal.GetRawProposal()
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
@@ -493,7 +493,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						return true
 					},
 					hasQuorumFn: defaultHasQuorumFn(quorum),
-					buildEthereumBlockFn: func(_ uint64) []byte {
+					buildEBlockFn: func(_ uint64) []byte {
 						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
