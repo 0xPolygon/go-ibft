@@ -1,3 +1,4 @@
+// Package core implements IBFT consensus
 // backend.go defines interfaces of backend, that performs detailed procedure rather than consensus
 package core
 
@@ -53,12 +54,12 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildBlock builds a new ethereum block
-	BuildBlock(height uint64) []byte
+	// BuildProposal builds a new proposal for the height
+	BuildProposal(height uint64) []byte
 
-	// InsertBlock inserts a proposal with the specified committed seals
+	// InsertProposal inserts a proposal with the specified committed seals
 	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
-	InsertBlock(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
+	InsertProposal(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte

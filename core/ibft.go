@@ -922,7 +922,7 @@ func (i *IBFT) runFin() {
 
 	// Insert the block to the node's underlying
 	// blockchain layer
-	i.backend.InsertBlock(
+	i.backend.InsertProposal(
 		&proto.Proposal{
 			RawProposal: i.state.getRawDataFromProposal(),
 			Round:       i.state.getRound(),
@@ -953,7 +953,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		rawProposal := i.backend.BuildBlock(height)
+		rawProposal := i.backend.BuildProposal(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			rawProposal,
@@ -988,7 +988,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal := i.backend.BuildBlock(height)
+		proposal := i.backend.BuildProposal(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,

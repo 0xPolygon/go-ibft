@@ -228,12 +228,12 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+		backend.insertProposalFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal.RawProposal
 		}
 
 		// Set the proposal creation method
-		backend.buildEBlockFn = func(_ uint64) []byte {
+		backend.buildProposalFn = func(_ uint64) []byte {
 			return correctRoundMessage.proposal.GetRawProposal()
 		}
 	}
@@ -370,12 +370,12 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+		backend.insertProposalFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal.RawProposal
 		}
 
 		// Build proposal function
-		backend.buildEBlockFn = func(_ uint64) []byte {
+		backend.buildProposalFn = func(_ uint64) []byte {
 			return proposals[nodeIndex]
 		}
 	}

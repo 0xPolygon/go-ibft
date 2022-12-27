@@ -245,7 +245,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					buildEBlockFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ uint64) []byte {
 						return newRawProposal
 					},
 					buildPrePrepareMessageFn: func(
@@ -338,7 +338,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						return true
 					},
 					hasQuorumFn: defaultHasQuorumFn(quorum),
-					buildEBlockFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ uint64) []byte {
 						return correctRoundMessage.proposal.GetRawProposal()
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
@@ -495,7 +495,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						return bytes.Equal(proposerID, proposer)
 					},
 					hasQuorumFn: defaultHasQuorumFn(quorum),
-					buildEBlockFn: func(_ uint64) []byte {
+					buildProposalFn: func(_ uint64) []byte {
 						return proposal
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
@@ -987,7 +987,7 @@ func TestRunCommit(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					insertBlockFn: func(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal) {
+					insertProposalFn: func(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal) {
 						insertedProposal = proposal.RawProposal
 						insertedCommittedSeals = committedSeals
 					},

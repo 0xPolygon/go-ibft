@@ -307,12 +307,12 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the inserted proposal is noted
-			backend.insertBlockFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+			backend.insertProposalFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 				insertedProposals.insertProposal(nodeIndex, proposal.RawProposal)
 			}
 
 			// Make sure the proposal can be built
-			backend.buildEBlockFn = func(_ uint64) []byte {
+			backend.buildProposalFn = func(_ uint64) []byte {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return message.proposal.GetRawProposal()

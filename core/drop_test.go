@@ -33,14 +33,14 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildEBlockFn:             buildValidEthereumBlock,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
@@ -91,14 +91,14 @@ func TestDropMaxFaulty(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildEBlockFn:             buildValidEthereumBlock,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
