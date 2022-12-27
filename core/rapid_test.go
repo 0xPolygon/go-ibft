@@ -252,7 +252,7 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the proposal is valid if it matches what node 0 proposed
-			backend.isValidBlockFn = func(rawProposal []byte) bool {
+			backend.isValidProposalFn = func(rawProposal []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return bytes.Equal(rawProposal, message.proposal.RawProposal)

@@ -54,7 +54,7 @@ type SubscriptionDetails struct {
 	HasMinRound bool
 
 	// HasQuorumFn is the function used to check for quorum existence
-	HasQuorumFn func(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool
+	HasQuorumFn func(height uint64, messages []*proto.Message, msgType proto.MessageType) bool
 }
 
 // subscribe registers a new listener for message events

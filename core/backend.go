@@ -32,8 +32,8 @@ type MessageConstructor interface {
 
 // Verifier defines the verifier interface
 type Verifier interface {
-	// IsValidBlock checks if the proposed block is child of parent
-	IsValidBlock(rawProposal []byte) bool
+	// IsValidProposal checks if the proposal is child of parent
+	IsValidProposal(rawProposal []byte) bool
 
 	// IsValidSender checks if signature is from sender
 	IsValidSender(msg *proto.Message) bool
@@ -65,6 +65,6 @@ type Backend interface {
 	ID() []byte
 
 	// HasQuorum returns true if the quorum is reached
-	// for the specified block height.
-	HasQuorum(blockNumber uint64, msgs []*proto.Message, msgType proto.MessageType) bool
+	// for the specified height.
+	HasQuorum(height uint64, msgs []*proto.Message, msgType proto.MessageType) bool
 }

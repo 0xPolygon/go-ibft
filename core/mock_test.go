@@ -66,7 +66,7 @@ type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
-	isValidBlockFn         isValidBlockDelegate
+	isValidProposalFn      isValidBlockDelegate
 	isValidSenderFn        isValidSenderDelegate
 	isProposerFn           isProposerDelegate
 	buildProposalFn        buildEthereumBlockDelegate
@@ -96,9 +96,9 @@ func (m mockBackend) InsertProposal(proposal *proto.Proposal, committedSeals []*
 	}
 }
 
-func (m mockBackend) IsValidBlock(block []byte) bool {
-	if m.isValidBlockFn != nil {
-		return m.isValidBlockFn(block)
+func (m mockBackend) IsValidProposal(proposal []byte) bool {
+	if m.isValidProposalFn != nil {
+		return m.isValidProposalFn(proposal)
 	}
 
 	return true
@@ -191,9 +191,9 @@ func (m mockBackend) BuildRoundChangeMessage(
 	}
 }
 
-func (m mockBackend) HasQuorum(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+func (m mockBackend) HasQuorum(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
 	if m.hasQuorumFn != nil {
-		return m.hasQuorumFn(blockNumber, messages, msgType)
+		return m.hasQuorumFn(height, messages, msgType)
 	}
 
 	return true

@@ -25,7 +25,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -83,7 +83,7 @@ func TestDropMaxFaulty(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,

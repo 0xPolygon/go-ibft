@@ -124,10 +124,10 @@ func quorum(numNodes uint64) uint64 {
 	}
 }
 
-func commonHasQuorumFn(numNodes uint64) func(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+func commonHasQuorumFn(numNodes uint64) func(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
 	quorum := quorum(numNodes)
 
-	return func(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	return func(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
 		switch msgType {
 		case proto.MessageType_PREPREPARE:
 			return len(messages) >= 0
@@ -144,7 +144,7 @@ func commonHasQuorumFn(numNodes uint64) func(blockNumber uint64, messages []*pro
 // TestConsensus_ValidFlow tests the following scenario:
 // N = 4
 //
-// - Node 0 is the proposer for block 1, round 0
+// - Node 0 is the proposer for height 1, round 0
 // - Node 0 proposes a valid block B
 // - All nodes go through the consensus states to insert the valid block B
 func TestConsensus_ValidFlow(t *testing.T) {
@@ -183,7 +183,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the proposal is valid if it matches what node 0 proposed
-		backend.isValidBlockFn = func(rawProposal []byte) bool {
+		backend.isValidProposalFn = func(rawProposal []byte) bool {
 			return bytes.Equal(rawProposal, correctRoundMessage.proposal.GetRawProposal())
 		}
 
@@ -320,7 +320,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the proposal is valid if it matches what node 0 proposed
-		backend.isValidBlockFn = func(newProposal []byte) bool {
+		backend.isValidProposalFn = func(newProposal []byte) bool {
 			// Node 1 is the proposer for round 1,
 			// and their proposal is the only one that's valid
 			return bytes.Equal(newProposal, proposals[1])

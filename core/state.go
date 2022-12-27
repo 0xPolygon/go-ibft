@@ -40,11 +40,11 @@ type state struct {
 	// latestPC is the latest prepared certificate
 	latestPC *proto.PreparedCertificate
 
-	// latestPreparedProposal is the block
+	// latestPreparedProposal is the proposal
 	// for which Q(N)-1 PREPARE messages were received
 	latestPreparedProposal *proto.Proposal
 
-	//	accepted block proposal for current round
+	//	accepted proposal for current round
 	proposalMessage *proto.Message
 
 	//	validated commit seals

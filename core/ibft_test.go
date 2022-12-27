@@ -623,7 +623,7 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 			isProposerFn: func(from []byte, _, _ uint64) bool {
 				return bytes.Equal(from, proposer)
 			},
-			isValidBlockFn: func(_ []byte) bool {
+			isValidProposalFn: func(_ []byte) bool {
 				return true
 			},
 		}
@@ -796,7 +796,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 					isProposerFn: func(from []byte, _, _ uint64) bool {
 						return bytes.Equal(from, proposer)
 					},
-					isValidBlockFn: func(_ []byte) bool {
+					isValidProposalFn: func(_ []byte) bool {
 						return true
 					},
 				}
@@ -2015,7 +2015,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 					return true
 				},
-				isValidBlockFn: func(_ []byte) bool {
+				isValidProposalFn: func(_ []byte) bool {
 					return false
 				},
 			}
