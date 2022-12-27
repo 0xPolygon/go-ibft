@@ -903,7 +903,7 @@ func (i *IBFT) runFin() {
 	// Insert the block to the node's underlying
 	// blockchain layer
 	i.backend.InsertBlock(
-		i.state.getEthereumBlockFromProposal(),
+		i.state.getRawDataFromProposal(),
 		i.state.getRound(),
 		i.state.getCommittedSeals(),
 	)

@@ -143,7 +143,7 @@ func (s *state) getProposal() *proto.ProposedBlock {
 	return nil
 }
 
-func (s *state) getEthereumBlockFromProposal() []byte {
+func (s *state) getRawDataFromProposal() []byte {
 	proposedBlock := s.getProposal()
 
 	if proposedBlock != nil {
