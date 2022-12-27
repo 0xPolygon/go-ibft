@@ -1,3 +1,4 @@
+// backend.go defines interfaces of backend, that performs detailed procedure rather than consensus
 package core
 
 import (
