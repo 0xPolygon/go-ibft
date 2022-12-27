@@ -44,12 +44,12 @@ func (n *node) addr() []byte {
 }
 
 func (n *node) buildPrePrepare(
-	ethereumBlock []byte,
+	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicPreprepareMessage(
-		ethereumBlock,
+		rawProposal,
 		validProposalHash,
 		certificate,
 		n.address,

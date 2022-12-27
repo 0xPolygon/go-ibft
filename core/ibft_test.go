@@ -25,7 +25,7 @@ func proposalMatches(proposal *proto.ProposedBlock, message *proto.Message) bool
 	}
 
 	return proposal.Round == extractedProposal.Round &&
-		bytes.Equal(proposal.EthereumBlock, extractedProposal.EthereumBlock)
+		bytes.Equal(proposal.RawProposal, extractedProposal.RawProposal)
 }
 
 func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
@@ -230,7 +230,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
-				newEthereumBlock                   = []byte("new block")
+				newRawProposal                     = []byte("new block")
 				multicastedProposal *proto.Message = nil
 
 				log       = mockLogger{}
@@ -245,10 +245,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						return true
 					},
 					buildEthereumBlockFn: func(_ uint64) []byte {
-						return newEthereumBlock
+						return newRawProposal
 					},
 					buildPrePrepareMessageFn: func(
-						ethereumBlock []byte,
+						rawProposal []byte,
 						certificate *proto.RoundChangeCertificate,
 						view *proto.View,
 					) *proto.Message {
@@ -258,8 +258,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							Payload: &proto.Message_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal: &proto.ProposedBlock{
-										EthereumBlock: ethereumBlock,
-										Round:         0,
+										RawProposal: rawProposal,
+										Round:       0,
 									},
 									Certificate: certificate,
 								},
@@ -297,8 +297,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			assert.True(
 				t,
 				proposalMatches(&proto.ProposedBlock{
-					EthereumBlock: newEthereumBlock,
-					Round:         0,
+					RawProposal: newRawProposal,
+					Round:       0,
 				}, multicastedProposal,
 				),
 			)
@@ -338,7 +338,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 					hasQuorumFn: defaultHasQuorumFn(quorum),
 					buildEthereumBlockFn: func(_ uint64) []byte {
-						return correctRoundMessage.proposal.GetEthereumBlock()
+						return correctRoundMessage.proposal.GetRawProposal()
 					},
 					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
@@ -425,8 +425,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			t.Parallel()
 
 			lastPreparedProposedBlock := &proto.ProposedBlock{
-				EthereumBlock: []byte("dummy block"),
-				Round:         0, //TODO: check
+				RawProposal: []byte("dummy block"),
+				Round:       0,
 			}
 
 			quorum := uint64(4)
@@ -508,7 +508,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						}
 					},
 					buildPrePrepareMessageFn: func(
-						ethereumBlock []byte,
+						rawProposal []byte,
 						certificate *proto.RoundChangeCertificate,
 						view *proto.View,
 					) *proto.Message {
@@ -518,8 +518,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							Payload: &proto.Message_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal: &proto.ProposedBlock{
-										EthereumBlock: ethereumBlock,
-										Round:         0, // TODO:
+										RawProposal: rawProposal,
+										Round:       0,
 									},
 									ProposalHash: correctRoundMessage.hash,
 									Certificate:  certificate,
@@ -1071,7 +1071,7 @@ func TestRunCommit(t *testing.T) {
 			assert.Equal(t, fin, i.state.name)
 
 			// Make sure the inserted proposal was the one present
-			assert.Equal(t, insertedProposal, correctRoundMessage.proposal.EthereumBlock)
+			assert.Equal(t, insertedProposal, correctRoundMessage.proposal.RawProposal)
 
 			// Make sure the inserted committed seals were correct
 			assert.Equal(t, insertedCommittedSeals, committedSeals)
@@ -1383,7 +1383,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 						return nodeID
 					},
 					isValidProposalHashFn: func(p *proto.ProposedBlock, hash []byte) bool {
-						if bytes.Equal(p.EthereumBlock, correctRoundMessage.proposal.EthereumBlock) {
+						if bytes.Equal(p.RawProposal, correctRoundMessage.proposal.RawProposal) {
 							return bytes.Equal(hash, correctRoundMessage.hash)
 						}
 

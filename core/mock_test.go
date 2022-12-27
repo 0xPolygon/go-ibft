@@ -20,8 +20,8 @@ var (
 
 	badRoundMessage = roundMessage{
 		proposal: &proto.ProposedBlock{
-			EthereumBlock: []byte("bad"), // TODO: invalidEthereumBlock
-			Round:         100,           // TODO: incorrectRound
+			RawProposal: []byte("bad"),
+			Round:       100,
 		},
 		hash: []byte("bad proposal hash"),
 		seal: []byte("bad seal"),
@@ -31,8 +31,8 @@ var (
 func newCorrectRoundMessage(round uint64) roundMessage {
 	return roundMessage{
 		proposal: &proto.ProposedBlock{
-			EthereumBlock: validEthereumBlock,
-			Round:         round,
+			RawProposal: validEthereumBlock,
+			Round:       round,
 		},
 		hash: []byte("proposal hash"),
 		seal: []byte("seal"),
@@ -145,12 +145,12 @@ func (m mockBackend) IsValidCommittedSeal(proposal []byte, committedSeal *messag
 }
 
 func (m mockBackend) BuildPrePrepareMessage(
-	ethereumBlock []byte,
+	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	if m.buildPrePrepareMessageFn != nil {
-		return m.buildPrePrepareMessageFn(ethereumBlock, certificate, view)
+		return m.buildPrePrepareMessageFn(rawProposal, certificate, view)
 	}
 
 	return nil

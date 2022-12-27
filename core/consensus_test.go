@@ -26,7 +26,7 @@ func generateNodeAddresses(count uint64) [][]byte {
 
 // buildBasicPreprepareMessage builds a simple preprepare message
 func buildBasicPreprepareMessage(
-	ethereumBlock []byte,
+	rawProposal []byte,
 	proposalHash []byte,
 	certificate *proto.RoundChangeCertificate,
 	from []byte,
@@ -39,8 +39,8 @@ func buildBasicPreprepareMessage(
 		Payload: &proto.Message_PreprepareData{
 			PreprepareData: &proto.PrePrepareMessage{
 				Proposal: &proto.ProposedBlock{
-					EthereumBlock: ethereumBlock,
-					Round:         view.Round,
+					RawProposal: rawProposal,
+					Round:       view.Round,
 				},
 				Certificate:  certificate,
 				ProposalHash: proposalHash,
@@ -183,25 +183,25 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the proposal is valid if it matches what node 0 proposed
-		backend.isValidBlockFn = func(ethereumBlock []byte) bool {
-			return bytes.Equal(ethereumBlock, correctRoundMessage.proposal.GetEthereumBlock())
+		backend.isValidBlockFn = func(rawProposal []byte) bool {
+			return bytes.Equal(rawProposal, correctRoundMessage.proposal.GetRawProposal())
 		}
 
 		// Make sure the proposal hash matches
 		backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, proposalHash []byte) bool {
-			return bytes.Equal(proposal.GetEthereumBlock(), correctRoundMessage.proposal.GetEthereumBlock()) &&
+			return bytes.Equal(proposal.GetRawProposal(), correctRoundMessage.proposal.GetRawProposal()) &&
 				proposal.Round == correctRoundMessage.proposal.Round &&
 				bytes.Equal(proposalHash, correctRoundMessage.hash)
 		}
 
 		// Make sure the preprepare message is built correctly
 		backend.buildPrePrepareMessageFn = func(
-			ethereumBlock []byte,
+			rawProposal []byte,
 			certificate *proto.RoundChangeCertificate,
 			view *proto.View,
 		) *proto.Message {
 			return buildBasicPreprepareMessage(
-				ethereumBlock,
+				rawProposal,
 				correctRoundMessage.hash,
 				certificate,
 				nodes[nodeIndex],
@@ -234,7 +234,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 		// Set the proposal creation method
 		backend.buildEthereumBlockFn = func(_ uint64) []byte {
-			return correctRoundMessage.proposal.GetEthereumBlock()
+			return correctRoundMessage.proposal.GetRawProposal()
 		}
 	}
 
@@ -261,7 +261,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
 		// TODO: @Yoshiki, change upon changing the InsertBlock
-		assert.True(t, bytes.Equal(block, correctRoundMessage.proposal.GetEthereumBlock()))
+		assert.True(t, bytes.Equal(block, correctRoundMessage.proposal.GetRawProposal()))
 	}
 }
 
@@ -329,7 +329,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the proposal hash matches
 		backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, proposalHash []byte) bool {
-			if bytes.Equal(proposal.EthereumBlock, proposals[0]) {
+			if bytes.Equal(proposal.RawProposal, proposals[0]) {
 				return bytes.Equal(proposalHash, proposalHashes[0])
 			}
 
@@ -338,12 +338,12 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the preprepare message is built correctly
 		backend.buildPrePrepareMessageFn = func(
-			ethereumBlock []byte,
+			rawProposal []byte,
 			certificate *proto.RoundChangeCertificate,
 			view *proto.View,
 		) *proto.Message {
 			return buildBasicPreprepareMessage(
-				ethereumBlock,
+				rawProposal,
 				proposalHashes[view.Round],
 				certificate,
 				nodes[nodeIndex],

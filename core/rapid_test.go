@@ -252,17 +252,17 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the proposal is valid if it matches what node 0 proposed
-			backend.isValidBlockFn = func(ethereumBlock []byte) bool {
+			backend.isValidBlockFn = func(rawProposal []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
-				return bytes.Equal(ethereumBlock, message.proposal.EthereumBlock)
+				return bytes.Equal(rawProposal, message.proposal.RawProposal)
 			}
 
 			// Make sure the proposal hash matches
 			backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, hash []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
-				return bytes.Equal(proposal.EthereumBlock, message.proposal.EthereumBlock) &&
+				return bytes.Equal(proposal.RawProposal, message.proposal.RawProposal) &&
 					bytes.Equal(hash, message.hash)
 			}
 
@@ -315,7 +315,7 @@ func TestProperty(t *testing.T) {
 			backend.buildEthereumBlockFn = func(_ uint64) []byte {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
-				return message.proposal.GetEthereumBlock()
+				return message.proposal.GetRawProposal()
 			}
 		}
 
@@ -367,7 +367,7 @@ func TestProperty(t *testing.T) {
 
 					// Make sure inserted block value is correct
 					for _, val := range proposalMap {
-						assert.Equal(t, correctRoundMessage.proposal.EthereumBlock, val)
+						assert.Equal(t, correctRoundMessage.proposal.RawProposal, val)
 					}
 				} else {
 					// There should not be inserted blocks in bad nodes

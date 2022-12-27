@@ -9,7 +9,7 @@ import (
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
 	BuildPrePrepareMessage(
-		ethereumBlock []byte,
+		rawProposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -31,7 +31,7 @@ type MessageConstructor interface {
 // Verifier defines the verifier interface
 type Verifier interface {
 	// IsValidBlock checks if the proposed block is child of parent
-	IsValidBlock(ethereumBlock []byte) bool
+	IsValidBlock(rawProposal []byte) bool
 
 	// IsValidSender checks if signature is from sender
 	IsValidSender(msg *proto.Message) bool
@@ -57,7 +57,7 @@ type Backend interface {
 
 	// InsertBlock inserts a proposal with the specified committed seals
 	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
-	InsertBlock(ethereumBlock []byte, round uint64, committedSeals []*messages.CommittedSeal)
+	InsertBlock(rawProposal []byte, round uint64, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte

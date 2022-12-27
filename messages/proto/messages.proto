@@ -102,7 +102,7 @@ message RoundChangeCertificate {
 
 // Proposed block is the tuple (EB, r)
 message ProposedBlock {
-  bytes ethereumBlock = 1;
+  bytes rawProposal = 1;
 
   uint64 round = 2;
 }

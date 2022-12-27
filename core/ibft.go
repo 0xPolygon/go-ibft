@@ -610,7 +610,7 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 	}
 
 	//	is valid block
-	return i.backend.IsValidBlock(proposal.GetEthereumBlock())
+	return i.backend.IsValidBlock(proposal.GetRawProposal())
 }
 
 // validateProposal0 validates the proposal for round 0
@@ -931,10 +931,10 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		ethereumBlock := i.backend.BuildEthereumBlock(height)
+		rawProposal := i.backend.BuildEthereumBlock(height)
 
 		return i.backend.BuildPrePrepareMessage(
-			ethereumBlock,
+			rawProposal,
 			nil,
 			&proto.View{
 				Height: height,
@@ -979,7 +979,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	}
 
 	return i.backend.BuildPrePrepareMessage(
-		previousProposal.GetEthereumBlock(),
+		previousProposal.GetRawProposal(),
 		rcc,
 		&proto.View{
 			Height: height,

@@ -147,7 +147,7 @@ func (s *state) getEthereumBlockFromProposal() []byte {
 	proposedBlock := s.getProposal()
 
 	if proposedBlock != nil {
-		return proposedBlock.EthereumBlock
+		return proposedBlock.RawProposal
 	}
 
 	return nil
