@@ -1995,7 +1995,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
-				PreprepareData: &proto.PrePrepareMessage{},
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal: &proto.ProposedBlock{
+						Round: baseView.Round,
+					},
+				},
 			},
 		}
 
@@ -2065,7 +2069,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
-				PreprepareData: &proto.PrePrepareMessage{},
+				PreprepareData: &proto.PrePrepareMessage{
+					Proposal: &proto.ProposedBlock{
+						Round: baseView.Round,
+					},
+				},
 			},
 		}
 
@@ -2276,6 +2284,9 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
+					Proposal: &proto.ProposedBlock{
+						Round: baseView.Round,
+					},
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: generateMessages(quorum, proto.MessageType_ROUND_CHANGE),
 					},

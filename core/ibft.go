@@ -595,6 +595,11 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 		proposalHash = messages.ExtractProposalHash(msg)
 	)
 
+	//	round matches
+	if proposal.Round != view.Round {
+		return false
+	}
+
 	//	is proposer
 	if !i.backend.IsProposer(msg.From, height, round) {
 		return false
@@ -602,11 +607,6 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 
 	//	hash matches keccak(proposal)
 	if !i.backend.IsValidProposalHash(proposal, proposalHash) {
-		return false
-	}
-
-	//	round matches
-	if proposal.Round != view.Round {
 		return false
 	}
 
