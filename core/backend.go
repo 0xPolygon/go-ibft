@@ -58,7 +58,7 @@ type Backend interface {
 	BuildProposal(height uint64) []byte
 
 	// InsertProposal inserts a proposal with the specified committed seals
-	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
+	// the reason why we are including round here is because a single committedSeal has signed the tuple of (rawProposal, round)
 	InsertProposal(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
