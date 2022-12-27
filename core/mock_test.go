@@ -60,7 +60,7 @@ type buildRoundChangeMessageDelegate func(
 	*proto.View,
 ) *proto.Message
 
-type insertBlockDelegate func([]byte, []*messages.CommittedSeal)
+type insertBlockDelegate func(*proto.ProposedBlock, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
 
@@ -90,7 +90,7 @@ func (m mockBackend) ID() []byte {
 	return nil
 }
 
-func (m mockBackend) InsertBlock(proposal []byte, round uint64, committedSeals []*messages.CommittedSeal) {
+func (m mockBackend) InsertBlock(proposal *proto.ProposedBlock, committedSeals []*messages.CommittedSeal) {
 	if m.insertBlockFn != nil {
 		m.insertBlockFn(proposal, committedSeals)
 	}

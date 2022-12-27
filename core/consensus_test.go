@@ -228,8 +228,8 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-			insertedBlocks[nodeIndex] = proposal
+		backend.insertBlockFn = func(proposal *proto.ProposedBlock, _ []*messages.CommittedSeal) {
+			insertedBlocks[nodeIndex] = proposal.RawProposal
 		}
 
 		// Set the proposal creation method
@@ -260,7 +260,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
-		// TODO: @Yoshiki, change upon changing the InsertBlock
 		assert.True(t, bytes.Equal(block, correctRoundMessage.proposal.GetRawProposal()))
 	}
 }
@@ -371,8 +370,8 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-			insertedBlocks[nodeIndex] = proposal
+		backend.insertBlockFn = func(proposal *proto.ProposedBlock, _ []*messages.CommittedSeal) {
+			insertedBlocks[nodeIndex] = proposal.RawProposal
 		}
 
 		// Build proposal function

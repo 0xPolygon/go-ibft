@@ -985,8 +985,8 @@ func TestRunCommit(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					insertBlockFn: func(proposal []byte, committedSeals []*messages.CommittedSeal) {
-						insertedProposal = proposal
+					insertBlockFn: func(proposal *proto.ProposedBlock, committedSeals []*messages.CommittedSeal) {
+						insertedProposal = proposal.RawProposal
 						insertedCommittedSeals = committedSeals
 					},
 					hasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {

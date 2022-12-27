@@ -57,7 +57,7 @@ type Backend interface {
 
 	// InsertBlock inserts a proposal with the specified committed seals
 	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
-	InsertBlock(rawProposal []byte, round uint64, committedSeals []*messages.CommittedSeal)
+	InsertBlock(proposal *proto.ProposedBlock, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte

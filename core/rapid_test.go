@@ -307,8 +307,8 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the inserted proposal is noted
-			backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-				insertedProposals.insertProposal(nodeIndex, proposal)
+			backend.insertBlockFn = func(proposal *proto.ProposedBlock, _ []*messages.CommittedSeal) {
+				insertedProposals.insertProposal(nodeIndex, proposal.RawProposal)
 			}
 
 			// Make sure the proposal can be built
