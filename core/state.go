@@ -40,9 +40,9 @@ type state struct {
 	// latestPC is the latest prepared certificate
 	latestPC *proto.PreparedCertificate
 
-	// latestPreparedProposedBlock is the block
+	// latestPreparedProposal is the block
 	// for which Q(N)-1 PREPARE messages were received
-	latestPreparedProposedBlock *proto.ProposedBlock
+	latestPreparedProposal *proto.Proposal
 
 	//	accepted block proposal for current round
 	proposalMessage *proto.Message
@@ -75,7 +75,7 @@ func (s *state) clear(height uint64) {
 	s.name = newRound
 	s.proposalMessage = nil
 	s.latestPC = nil
-	s.latestPreparedProposedBlock = nil
+	s.latestPreparedProposal = nil
 
 	s.view = &proto.View{
 		Height: height,
@@ -90,11 +90,11 @@ func (s *state) getLatestPC() *proto.PreparedCertificate {
 	return s.latestPC
 }
 
-func (s *state) getLatestPreparedProposedBlock() *proto.ProposedBlock {
+func (s *state) getLatestPreparedProposal() *proto.Proposal {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.latestPreparedProposedBlock
+	return s.latestPreparedProposal
 }
 
 func (s *state) getProposalMessage() *proto.Message {
@@ -132,7 +132,7 @@ func (s *state) getHeight() uint64 {
 	return s.view.Height
 }
 
-func (s *state) getProposal() *proto.ProposedBlock {
+func (s *state) getProposal() *proto.Proposal {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -208,13 +208,13 @@ func (s *state) newRound() {
 
 func (s *state) finalizePrepare(
 	certificate *proto.PreparedCertificate,
-	latestPPB *proto.ProposedBlock,
+	latestPPB *proto.Proposal,
 ) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.latestPC = certificate
-	s.latestPreparedProposedBlock = latestPPB
+	s.latestPreparedProposal = latestPPB
 
 	// Move to the commit state
 	s.name = commit

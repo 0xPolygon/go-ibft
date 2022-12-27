@@ -93,11 +93,11 @@ func TestMessages_ExtractCommitHash(t *testing.T) {
 func TestMessages_ExtractProposal(t *testing.T) {
 	t.Parallel()
 
-	proposal := &proto.ProposedBlock{}
+	proposal := &proto.Proposal{}
 
 	testTable := []struct {
 		name             string
-		expectedProposal *proto.ProposedBlock
+		expectedProposal *proto.Proposal
 		message          *proto.Message
 	}{
 		{
@@ -328,21 +328,21 @@ func TestMessages_ExtractLatestPC(t *testing.T) {
 func TestMessages_ExtractLPPB(t *testing.T) {
 	t.Parallel()
 
-	latestPPB := &proto.ProposedBlock{}
+	lastPreparedProposal := &proto.Proposal{}
 
 	testTable := []struct {
 		name         string
-		expectedLPPB *proto.ProposedBlock
+		expectedLPPB *proto.Proposal
 		message      *proto.Message
 	}{
 		{
 			"valid message",
-			latestPPB,
+			lastPreparedProposal,
 			&proto.Message{
 				Type: proto.MessageType_ROUND_CHANGE,
 				Payload: &proto.Message_RoundChangeData{
 					RoundChangeData: &proto.RoundChangeMessage{
-						LastPreparedProposedBlock: latestPPB,
+						LastPreparedProposal: lastPreparedProposal,
 					},
 				},
 			},
@@ -365,7 +365,7 @@ func TestMessages_ExtractLPPB(t *testing.T) {
 			assert.Equal(
 				t,
 				testCase.expectedLPPB,
-				ExtractLastPreparedProposedBlock(testCase.message),
+				ExtractLastPreparedProposal(testCase.message),
 			)
 		})
 	}

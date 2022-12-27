@@ -26,7 +26,7 @@ func buildValidEthereumBlock(_ uint64) []byte {
 	return validEthereumBlock
 }
 
-func isValidProposalHash(proposal *proto.ProposedBlock, proposalHash []byte) bool {
+func isValidProposalHash(proposal *proto.Proposal, proposalHash []byte) bool {
 	return bytes.Equal(
 		proposalHash,
 		validProposalHash,
@@ -81,7 +81,7 @@ func (n *node) buildCommit(
 }
 
 func (n *node) buildRoundChange(
-	proposal *proto.ProposedBlock,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 ) *proto.Message {

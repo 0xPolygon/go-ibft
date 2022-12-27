@@ -38,7 +38,7 @@ func buildBasicPreprepareMessage(
 		Type: proto.MessageType_PREPREPARE,
 		Payload: &proto.Message_PreprepareData{
 			PreprepareData: &proto.PrePrepareMessage{
-				Proposal: &proto.ProposedBlock{
+				Proposal: &proto.Proposal{
 					RawProposal: rawProposal,
 					Round:       view.Round,
 				},
@@ -89,7 +89,7 @@ func buildBasicCommitMessage(
 
 // buildBasicRoundChangeMessage builds a simple round change message
 func buildBasicRoundChangeMessage(
-	proposal *proto.ProposedBlock,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 	from []byte,
@@ -100,7 +100,7 @@ func buildBasicRoundChangeMessage(
 		Type: proto.MessageType_ROUND_CHANGE,
 		Payload: &proto.Message_RoundChangeData{
 			RoundChangeData: &proto.RoundChangeMessage{
-				LastPreparedProposedBlock: proposal,
+				LastPreparedProposal:      proposal,
 				LatestPreparedCertificate: certificate,
 			},
 		},
@@ -188,7 +188,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the proposal hash matches
-		backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, proposalHash []byte) bool {
+		backend.isValidProposalHashFn = func(proposal *proto.Proposal, proposalHash []byte) bool {
 			return bytes.Equal(proposal.GetRawProposal(), correctRoundMessage.proposal.GetRawProposal()) &&
 				proposal.Round == correctRoundMessage.proposal.Round &&
 				bytes.Equal(proposalHash, correctRoundMessage.hash)
@@ -220,7 +220,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 		// Make sure the round change message is built correctly
 		backend.buildRoundChangeMessageFn = func(
-			proposal *proto.ProposedBlock,
+			proposal *proto.Proposal,
 			certificate *proto.PreparedCertificate,
 			view *proto.View,
 		) *proto.Message {
@@ -228,7 +228,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal *proto.ProposedBlock, _ []*messages.CommittedSeal) {
+		backend.insertBlockFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal.RawProposal
 		}
 
@@ -327,7 +327,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the proposal hash matches
-		backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, proposalHash []byte) bool {
+		backend.isValidProposalHashFn = func(proposal *proto.Proposal, proposalHash []byte) bool {
 			if bytes.Equal(proposal.RawProposal, proposals[0]) {
 				return bytes.Equal(proposalHash, proposalHashes[0])
 			}
@@ -362,7 +362,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the round change message is built correctly
 		backend.buildRoundChangeMessageFn = func(
-			proposal *proto.ProposedBlock,
+			proposal *proto.Proposal,
 			certificate *proto.PreparedCertificate,
 			view *proto.View,
 		) *proto.Message {
@@ -370,7 +370,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the inserted proposal is noted
-		backend.insertBlockFn = func(proposal *proto.ProposedBlock, _ []*messages.CommittedSeal) {
+		backend.insertBlockFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal.RawProposal
 		}
 

@@ -16,7 +16,7 @@ import (
 
 // roundMessage contains message data within consensus round
 type roundMessage struct {
-	proposal *proto.ProposedBlock
+	proposal *proto.Proposal
 	seal     []byte
 	hash     []byte
 }
@@ -259,7 +259,7 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the proposal hash matches
-			backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, hash []byte) bool {
+			backend.isValidProposalHashFn = func(proposal *proto.Proposal, hash []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return bytes.Equal(proposal.RawProposal, message.proposal.RawProposal) &&
@@ -299,7 +299,7 @@ func TestProperty(t *testing.T) {
 
 			// Make sure the round change message is built correctly
 			backend.buildRoundChangeMessageFn = func(
-				proposal *proto.ProposedBlock,
+				proposal *proto.Proposal,
 				certificate *proto.PreparedCertificate,
 				view *proto.View,
 			) *proto.Message {
@@ -307,7 +307,7 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the inserted proposal is noted
-			backend.insertBlockFn = func(proposal *proto.ProposedBlock, _ []*messages.CommittedSeal) {
+			backend.insertBlockFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 				insertedProposals.insertProposal(nodeIndex, proposal.RawProposal)
 			}
 

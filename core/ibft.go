@@ -438,7 +438,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 	)
 
 	isValidFn := func(msg *proto.Message) bool {
-		proposal := messages.ExtractLastPreparedProposedBlock(msg)
+		proposal := messages.ExtractLastPreparedProposal(msg)
 		certificate := messages.ExtractLatestPC(msg)
 
 		// Check if the prepared certificate is valid
@@ -468,7 +468,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 // proposalMatchesCertificate checks a prepared certificate
 // against a proposal
 func (i *IBFT) proposalMatchesCertificate(
-	proposal *proto.ProposedBlock,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 ) bool {
 	// Both the certificate and proposal need to be set
@@ -923,7 +923,7 @@ func (i *IBFT) runFin() {
 	// Insert the block to the node's underlying
 	// blockchain layer
 	i.backend.InsertBlock(
-		&proto.ProposedBlock{
+		&proto.Proposal{
 			RawProposal: i.state.getRawDataFromProposal(),
 			Round:       i.state.getRound(),
 		},
@@ -973,14 +973,14 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	}
 
 	//	check the messages for any previous proposal (if they have any, it's the same proposal)
-	var previousProposal *proto.ProposedBlock
+	var previousProposal *proto.Proposal
 
 	for _, msg := range rcc.RoundChangeMessages {
 		//	if message contains block, break
 		latestPC := messages.ExtractLatestPC(msg)
 
 		if latestPC != nil {
-			previousProposal = messages.ExtractLastPreparedProposedBlock(msg)
+			previousProposal = messages.ExtractLastPreparedProposal(msg)
 
 			break
 		}
@@ -1167,7 +1167,7 @@ func (i *IBFT) sendPreprepareMessage(message *proto.Message) {
 func (i *IBFT) sendRoundChangeMessage(height, newRound uint64) {
 	i.transport.Multicast(
 		i.backend.BuildRoundChangeMessage(
-			i.state.getLatestPreparedProposedBlock(),
+			i.state.getLatestPreparedProposal(),
 			i.state.getLatestPC(),
 			&proto.View{
 				Height: height,

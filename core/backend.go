@@ -22,7 +22,7 @@ type MessageConstructor interface {
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
 	BuildRoundChangeMessage(
-		proposal *proto.ProposedBlock,
+		proposal *proto.Proposal,
 		certificate *proto.PreparedCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -40,7 +40,7 @@ type Verifier interface {
 	IsProposer(id []byte, height, round uint64) bool
 
 	// IsValidProposalHash checks if the hash matches the proposal
-	IsValidProposalHash(proposal *proto.ProposedBlock, hash []byte) bool
+	IsValidProposalHash(proposal *proto.Proposal, hash []byte) bool
 
 	// IsValidCommittedSeal checks if the seal for the proposal is valid
 	IsValidCommittedSeal(proposal []byte, committedSeal *messages.CommittedSeal) bool
@@ -57,7 +57,7 @@ type Backend interface {
 
 	// InsertBlock inserts a proposal with the specified committed seals
 	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
-	InsertBlock(proposal *proto.ProposedBlock, committedSeals []*messages.CommittedSeal)
+	InsertBlock(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte

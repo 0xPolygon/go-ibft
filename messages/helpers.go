@@ -49,7 +49,7 @@ func ExtractCommitHash(commitMessage *proto.Message) []byte {
 }
 
 // ExtractProposal extracts the (rawData,r) proposal from the passed in message
-func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
+func ExtractProposal(proposalMessage *proto.Message) *proto.Proposal {
 	if proposalMessage.Type != proto.MessageType_PREPREPARE {
 		return nil
 	}
@@ -103,15 +103,15 @@ func ExtractLatestPC(roundChangeMessage *proto.Message) *proto.PreparedCertifica
 	return rcData.RoundChangeData.LatestPreparedCertificate
 }
 
-// ExtractLastPreparedProposedBlock extracts the latest prepared proposed block from the passed in message
-func ExtractLastPreparedProposedBlock(roundChangeMessage *proto.Message) *proto.ProposedBlock {
+// ExtractLastPreparedProposal extracts the latest prepared proposal from the passed in message
+func ExtractLastPreparedProposal(roundChangeMessage *proto.Message) *proto.Proposal {
 	if roundChangeMessage.Type != proto.MessageType_ROUND_CHANGE {
 		return nil
 	}
 
 	rcData, _ := roundChangeMessage.Payload.(*proto.Message_RoundChangeData)
 
-	return rcData.RoundChangeData.LastPreparedProposedBlock
+	return rcData.RoundChangeData.LastPreparedProposal
 }
 
 // HasUniqueSenders checks if the messages have unique senders
