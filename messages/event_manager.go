@@ -1,3 +1,4 @@
+// Package messages defines a sub-module to handle IBFT messages
 package messages
 
 import (
@@ -22,6 +23,7 @@ func newEventManager() *eventManager {
 	}
 }
 
+// SubscriptionID is a unique number to identify Subscription
 type SubscriptionID int32
 
 // Subscription is the subscription
