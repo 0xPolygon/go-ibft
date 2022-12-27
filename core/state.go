@@ -144,10 +144,10 @@ func (s *state) getProposal() *proto.ProposedBlock {
 }
 
 func (s *state) getRawDataFromProposal() []byte {
-	proposedBlock := s.getProposal()
+	proposal := s.getProposal()
 
-	if proposedBlock != nil {
-		return proposedBlock.RawProposal
+	if proposal != nil {
+		return proposal.RawProposal
 	}
 
 	return nil
