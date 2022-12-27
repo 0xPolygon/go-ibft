@@ -2147,6 +2147,9 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: messages,
 					},
+					Proposal: &proto.ProposedBlock{
+						Round: baseView.Round,
+					},
 				},
 			},
 		}
