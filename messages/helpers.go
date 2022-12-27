@@ -59,18 +59,6 @@ func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
 	return preprepareData.PreprepareData.Proposal
 }
 
-// ExtractEthereumBlock extracts the EB (EthereumBlock) from the passed in message
-func ExtractEthereumBlock(proposalMessage *proto.Message) []byte {
-	if proposalMessage.Type != proto.MessageType_PREPREPARE {
-		return nil
-	}
-
-	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
-	proposal := preprepareData.PreprepareData.Proposal
-
-	return proposal.GetRawProposal()
-}
-
 // ExtractProposalHash extracts the proposal hash from the passed in message
 func ExtractProposalHash(proposalMessage *proto.Message) []byte {
 	if proposalMessage.Type != proto.MessageType_PREPREPARE {
