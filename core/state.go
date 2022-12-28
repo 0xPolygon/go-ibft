@@ -7,30 +7,6 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
-type stateType uint8
-
-const (
-	newRound stateType = iota
-	prepare
-	commit
-	fin
-)
-
-func (s stateType) String() (str string) {
-	switch s {
-	case newRound:
-		str = "new round"
-	case prepare:
-		str = "prepare"
-	case commit:
-		str = "commit"
-	case fin:
-		str = "fin"
-	}
-
-	return
-}
-
 type state struct {
 	sync.RWMutex
 
@@ -53,7 +29,8 @@ type state struct {
 	//	flags for different states
 	roundStarted bool
 
-	name stateType
+	//  commitSent for current round
+	commitSent bool
 }
 
 func (s *state) getView() *proto.View {
@@ -72,7 +49,7 @@ func (s *state) clear(height uint64) {
 
 	s.seals = nil
 	s.roundStarted = false
-	s.name = newRound
+	s.commitSent = false
 	s.proposalMessage = nil
 	s.latestPC = nil
 	s.latestPreparedProposedBlock = nil
@@ -150,25 +127,25 @@ func (s *state) getCommittedSeals() []*messages.CommittedSeal {
 	return s.seals
 }
 
-func (s *state) getStateName() stateType {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.name
-}
-
-func (s *state) changeState(name stateType) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.name = name
-}
-
 func (s *state) setRoundStarted(started bool) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.roundStarted = started
+}
+
+func (s *state) getCommitSent() bool {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.commitSent
+}
+
+func (s *state) setCommitSent(sent bool) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.commitSent = sent
 }
 
 func (s *state) setView(view *proto.View) {
@@ -190,8 +167,6 @@ func (s *state) newRound() {
 	defer s.Unlock()
 
 	if !s.roundStarted {
-		// Round is not yet started, kick the round off
-		s.name = newRound
 		s.roundStarted = true
 	}
 }
@@ -205,7 +180,4 @@ func (s *state) finalizePrepare(
 
 	s.latestPC = certificate
 	s.latestPreparedProposedBlock = latestPPB
-
-	// Move to the commit state
-	s.name = commit
 }

@@ -29,6 +29,10 @@ func ExtractCommittedSeals(commitMessages []*proto.Message) []*CommittedSeal {
 
 // ExtractCommittedSeal extracts the committed seal from the passed in message
 func ExtractCommittedSeal(commitMessage *proto.Message) *CommittedSeal {
+	if commitMessage.Type != proto.MessageType_COMMIT {
+		return nil
+	}
+
 	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
 
 	return &CommittedSeal{
