@@ -20,10 +20,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -50,6 +50,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									proposalHash = []byte("invalid proposal hash")
 								}
+
 								return buildBasicPreprepareMessage(
 									proposal,
 									proposalHash,
@@ -87,10 +88,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -107,6 +108,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									proposalHash = []byte("invalid proposal hash")
 								}
+
 								return buildBasicPrepareMessage(
 									proposalHash,
 									currentNode.address,
@@ -141,10 +143,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -174,6 +176,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									view.Round = uint64(rand.Int())
 								}
+
 								return buildBasicPreprepareMessage(
 									proposal,
 									validProposalHash,
@@ -212,10 +215,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -277,10 +280,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -309,6 +312,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									view.Round = uint64(rand.Int())
 								}
+
 								return buildBasicPreprepareMessage(
 									proposal,
 									validProposalHash,
@@ -359,10 +363,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -388,6 +392,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									proposalHash = []byte("invalid proposal hash")
 								}
+
 								return buildBasicPreprepareMessage(
 									proposal,
 									proposalHash,
@@ -438,10 +443,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -466,6 +471,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									proposalHash = []byte("invalid proposal hash")
 								}
+
 								return buildBasicPrepareMessage(
 									proposalHash,
 									currentNode.address,
@@ -513,10 +519,10 @@ func TestByzantineBehaviour(t *testing.T) {
 		cluster := newCluster(
 			6,
 			func(c *cluster) {
-				for id, node := range c.nodes {
+				for _, node := range c.nodes {
 					currentNode := node
 					node.core = NewIBFT(
-						testingLogger(id),
+						mockLogger{},
 						&mockBackend{
 							isValidBlockFn:         isValidProposal,
 							isValidProposalHashFn:  isValidProposalHash,
@@ -542,6 +548,7 @@ func TestByzantineBehaviour(t *testing.T) {
 								if currentNode.byzantine {
 									committedSeal = []byte("invalid committed seal")
 								}
+
 								return buildBasicCommitMessage(
 									validProposalHash,
 									committedSeal,
@@ -582,18 +589,4 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.NoError(t, cluster.progressToHeight(30*time.Second, 2))
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
-}
-
-func testingLogger(nodeId int) *mockLogger {
-	return &mockLogger{
-		infoFn: func(s string, _ ...interface{}) {
-			fmt.Printf("[Node %d]: %s\n", nodeId, s)
-		},
-		debugFn: func(s string, _ ...interface{}) {
-			fmt.Printf("[Node %d]: %s\n", nodeId, s)
-		},
-		errorFn: func(s string, _ ...interface{}) {
-			fmt.Printf("[Node %d]: %s\n", nodeId, s)
-		},
-	}
 }
