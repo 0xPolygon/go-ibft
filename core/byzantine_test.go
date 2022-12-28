@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/0xPolygon/go-ibft/messages/proto"
 	"math/rand"
 	"testing"
@@ -171,8 +170,6 @@ func TestByzantineBehaviour(t *testing.T) {
 								certificate *proto.RoundChangeCertificate,
 								view *proto.View,
 							) *proto.Message {
-								fmt.Println(currentNode.address)
-								currentNode.core.log.Debug(fmt.Sprint("TERE ", view, currentNode.byzantine))
 								if currentNode.byzantine {
 									view.Round = uint64(rand.Int())
 								}
@@ -307,8 +304,6 @@ func TestByzantineBehaviour(t *testing.T) {
 								certificate *proto.RoundChangeCertificate,
 								view *proto.View,
 							) *proto.Message {
-								fmt.Println(currentNode.address)
-								currentNode.core.log.Debug(fmt.Sprint("TERE ", view, currentNode.byzantine))
 								if currentNode.byzantine {
 									view.Round = uint64(rand.Int())
 								}
