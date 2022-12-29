@@ -114,6 +114,7 @@ func NewIBFT(
 			},
 			seals:        make([]*messages.CommittedSeal, 0),
 			roundStarted: false,
+			commitSent:   false,
 		},
 		baseRoundTimeout: round0Timeout,
 	}
@@ -813,7 +814,7 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 // a transition to COMMIT state, if quorum was reached
 func (i *IBFT) handlePrepare(view *proto.View) []*proto.Message {
 	// exit if node has not received a proposal for round yet
-	// or node has send commit message already
+	// or node has sent commit message already
 	if i.state.getProposalMessage() == nil || i.state.getCommitSent() {
 		return nil
 	}
@@ -926,7 +927,7 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 	return true
 }
 
-// moveToNewRound moves the state to the new round
+// moveToNewRound changes round and resets state
 func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setView(&proto.View{
 		Height: i.state.getHeight(),
@@ -1001,9 +1002,9 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 }
 
-// acceptProposal accepts the proposal and moves the state
+// acceptProposal accepts the proposal and saves it into state
 func (i *IBFT) acceptProposal(proposalMessage *proto.Message) {
-	//	accept newly proposed block and move to PREPARE state
+	//	accept newly proposed block
 	i.state.setProposalMessage(proposalMessage)
 }
 
