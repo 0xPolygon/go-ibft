@@ -102,7 +102,9 @@ message RoundChangeCertificate {
 
 // Proposal is the tuple (raw_proposal, round)
 message Proposal  {
+  // rawProposal is an original proposal like block
   bytes rawProposal = 1;
 
+  // round is the round for which the proposal is created
   uint64 round = 2;
 }
