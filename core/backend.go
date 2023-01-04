@@ -19,7 +19,7 @@ type MessageConstructor interface {
 	BuildPrepareMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildCommitMessage builds a COMMIT message based on the passed in view and proposal hash
-	// Must create a committed seal for proposal hash and include into the message
+	// Must create a committed seal for proposal hash and include it into the message
 	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in view,
@@ -33,10 +33,10 @@ type MessageConstructor interface {
 
 // Verifier defines the verifier interface
 type Verifier interface {
-	// IsValidBlock checks if the proposed block is valid and child of the latest block in local chain
+	// IsValidBlock checks if the proposed block is valid and the given block is a child of the latest block in local
 	IsValidBlock(block []byte) bool
 
-	// IsValidValidator checks if a signature in message js signed by sender
+	// IsValidValidator checks if a signature in message is signed by sender
 	// Must check the following things:
 	// (1) recover the signature and the signer matches from address in message
 	// (2) the signer address is one of the validators at the height in message
