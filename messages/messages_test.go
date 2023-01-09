@@ -715,6 +715,8 @@ func TestMessages_numMessages(t *testing.T) {
 		test := test
 
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, test.expected, messages.numMessages(test.view, test.messageType))
 		})
 	}

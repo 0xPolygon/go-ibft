@@ -10,21 +10,19 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
-var (
-	baseDetails = SubscriptionDetails{
-		MessageType: proto.MessageType_PREPARE,
-		View: &proto.View{
-			Height: 0,
-			Round:  0,
-		},
-		MinNumMessages: 1,
-	}
-)
-
 func TestEventManager_signalEvent(t *testing.T) {
 	t.Parallel()
 
 	var (
+		baseDetails = SubscriptionDetails{
+			MessageType: proto.MessageType_PREPARE,
+			View: &proto.View{
+				Height: 0,
+				Round:  0,
+			},
+			MinNumMessages: 1,
+		}
+
 		baseEventType = baseDetails.MessageType
 		baseEventView = &proto.View{
 			Height: baseDetails.View.Height,
@@ -37,11 +35,13 @@ func TestEventManager_signalEvent(t *testing.T) {
 		t.Helper()
 
 		em := newEventManager()
+
 		t.Cleanup(func() {
 			em.close()
 		})
 
 		subscription := em.subscribe(baseDetails)
+
 		t.Cleanup(func() {
 			em.cancelSubscription(subscription.ID)
 		})
@@ -56,10 +56,13 @@ func TestEventManager_signalEvent(t *testing.T) {
 		eventType proto.MessageType,
 		eventView *proto.View,
 	) <-chan struct{} {
+		t.Helper()
+
 		doneCh := make(chan struct{})
 
 		go func() {
 			t.Helper()
+
 			defer close(doneCh)
 
 			em.signalEvent(
@@ -77,10 +80,13 @@ func TestEventManager_signalEvent(t *testing.T) {
 		sub *Subscription,
 		expectedSignals []uint64,
 	) <-chan struct{} {
+		t.Helper()
+
 		doneCh := make(chan struct{})
 
 		go func() {
 			t.Helper()
+
 			defer close(doneCh)
 
 			actualSignals := make([]uint64, 0)
@@ -205,6 +211,15 @@ func TestEventManager_signalEvent(t *testing.T) {
 func TestEventManager_SubscribeCancel(t *testing.T) {
 	t.Parallel()
 
+	baseDetails := SubscriptionDetails{
+		MessageType: proto.MessageType_PREPARE,
+		View: &proto.View{
+			Height: 0,
+			Round:  0,
+		},
+		MinNumMessages: 1,
+	}
+
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)
 
@@ -256,6 +271,15 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 
 func TestEventManager_SubscribeClose(t *testing.T) {
 	t.Parallel()
+
+	baseDetails := SubscriptionDetails{
+		MessageType: proto.MessageType_PREPARE,
+		View: &proto.View{
+			Height: 0,
+			Round:  0,
+		},
+		MinNumMessages: 1,
+	}
 
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)
