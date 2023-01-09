@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"github.com/0xPolygon/go-ibft/messages/proto"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -21,51 +20,16 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildPrePrepareMessageFn(createBadHashPrePrepareMessageFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-
-							idFn: node.addr,
-
-							buildProposalFn: buildValidProposal,
-							buildPrePrepareMessageFn: func(proposal []byte,
-								rcc *proto.RoundChangeCertificate,
-								view *proto.View) *proto.Message {
-								proposalHash := validProposalHash
-								if currentNode.byzantine {
-									proposalHash = []byte("invalid proposal hash")
-								}
-
-								return buildBasicPreprepareMessage(
-									proposal,
-									proposalHash,
-									rcc,
-									currentNode.address,
-									view,
-								)
-							},
-							buildPrepareMessageFn:     node.buildPrepare,
-							buildCommitMessageFn:      node.buildCommit,
-							buildRoundChangeMessageFn: node.buildRoundChange,
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -89,38 +53,16 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(c.isProposer)
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildPrepareMessageFn(createBadHashPrepareMessageFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn:           c.isProposer,
-
-							idFn: node.addr,
-
-							buildProposalFn:          buildValidProposal,
-							buildPrePrepareMessageFn: node.buildPrePrepare,
-							buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-								proposalHash := validProposalHash
-								if currentNode.byzantine {
-									proposalHash = []byte("invalid proposal hash")
-								}
-
-								return buildBasicPrepareMessage(
-									proposalHash,
-									currentNode.address,
-									view,
-								)
-							},
-							buildCommitMessageFn:      node.buildCommit,
-							buildRoundChangeMessageFn: node.buildRoundChange,
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -144,52 +86,16 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildPrePrepareMessageFn(createBadRoundPrePrepareMessageFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-
-							idFn: node.addr,
-
-							buildProposalFn: buildValidProposal,
-							buildPrePrepareMessageFn: func(
-								proposal []byte,
-								certificate *proto.RoundChangeCertificate,
-								view *proto.View,
-							) *proto.Message {
-								if currentNode.byzantine {
-									view.Round = uint64(rand.Int())
-								}
-
-								return buildBasicPreprepareMessage(
-									proposal,
-									validProposalHash,
-									certificate,
-									currentNode.address,
-									view,
-								)
-							},
-							buildPrepareMessageFn:     node.buildPrepare,
-							buildCommitMessageFn:      node.buildCommit,
-							buildRoundChangeMessageFn: node.buildRoundChange,
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -214,48 +120,16 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-							idFn: node.addr,
-
-							buildProposalFn:          buildValidProposal,
-							buildPrePrepareMessageFn: node.buildPrePrepare,
-							buildPrepareMessageFn:    node.buildPrepare,
-							buildCommitMessageFn:     node.buildCommit,
-							buildRoundChangeMessageFn: func(proposal []byte,
-								rcc *proto.PreparedCertificate,
-								view *proto.View) *proto.Message {
-								if currentNode.byzantine {
-									view.Round++
-								}
-
-								return buildBasicRoundChangeMessage(
-									proposal,
-									rcc,
-									view,
-									currentNode.address,
-								)
-							},
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -279,64 +153,17 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildPrePrepareMessageFn(createBadRoundPrePrepareMessageFn(currentNode))
+					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-							idFn: node.addr,
-
-							buildProposalFn: buildValidProposal,
-							buildPrePrepareMessageFn: func(
-								proposal []byte,
-								certificate *proto.RoundChangeCertificate,
-								view *proto.View,
-							) *proto.Message {
-								if currentNode.byzantine {
-									view.Round = uint64(rand.Int())
-								}
-
-								return buildBasicPreprepareMessage(
-									proposal,
-									validProposalHash,
-									certificate,
-									currentNode.address,
-									view,
-								)
-							},
-							buildPrepareMessageFn: node.buildPrepare,
-							buildCommitMessageFn:  node.buildCommit,
-							buildRoundChangeMessageFn: func(proposal []byte,
-								rcc *proto.PreparedCertificate,
-								view *proto.View) *proto.Message {
-								if currentNode.byzantine {
-									view.Round++
-								}
-
-								return buildBasicRoundChangeMessage(
-									proposal,
-									rcc,
-									view,
-									currentNode.address,
-								)
-							},
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -360,63 +187,17 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildPrePrepareMessageFn(createBadHashPrePrepareMessageFn(currentNode))
+					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-							idFn: node.addr,
-
-							buildProposalFn: buildValidProposal,
-							buildPrePrepareMessageFn: func(proposal []byte,
-								rcc *proto.RoundChangeCertificate,
-								view *proto.View) *proto.Message {
-								proposalHash := validProposalHash
-								if currentNode.byzantine {
-									proposalHash = []byte("invalid proposal hash")
-								}
-
-								return buildBasicPreprepareMessage(
-									proposal,
-									proposalHash,
-									rcc,
-									currentNode.address,
-									view,
-								)
-							},
-							buildPrepareMessageFn: node.buildPrepare,
-							buildCommitMessageFn:  node.buildCommit,
-							buildRoundChangeMessageFn: func(proposal []byte,
-								rcc *proto.PreparedCertificate,
-								view *proto.View) *proto.Message {
-								if currentNode.byzantine {
-									view.Round++
-								}
-
-								return buildBasicRoundChangeMessage(
-									proposal,
-									rcc,
-									view,
-									currentNode.address,
-								)
-							},
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -440,59 +221,17 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildPrepareMessageFn(createBadHashPrepareMessageFn(currentNode))
+					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-							idFn: node.addr,
-
-							buildProposalFn:          buildValidProposal,
-							buildPrePrepareMessageFn: node.buildPrePrepare,
-							buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-								proposalHash := validProposalHash
-								if currentNode.byzantine {
-									proposalHash = []byte("invalid proposal hash")
-								}
-
-								return buildBasicPrepareMessage(
-									proposalHash,
-									currentNode.address,
-									view,
-								)
-							},
-							buildCommitMessageFn: node.buildCommit,
-							buildRoundChangeMessageFn: func(proposal []byte,
-								rcc *proto.PreparedCertificate,
-								view *proto.View) *proto.Message {
-								if currentNode.byzantine {
-									view.Round++
-								}
-
-								return buildBasicRoundChangeMessage(
-									proposal,
-									rcc,
-									view,
-									currentNode.address,
-								)
-							},
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -516,60 +255,17 @@ func TestByzantineBehaviour(t *testing.T) {
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
+
+					backendBuilder := mockBackendBuilder{}
+					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
+					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withBuildCommitMessageFn(createBadCommitMessageFn(currentNode))
+					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
+					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+
 					node.core = NewIBFT(
 						mockLogger{},
-						&mockBackend{
-							isValidBlockFn:         isValidProposal,
-							isValidProposalHashFn:  isValidProposalHash,
-							isValidSenderFn:        nil,
-							isValidCommittedSealFn: nil,
-							isProposerFn: func(from []byte, height uint64, round uint64) bool {
-								if round == 0 {
-									return false
-								}
-
-								return bytes.Equal(
-									from,
-									c.addresses()[int(round)%len(c.addresses())],
-								)
-							},
-							idFn: node.addr,
-
-							buildProposalFn:          buildValidProposal,
-							buildPrePrepareMessageFn: node.buildPrePrepare,
-							buildPrepareMessageFn:    node.buildPrepare,
-							buildCommitMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-								committedSeal := validCommittedSeal
-								if currentNode.byzantine {
-									committedSeal = []byte("invalid committed seal")
-								}
-
-								return buildBasicCommitMessage(
-									validProposalHash,
-									committedSeal,
-									currentNode.address,
-									view,
-								)
-							},
-							buildRoundChangeMessageFn: func(proposal []byte,
-								rcc *proto.PreparedCertificate,
-								view *proto.View) *proto.Message {
-								if currentNode.byzantine {
-									view.Round++
-								}
-
-								return buildBasicRoundChangeMessage(
-									proposal,
-									rcc,
-									view,
-									currentNode.address,
-								)
-							},
-
-							insertBlockFn: nil,
-							hasQuorumFn:   c.hasQuorumFn,
-						},
-
+						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
 					)
 				}
@@ -584,4 +280,185 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.NoError(t, cluster.progressToHeight(30*time.Second, 2))
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
+}
+
+func createBadRoundRoundChangeFn(node *node) buildRoundChangeMessageDelegate {
+	return func(proposal []byte,
+		rcc *proto.PreparedCertificate,
+		view *proto.View) *proto.Message {
+		if node.byzantine {
+			view.Round++
+		}
+
+		return buildBasicRoundChangeMessage(
+			proposal,
+			rcc,
+			view,
+			node.address,
+		)
+	}
+}
+
+func createBadRoundPrePrepareMessageFn(node *node) buildPrePrepareMessageDelegate {
+	return func(
+		proposal []byte,
+		certificate *proto.RoundChangeCertificate,
+		view *proto.View,
+	) *proto.Message {
+		if node.byzantine {
+			view.Round++
+		}
+
+		return buildBasicPreprepareMessage(
+			proposal,
+			validProposalHash,
+			certificate,
+			node.address,
+			view,
+		)
+	}
+}
+
+func createBadHashPrePrepareMessageFn(node *node) buildPrePrepareMessageDelegate {
+	return func(proposal []byte,
+		rcc *proto.RoundChangeCertificate,
+		view *proto.View) *proto.Message {
+		proposalHash := validProposalHash
+		if node.byzantine {
+			proposalHash = []byte("invalid proposal hash")
+		}
+
+		return buildBasicPreprepareMessage(
+			proposal,
+			proposalHash,
+			rcc,
+			node.address,
+			view,
+		)
+	}
+}
+
+func createBadHashPrepareMessageFn(node *node) buildPrepareMessageDelegate {
+	return func(_ []byte, view *proto.View) *proto.Message {
+		proposalHash := validProposalHash
+		if node.byzantine {
+			proposalHash = []byte("invalid proposal hash")
+		}
+
+		return buildBasicPrepareMessage(
+			proposalHash,
+			node.address,
+			view,
+		)
+	}
+}
+
+func createForcedRCProposerFn(c *cluster) isProposerDelegate {
+	return func(from []byte, height uint64, round uint64) bool {
+		if round == 0 {
+			return false
+		}
+
+		return bytes.Equal(
+			from,
+			c.addresses()[int(round)%len(c.addresses())],
+		)
+	}
+}
+
+func createBadCommitMessageFn(node *node) buildCommitMessageDelegate {
+	return func(_ []byte, view *proto.View) *proto.Message {
+		committedSeal := validCommittedSeal
+		if node.byzantine {
+			committedSeal = []byte("invalid committed seal")
+		}
+
+		return buildBasicCommitMessage(
+			validProposalHash,
+			committedSeal,
+			node.address,
+			view,
+		)
+	}
+}
+
+type mockBackendBuilder struct {
+	isProposerFn isProposerDelegate
+
+	idFn idDelegate
+
+	buildProposalFn           buildProposalDelegate
+	buildPrePrepareMessageFn  buildPrePrepareMessageDelegate
+	buildPrepareMessageFn     buildPrepareMessageDelegate
+	buildCommitMessageFn      buildCommitMessageDelegate
+	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
+
+	hasQuorumFn hasQuorumDelegate
+}
+
+func (b *mockBackendBuilder) withProposerFn(f isProposerDelegate) {
+	b.isProposerFn = f
+}
+
+func (b *mockBackendBuilder) withBuildProposalFn(f buildProposalDelegate) {
+	b.buildProposalFn = f
+}
+
+func (b *mockBackendBuilder) withBuildPrePrepareMessageFn(f buildPrePrepareMessageDelegate) {
+	b.buildPrePrepareMessageFn = f
+}
+
+func (b *mockBackendBuilder) withBuildPrepareMessageFn(f buildPrepareMessageDelegate) {
+	b.buildPrepareMessageFn = f
+}
+
+func (b *mockBackendBuilder) withBuildCommitMessageFn(f buildCommitMessageDelegate) {
+	b.buildCommitMessageFn = f
+}
+
+func (b *mockBackendBuilder) withBuildRoundChangeMessageFn(f buildRoundChangeMessageDelegate) {
+	b.buildRoundChangeMessageFn = f
+}
+
+func (b *mockBackendBuilder) withIdFn(f idDelegate) {
+	b.idFn = f
+}
+
+func (b *mockBackendBuilder) withHasQuorumFn(f hasQuorumDelegate) {
+	b.hasQuorumFn = f
+}
+
+func (b *mockBackendBuilder) build(node *node) *mockBackend {
+	if b.buildPrePrepareMessageFn == nil {
+		b.buildPrePrepareMessageFn = node.buildPrePrepare
+	}
+
+	if b.buildPrepareMessageFn == nil {
+		b.buildPrepareMessageFn = node.buildPrepare
+	}
+
+	if b.buildCommitMessageFn == nil {
+		b.buildCommitMessageFn = node.buildCommit
+	}
+
+	if b.buildRoundChangeMessageFn == nil {
+		b.buildRoundChangeMessageFn = node.buildRoundChange
+	}
+
+	return &mockBackend{
+		isValidBlockFn:         isValidProposal,
+		isValidProposalHashFn:  isValidProposalHash,
+		isValidSenderFn:        nil,
+		isValidCommittedSealFn: nil,
+		isProposerFn:           b.isProposerFn,
+		idFn:                   b.idFn,
+
+		buildProposalFn:           buildValidProposal,
+		buildPrePrepareMessageFn:  b.buildPrePrepareMessageFn,
+		buildPrepareMessageFn:     b.buildPrepareMessageFn,
+		buildCommitMessageFn:      b.buildCommitMessageFn,
+		buildRoundChangeMessageFn: b.buildRoundChangeMessageFn,
+		insertBlockFn:             nil,
+		hasQuorumFn:               b.hasQuorumFn,
+	}
 }
