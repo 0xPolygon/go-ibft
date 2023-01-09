@@ -99,8 +99,9 @@ func (em *eventManager) close() {
 	em.subscriptionsLock.Lock()
 	defer em.subscriptionsLock.Unlock()
 
-	for _, subscription := range em.subscriptions {
+	for id, subscription := range em.subscriptions {
 		subscription.close()
+		delete(em.subscriptions, id)
 	}
 
 	atomic.StoreInt64(&em.numSubscriptions, 0)
