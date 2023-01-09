@@ -23,7 +23,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadHashPrePrepareMessageFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
 
@@ -56,7 +56,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(c.isProposer)
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrepareMessageFn(createBadHashPrepareMessageFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
 
@@ -89,7 +89,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadRoundPrePrepareMessageFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
 
@@ -123,7 +123,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
 
@@ -156,7 +156,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadRoundPrePrepareMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
@@ -190,7 +190,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadHashPrePrepareMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
@@ -224,7 +224,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrepareMessageFn(createBadHashPrepareMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
@@ -258,7 +258,7 @@ func TestByzantineBehaviour(t *testing.T) {
 
 					backendBuilder := mockBackendBuilder{}
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
-					backendBuilder.withIdFn(currentNode.addr)
+					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildCommitMessageFn(createBadCommitMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
 					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
@@ -387,7 +387,6 @@ type mockBackendBuilder struct {
 
 	idFn idDelegate
 
-	buildProposalFn           buildProposalDelegate
 	buildPrePrepareMessageFn  buildPrePrepareMessageDelegate
 	buildPrepareMessageFn     buildPrepareMessageDelegate
 	buildCommitMessageFn      buildCommitMessageDelegate
@@ -398,10 +397,6 @@ type mockBackendBuilder struct {
 
 func (b *mockBackendBuilder) withProposerFn(f isProposerDelegate) {
 	b.isProposerFn = f
-}
-
-func (b *mockBackendBuilder) withBuildProposalFn(f buildProposalDelegate) {
-	b.buildProposalFn = f
 }
 
 func (b *mockBackendBuilder) withBuildPrePrepareMessageFn(f buildPrePrepareMessageDelegate) {
@@ -420,7 +415,7 @@ func (b *mockBackendBuilder) withBuildRoundChangeMessageFn(f buildRoundChangeMes
 	b.buildRoundChangeMessageFn = f
 }
 
-func (b *mockBackendBuilder) withIdFn(f idDelegate) {
+func (b *mockBackendBuilder) withIDFn(f idDelegate) {
 	b.idFn = f
 }
 
