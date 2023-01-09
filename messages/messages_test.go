@@ -131,20 +131,39 @@ func TestMessages_AddDuplicates(t *testing.T) {
 func TestMessages_Prune(t *testing.T) {
 	t.Parallel()
 
-	numMessages := 5
-	messageType := proto.MessageType_PREPARE
+	var (
+		numMessages = 5
+		messageType = proto.MessageType_PREPARE
+
+		height uint64 = 2
+	)
+
 	messages := NewMessages()
 
 	t.Cleanup(func() {
 		messages.Close()
 	})
 
-	views := make([]*proto.View, 0)
-	for index := uint64(1); index <= 3; index++ {
-		views = append(views, &proto.View{
-			Height: 1,
-			Round:  index,
-		})
+	views := []*proto.View{
+		{
+			Height: height - 1,
+			Round:  1,
+		},
+		{
+			Height: height,
+			Round:  2,
+		},
+		{
+			Height: height + 1,
+			Round:  3,
+		},
+	}
+
+	// expected number of message for each view after pruning
+	expectedNumMessages := []int{
+		0,
+		numMessages,
+		numMessages,
 	}
 
 	// Append random message types
@@ -165,19 +184,22 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	// Prune out the messages from this view
-	messages.PruneByHeight(views[1].Height + 1)
+	messages.PruneByHeight(height)
 
-	// Make sure the round 1 messages are pruned out
-	assert.Equal(t, 0, messages.numMessages(views[0], messageType))
-
-	// Make sure the round 2 messages are pruned out
-	assert.Equal(t, 0, messages.numMessages(views[1], messageType))
-
-	// Make sure the round 3 messages are pruned out
-	assert.Equal(t, 0, messages.numMessages(views[2], messageType))
+	// check numbers of messages
+	for idx, expected := range expectedNumMessages {
+		assert.Equal(
+			t,
+			expected,
+			messages.numMessages(
+				views[idx],
+				messageType,
+			),
+		)
+	}
 }
 
-// TestMessages_GetMessage makes sure
+// TestMessages_GetValidMessagesMessage_InvalidMessages makes sure
 // that messages are fetched correctly for the
 // corresponding message type
 func TestMessages_GetValidMessagesMessage(t *testing.T) {
@@ -188,7 +210,9 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 			Height: 1,
 			Round:  0,
 		}
-		numMessages = 5
+
+		numMessages      = 10
+		numValidMessages = 5
 	)
 
 	testTable := []struct {
@@ -213,8 +237,14 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 		},
 	}
 
-	alwaysInvalidFn := func(_ *proto.Message) bool {
-		return false
+	newIsValid := func(numValidMessages int) func(_ *proto.Message) bool {
+		calls := 0
+
+		return func(_ *proto.Message) bool {
+			calls++
+
+			return calls <= numValidMessages
+		}
 	}
 
 	for _, testCase := range testTable {
@@ -247,20 +277,23 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 			)
 
 			// Start fetching messages and making sure they're not cleared
-			switch testCase.messageType {
-			case proto.MessageType_PREPREPARE:
-				messages.GetValidMessages(defaultView, proto.MessageType_PREPREPARE, alwaysInvalidFn)
-			case proto.MessageType_PREPARE:
-				messages.GetValidMessages(defaultView, proto.MessageType_PREPARE, alwaysInvalidFn)
-			case proto.MessageType_COMMIT:
-				messages.GetValidMessages(defaultView, proto.MessageType_COMMIT, alwaysInvalidFn)
-			case proto.MessageType_ROUND_CHANGE:
-				messages.GetValidMessages(defaultView, proto.MessageType_ROUND_CHANGE, alwaysInvalidFn)
-			}
+			validMessages := messages.GetValidMessages(
+				defaultView,
+				testCase.messageType,
+				newIsValid(numValidMessages),
+			)
 
+			// make sure only valid messages are returned
+			assert.Len(
+				t,
+				validMessages,
+				numValidMessages,
+			)
+
+			// make sure invalid messages are pruned
 			assert.Equal(
 				t,
-				0,
+				numMessages-numValidMessages,
 				messages.numMessages(defaultView, testCase.messageType),
 			)
 		})
@@ -273,42 +306,129 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	t.Parallel()
 
-	messages := NewMessages()
-	defer messages.Close()
-
-	mostMessageCount := 3
-	mostMessagesRound := uint64(2)
-
-	// Generate round messages
-	randomMessages := map[uint64][]*proto.Message{
-		0: generateRandomMessages(mostMessageCount-2, &proto.View{
-			Height: 0,
-			Round:  0,
-		}, proto.MessageType_ROUND_CHANGE),
-		1: generateRandomMessages(mostMessageCount-1, &proto.View{
-			Height: 0,
-			Round:  1,
-		}, proto.MessageType_ROUND_CHANGE),
-		mostMessagesRound: generateRandomMessages(mostMessageCount, &proto.View{
-			Height: 0,
-			Round:  mostMessagesRound,
-		}, proto.MessageType_ROUND_CHANGE),
+	tests := []struct {
+		name          string
+		messages      [][]*proto.Message
+		minRound      uint64
+		height        uint64
+		expectedNum   int
+		expectedRound uint64
+	}{
+		{
+			name: "should return nil if not found",
+			messages: [][]*proto.Message{
+				generateRandomMessages(3, &proto.View{
+					Height: 0,
+					Round:  1, // smaller than minRound
+				}, proto.MessageType_ROUND_CHANGE),
+			},
+			minRound:    2,
+			height:      0,
+			expectedNum: 0,
+		},
+		{
+			name: "should return round change messages if messages' round is greater than/equal to minRound",
+			messages: [][]*proto.Message{
+				generateRandomMessages(1, &proto.View{
+					Height: 0,
+					Round:  2,
+				}, proto.MessageType_ROUND_CHANGE),
+			},
+			minRound:      1,
+			height:        0,
+			expectedNum:   1,
+			expectedRound: 2,
+		},
+		{
+			name: "should return most round change messages (the round is equals to minRound)",
+			messages: [][]*proto.Message{
+				generateRandomMessages(1, &proto.View{
+					Height: 0,
+					Round:  4,
+				}, proto.MessageType_ROUND_CHANGE),
+				generateRandomMessages(2, &proto.View{
+					Height: 0,
+					Round:  2,
+				}, proto.MessageType_ROUND_CHANGE),
+			},
+			minRound:      2,
+			height:        0,
+			expectedNum:   2,
+			expectedRound: 2,
+		},
+		{
+			name: "should return most round change messages (the round is bigger than minRound)",
+			messages: [][]*proto.Message{
+				generateRandomMessages(3, &proto.View{
+					Height: 0,
+					Round:  1,
+				}, proto.MessageType_ROUND_CHANGE),
+				generateRandomMessages(2, &proto.View{
+					Height: 0,
+					Round:  3,
+				}, proto.MessageType_ROUND_CHANGE),
+				generateRandomMessages(1, &proto.View{
+					Height: 0,
+					Round:  4,
+				}, proto.MessageType_ROUND_CHANGE),
+			},
+			minRound:      2,
+			height:        0,
+			expectedNum:   2,
+			expectedRound: 3,
+		},
+		{
+			name: "should return the first of most round change messages",
+			messages: [][]*proto.Message{
+				generateRandomMessages(3, &proto.View{
+					Height: 0,
+					Round:  1,
+				}, proto.MessageType_ROUND_CHANGE),
+				generateRandomMessages(2, &proto.View{
+					Height: 0,
+					Round:  4,
+				}, proto.MessageType_ROUND_CHANGE),
+				generateRandomMessages(2, &proto.View{
+					Height: 0,
+					Round:  3,
+				}, proto.MessageType_ROUND_CHANGE),
+			},
+			minRound:      2,
+			height:        0,
+			expectedNum:   2,
+			expectedRound: 4,
+		},
 	}
 
-	// Add the messages
-	for _, roundMessages := range randomMessages {
-		for _, message := range roundMessages {
-			messages.AddMessage(message)
-		}
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			messages := NewMessages()
+			defer messages.Close()
+
+			// Add the messages
+			for _, roundMessages := range test.messages {
+				for _, message := range roundMessages {
+					messages.AddMessage(message)
+				}
+			}
+
+			roundChangeMessages := messages.GetMostRoundChangeMessages(test.minRound, test.height)
+
+			if test.expectedNum == 0 {
+				assert.Nil(t, roundChangeMessages, "should be nil but not nil")
+			} else {
+				assert.Len(t, roundChangeMessages, test.expectedNum, "invalid number of round change messages")
+			}
+
+			for _, msg := range roundChangeMessages {
+				assert.Equal(t, test.expectedRound, msg.View.Round)
+			}
+		})
 	}
-
-	roundChangeMessages := messages.GetMostRoundChangeMessages(0, 0)
-
-	if len(roundChangeMessages) != mostMessageCount {
-		t.Fatalf("Invalid number of round change messages, %d", len(roundChangeMessages))
-	}
-
-	assert.Equal(t, mostMessagesRound, roundChangeMessages[0].View.Round)
 }
 
 // TestMessages_EventManager checks that the event manager
@@ -351,4 +471,251 @@ func TestMessages_EventManager(t *testing.T) {
 
 	// Make sure the number of messages is actually accurate
 	assert.Equal(t, numMessages, messages.numMessages(baseView, messageType))
+}
+
+// TestMessages_Unsubscribe checks Messages calls eventManager.cancelSubscription
+// in Unsubscribe method
+func TestMessages_Unsubscribe(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	numMessages := 10
+	messageType := proto.MessageType_PREPARE
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	// Create the subscription
+	subscription := messages.Subscribe(SubscriptionDetails{
+		MessageType: messageType,
+		View:        baseView,
+		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+			return len(messages) >= numMessages
+		},
+	})
+
+	assert.Equal(t, int64(1), messages.eventManager.numSubscriptions)
+
+	messages.Unsubscribe(subscription.ID)
+
+	assert.Equal(t, int64(0), messages.eventManager.numSubscriptions)
+}
+
+// TestMessages_Unsubscribe checks Messages calls eventManager.close
+// in Close method
+func TestMessages_Close(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	numMessages := 10
+	baseView := &proto.View{
+		Height: 0,
+		Round:  0,
+	}
+
+	// Create 2 subscriptions
+	_ = messages.Subscribe(SubscriptionDetails{
+		MessageType: proto.MessageType_PREPARE,
+		View:        baseView,
+		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+			return len(messages) >= numMessages
+		},
+	})
+
+	_ = messages.Subscribe(SubscriptionDetails{
+		MessageType: proto.MessageType_COMMIT,
+		View:        baseView,
+		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+			return len(messages) >= numMessages
+		},
+	})
+
+	assert.Equal(t, int64(2), messages.eventManager.numSubscriptions)
+
+	messages.Close()
+
+	assert.Equal(t, int64(0), messages.eventManager.numSubscriptions)
+}
+
+func TestMessages_getProtoMessage(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	var (
+		numMessages = 10
+		messageType = proto.MessageType_COMMIT
+		view        = &proto.View{
+			Height: 0,
+			Round:  0,
+		}
+	)
+
+	// Create the subscription
+	subscription := messages.Subscribe(SubscriptionDetails{
+		MessageType: messageType,
+		View:        view,
+		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+			return len(messages) >= numMessages
+		},
+	})
+
+	defer messages.Unsubscribe(subscription.ID)
+
+	// Push random messages
+	generatedMessages := generateRandomMessages(numMessages, view, messageType)
+	messageMap := map[string]*proto.Message{}
+
+	for _, message := range generatedMessages {
+		messages.AddMessage(message)
+		messageMap[string(message.From)] = message
+	}
+
+	// Wait for the subscription event to happen
+	select {
+	case <-subscription.SubCh:
+	case <-time.After(5 * time.Second):
+	}
+
+	tests := []struct {
+		name        string
+		view        *proto.View
+		messageType proto.MessageType
+		expected    protoMessages
+	}{
+		{
+			name:        "should return messages for same view and type",
+			view:        view,
+			messageType: messageType,
+			expected:    messageMap,
+		},
+		{
+			name:        "should return nil for different type",
+			view:        view,
+			messageType: proto.MessageType_PREPARE,
+			expected:    nil,
+		},
+		{
+			name: "should return nil for same type and round but different height",
+			view: &proto.View{
+				Height: view.Height + 1,
+				Round:  view.Round,
+			},
+			messageType: messageType,
+			expected:    nil,
+		},
+		{
+			name: "should return nil for same type and height but different round",
+			view: &proto.View{
+				Height: view.Height,
+				Round:  view.Round + 1,
+			},
+			messageType: messageType,
+			expected:    nil,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(
+				t,
+				test.expected,
+				messages.getProtoMessages(test.view, test.messageType),
+			)
+		})
+	}
+}
+
+func TestMessages_numMessages(t *testing.T) {
+	t.Parallel()
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	var (
+		numMessages = 10
+		messageType = proto.MessageType_COMMIT
+		view        = &proto.View{
+			Height: 3,
+			Round:  5,
+		}
+	)
+
+	// Create the subscription
+	subscription := messages.Subscribe(SubscriptionDetails{
+		MessageType: messageType,
+		View:        view,
+		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
+			return len(messages) >= numMessages
+		},
+	})
+
+	defer messages.Unsubscribe(subscription.ID)
+
+	// Push random messages
+	for _, message := range generateRandomMessages(numMessages, view, messageType) {
+		messages.AddMessage(message)
+	}
+
+	// Wait for the subscription event to happen
+	select {
+	case <-subscription.SubCh:
+	case <-time.After(5 * time.Second):
+	}
+
+	tests := []struct {
+		name        string
+		view        *proto.View
+		messageType proto.MessageType
+		expected    int
+	}{
+		{
+			name:        "should return number of messages",
+			view:        view,
+			messageType: messageType,
+			expected:    numMessages,
+		},
+		{
+			name:        "should return zero if message type is different",
+			view:        view,
+			messageType: proto.MessageType_PREPARE,
+			expected:    0,
+		},
+		{
+			name: "should return zero if height is different",
+			view: &proto.View{
+				Height: 1,
+				Round:  view.Round,
+			},
+			messageType: messageType,
+			expected:    0,
+		},
+		{
+			name: "should return zero if round is different",
+			view: &proto.View{
+				Height: view.Height,
+				Round:  1,
+			},
+			messageType: messageType,
+			expected:    0,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, messages.numMessages(test.view, test.messageType))
+		})
+	}
 }
