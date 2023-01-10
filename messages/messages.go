@@ -72,7 +72,10 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	// Append the message to the appropriate queue
 	messages := heightMsgMap.getViewMessages(message.View)
 	messages[string(message.From)] = message
+}
 
+// SignalEvent signals event
+func (ms *Messages) SignalEvent(message *proto.Message) {
 	ms.eventManager.signalEvent(
 		message.Type,
 		&proto.View{
@@ -82,6 +85,7 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 	)
 }
 
+// Close closes event manager
 func (ms *Messages) Close() {
 	ms.eventManager.close()
 }

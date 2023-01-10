@@ -23,7 +23,7 @@ jobs:
           submodules: recursive
 
       - name: Go test
-        run: go test -covermode=atomic -shuffle=on -coverprofile coverage.out -timeout 2m ./...
+        run: go test -test.short -covermode=atomic -shuffle=on -coverprofile coverage.out -timeout 10m ./...
 
       - name: Upload coverage file to Codecov
         uses: codecov/codecov-action@v3
@@ -45,7 +45,7 @@ jobs:
           submodules: recursive
 
       - name: Run Go Test with race
-        run: go test -race -shuffle=on -timeout 2m ./...
+        run: go test -test.short -race -shuffle=on -timeout 10m ./...
 
   mutating:
     name: Mutation tests

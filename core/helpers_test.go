@@ -37,9 +37,10 @@ func isValidProposalHash(proposal, proposalHash []byte) bool {
 }
 
 type node struct {
-	core    *IBFT
-	address []byte
-	offline bool
+	core      *IBFT
+	address   []byte
+	offline   bool
+	byzantine bool
 }
 
 func (n *node) addr() []byte {
@@ -215,6 +216,12 @@ func (c *cluster) gossip(msg *proto.Message) {
 
 func (c *cluster) maxFaulty() uint64 {
 	return (uint64(len(c.nodes)) - 1) / 3
+}
+
+func (c *cluster) makeNByzantine(num int) {
+	for i := 0; i < num; i++ {
+		c.nodes[i].byzantine = true
+	}
 }
 
 func (c *cluster) stopN(num int) {

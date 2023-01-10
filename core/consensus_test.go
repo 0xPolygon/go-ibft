@@ -147,18 +147,17 @@ func commonHasQuorumFn(numNodes uint64) func(blockNumber uint64, messages []*pro
 func TestConsensus_ValidFlow(t *testing.T) {
 	t.Parallel()
 
-	var multicastFn func(message *proto.Message)
+	var (
+		multicastFn func(message *proto.Message)
 
-	proposal := []byte("proposal")
-	proposalHash := []byte("proposal hash")
-	committedSeal := []byte("seal")
-	numNodes := uint64(4)
-	nodes := generateNodeAddresses(numNodes)
-	insertedBlocks := make([][]byte, numNodes)
+		numNodes       = uint64(4)
+		nodes          = generateNodeAddresses(numNodes)
+		insertedBlocks = make([][]byte, numNodes)
+	)
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
-	commonTransportCallback := func(transport *mockTransport) {
+	commonTransportCallback := func(transport *mockTransport, _ int) {
 		transport.multicastFn = func(message *proto.Message) {
 			multicastFn(message)
 		}
@@ -182,12 +181,12 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 		// Make sure the proposal is valid if it matches what node 0 proposed
 		backend.isValidBlockFn = func(newProposal []byte) bool {
-			return bytes.Equal(newProposal, proposal)
+			return bytes.Equal(newProposal, correctRoundMessage.proposal)
 		}
 
 		// Make sure the proposal hash matches
 		backend.isValidProposalHashFn = func(p []byte, ph []byte) bool {
-			return bytes.Equal(p, proposal) && bytes.Equal(ph, proposalHash)
+			return bytes.Equal(p, correctRoundMessage.proposal) && bytes.Equal(ph, correctRoundMessage.hash)
 		}
 
 		// Make sure the preprepare message is built correctly
@@ -198,7 +197,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		) *proto.Message {
 			return buildBasicPreprepareMessage(
 				proposal,
-				proposalHash,
+				correctRoundMessage.hash,
 				certificate,
 				nodes[nodeIndex],
 				view)
@@ -206,12 +205,12 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 		// Make sure the prepare message is built correctly
 		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			return buildBasicPrepareMessage(proposalHash, nodes[nodeIndex], view)
+			return buildBasicPrepareMessage(correctRoundMessage.hash, nodes[nodeIndex], view)
 		}
 
 		// Make sure the commit message is built correctly
 		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
-			return buildBasicCommitMessage(proposalHash, committedSeal, nodes[nodeIndex], view)
+			return buildBasicCommitMessage(correctRoundMessage.hash, correctRoundMessage.seal, nodes[nodeIndex], view)
 		}
 
 		// Make sure the round change message is built correctly
@@ -227,44 +226,19 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal
 		}
+
+		// Set the proposal creation method
+		backend.buildProposalFn = func(_ *proto.View) []byte {
+			return correctRoundMessage.proposal
+		}
 	}
-
-	var (
-		backendCallbackMap = map[int]backendConfigCallback{
-			0: func(backend *mockBackend) {
-				// Execute the common backend setup
-				commonBackendCallback(backend, 0)
-
-				// Set the proposal creation method for node 0, since
-				// they are the proposer
-				backend.buildProposalFn = func(_ *proto.View) []byte {
-					return proposal
-				}
-			},
-			1: func(backend *mockBackend) {
-				commonBackendCallback(backend, 1)
-			},
-			2: func(backend *mockBackend) {
-				commonBackendCallback(backend, 2)
-			},
-			3: func(backend *mockBackend) {
-				commonBackendCallback(backend, 3)
-			},
-		}
-		transportCallbackMap = map[int]transportConfigCallback{
-			0: commonTransportCallback,
-			1: commonTransportCallback,
-			2: commonTransportCallback,
-			3: commonTransportCallback,
-		}
-	)
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
-		backendCallbackMap,
+		commonBackendCallback,
 		nil,
-		transportCallbackMap,
+		commonTransportCallback,
 	)
 
 	// Set the multicast callback to relay the message
@@ -281,7 +255,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
-		assert.True(t, bytes.Equal(block, proposal))
+		assert.True(t, bytes.Equal(block, correctRoundMessage.proposal))
 	}
 }
 
@@ -316,7 +290,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
-	commonTransportCallback := func(transport *mockTransport) {
+	commonTransportCallback := func(transport *mockTransport, _ int) {
 		transport.multicastFn = func(message *proto.Message) {
 			multicastFn(message)
 		}
@@ -394,45 +368,19 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
 			insertedBlocks[nodeIndex] = proposal
 		}
+
+		// Build proposal function
+		backend.buildProposalFn = func(_ *proto.View) []byte {
+			return proposals[nodeIndex]
+		}
 	}
-
-	var (
-		backendCallbackMap = map[int]backendConfigCallback{
-			0: func(backend *mockBackend) {
-				commonBackendCallback(backend, 0)
-
-				backend.buildProposalFn = func(_ *proto.View) []byte {
-					return proposals[0]
-				}
-			},
-			1: func(backend *mockBackend) {
-				commonBackendCallback(backend, 1)
-
-				backend.buildProposalFn = func(_ *proto.View) []byte {
-					return proposals[1]
-				}
-			},
-			2: func(backend *mockBackend) {
-				commonBackendCallback(backend, 2)
-			},
-			3: func(backend *mockBackend) {
-				commonBackendCallback(backend, 3)
-			},
-		}
-		transportCallbackMap = map[int]transportConfigCallback{
-			0: commonTransportCallback,
-			1: commonTransportCallback,
-			2: commonTransportCallback,
-			3: commonTransportCallback,
-		}
-	)
 
 	// Create the mock cluster
 	cluster := newMockCluster(
 		numNodes,
-		backendCallbackMap,
+		commonBackendCallback,
 		nil,
-		transportCallbackMap,
+		commonTransportCallback,
 	)
 
 	// Set the base timeout to be lower than usual
@@ -440,9 +388,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 	// Set the multicast callback to relay the message
 	// to the entire cluster
-	multicastFn = func(message *proto.Message) {
-		cluster.pushMessage(message)
-	}
+	multicastFn = cluster.pushMessage
 
 	// Start the main run loops
 	cluster.runSequence(1)
