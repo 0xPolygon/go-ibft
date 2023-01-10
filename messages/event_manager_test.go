@@ -223,7 +223,7 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 	numSubscriptions := 10
 	subscriptions := make([]*Subscription, numSubscriptions)
 
-	IDMap := make(map[SubscriptionID]bool)
+	idMap := make(map[SubscriptionID]bool)
 
 	em := newEventManager()
 	defer em.close()
@@ -236,10 +236,10 @@ func TestEventManager_SubscribeCancel(t *testing.T) {
 		assert.Equal(t, int64(i+1), em.numSubscriptions)
 
 		// Check if a duplicate ID has been issued
-		if _, ok := IDMap[subscriptions[i].ID]; ok {
+		if _, ok := idMap[subscriptions[i].ID]; ok {
 			t.Fatalf("Duplicate ID entry")
 		} else {
-			IDMap[subscriptions[i].ID] = true
+			idMap[subscriptions[i].ID] = true
 		}
 	}
 
