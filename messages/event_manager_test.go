@@ -135,6 +135,8 @@ func TestEventManager_signalEvent(t *testing.T) {
 		case <-doneEmitCh:
 		case <-time.After(5 * time.Second):
 			t.Errorf("signalEvent shouldn't be lock, but it was locked")
+
+			return
 		}
 
 		closeSubscription(t, em, sub)
@@ -158,6 +160,8 @@ func TestEventManager_signalEvent(t *testing.T) {
 		select {
 		case <-doneCh:
 			t.Errorf("signalEvent is not locked")
+
+			return
 		case <-time.After(5 * time.Second):
 		}
 
@@ -181,11 +185,13 @@ func TestEventManager_signalEvent(t *testing.T) {
 
 		select {
 		case <-doneCh:
-			return
 		case <-time.After(5 * time.Second):
 			t.Errorf("signalEvent is locked")
+
+			return
 		}
 
+		closeSubscription(t, em, sub)
 		<-doneTestSubCh
 	})
 
@@ -199,11 +205,13 @@ func TestEventManager_signalEvent(t *testing.T) {
 
 		select {
 		case <-doneCh:
-			return
 		case <-time.After(5 * time.Second):
 			t.Errorf("signalEvent is locked")
+
+			return
 		}
 
+		closeSubscription(t, em, sub)
 		<-doneTestSubCh
 	})
 }
