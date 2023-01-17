@@ -544,12 +544,10 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						isValidMessage func(message *proto.Message) bool,
 						isValidRCC func(round uint64, messages []*proto.Message) bool,
 					) []*proto.Message {
-						messages := filterMessages(
+						return filterMessages(
 							roundChangeMessages,
 							isValidMessage,
 						)
-
-						return messages
 					},
 				}
 			)

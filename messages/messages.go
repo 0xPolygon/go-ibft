@@ -235,6 +235,10 @@ func (ms *Messages) GetExtendedRCC(
 	for round, messages := range roundMessageMap {
 		validMessages := make([]*proto.Message, 0, len(messages))
 
+		if round <= highestRound {
+			continue
+		}
+
 		for _, msg := range messages {
 			if !isValidMessage(msg) {
 				continue
@@ -243,7 +247,7 @@ func (ms *Messages) GetExtendedRCC(
 			validMessages = append(validMessages, msg)
 		}
 
-		if round <= highestRound || !isValidRCC(round, validMessages) {
+		if !isValidRCC(round, validMessages) {
 			continue
 		}
 
