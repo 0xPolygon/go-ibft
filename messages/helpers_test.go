@@ -11,37 +11,52 @@ import (
 func TestMessages_ExtractCommittedSeals(t *testing.T) {
 	t.Parallel()
 
-	signer := []byte("signer")
-	committedSeal := []byte("committed seal")
-
-	commitMessage := &proto.Message{
-		Type: proto.MessageType_COMMIT,
-		Payload: &proto.Message_CommitData{
-			CommitData: &proto.CommitMessage{
-				CommittedSeal: committedSeal,
+	newCommitMessage := func(from, committedSeal []byte) *proto.Message {
+		return &proto.Message{
+			Type: proto.MessageType_COMMIT,
+			Payload: &proto.Message_CommitData{
+				CommitData: &proto.CommitMessage{
+					CommittedSeal: committedSeal,
+				},
 			},
-		},
-		From: signer,
+			From: from,
+		}
 	}
-	invalidMessage := &proto.Message{
-		Type: proto.MessageType_PREPARE,
+
+	newInvalidMessage := func() *proto.Message {
+		return &proto.Message{
+			Type: proto.MessageType_PREPARE,
+		}
 	}
+
+	var (
+		signer1        = []byte("signer 1")
+		committedSeal1 = []byte("committed seal 1")
+
+		signer2        = []byte("signer 2")
+		committedSeal2 = []byte("committed seal 2")
+	)
 
 	seals := ExtractCommittedSeals([]*proto.Message{
-		commitMessage,
-		invalidMessage,
+		newCommitMessage(signer1, committedSeal1),
+		newInvalidMessage(),
+		newCommitMessage(signer2, committedSeal2),
 	})
 
-	if len(seals) != 1 {
-		t.Fatalf("Seals not extracted")
-	}
-
-	expected := &CommittedSeal{
-		Signer:    signer,
-		Signature: committedSeal,
-	}
-
-	assert.Equal(t, expected, seals[0])
+	assert.Equal(
+		t,
+		[]*CommittedSeal{
+			{
+				Signer:    signer1,
+				Signature: committedSeal1,
+			},
+			{
+				Signer:    signer2,
+				Signature: committedSeal2,
+			},
+		},
+		seals,
+	)
 }
 
 func TestMessages_ExtractCommitHash(t *testing.T) {
@@ -385,6 +400,15 @@ func TestMessages_HasUniqueSenders(t *testing.T) {
 			false,
 		},
 		{
+			"only one message",
+			[]*proto.Message{
+				{
+					From: []byte("node 1"),
+				},
+			},
+			true,
+		},
+		{
 			"non unique senders",
 			[]*proto.Message{
 				{
@@ -441,8 +465,30 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 			false,
 		},
 		{
+			"only one message",
+			[]*proto.Message{
+				{
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: []byte("hash"),
+						},
+					},
+				},
+			},
+			true,
+		},
+		{
 			"invalid message type",
 			[]*proto.Message{
+				{
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: []byte("differing hash"),
+						},
+					},
+				},
 				{
 					Type: proto.MessageType_ROUND_CHANGE,
 				},
@@ -470,6 +516,20 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 				},
 			},
 			false,
+		},
+		{
+			"only one message",
+			[]*proto.Message{
+				{
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+				},
+			},
+			true,
 		},
 		{
 			"hash match",
@@ -528,7 +588,20 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 			false,
 		},
 		{
-			"not same lower round",
+			"true if message's round is less than threshold",
+			[]*proto.Message{
+				{
+					View: &proto.View{
+						Height: 0,
+						Round:  round - 1,
+					},
+				},
+			},
+			round,
+			true,
+		},
+		{
+			"false if message's round equals to threshold",
 			[]*proto.Message{
 				{
 					View: &proto.View{
@@ -536,10 +609,36 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Round:  round,
 					},
 				},
+			},
+			round,
+			false,
+		},
+		{
+			"false if message's round is bigger than threshold",
+			[]*proto.Message{
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round + 1,
+					},
+				},
+			},
+			round,
+			false,
+		},
+		{
+			"some of messages are not higher round",
+			[]*proto.Message{
+				{
+					View: &proto.View{
+						Height: 0,
+						Round:  round + 1,
+					},
+				},
+				{
+					View: &proto.View{
+						Height: 0,
+						Round:  round,
 					},
 				},
 			},
@@ -566,7 +665,20 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 			false,
 		},
 		{
-			"lower round match",
+			"1 message is lower round",
+			[]*proto.Message{
+				{
+					View: &proto.View{
+						Height: 1,
+						Round:  round,
+					},
+				},
+			},
+			2,
+			true,
+		},
+		{
+			"all of messages is lower round",
 			[]*proto.Message{
 				{
 					View: &proto.View{
@@ -576,7 +688,7 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 				},
 				{
 					View: &proto.View{
-						Height: 0,
+						Height: 1,
 						Round:  round,
 					},
 				},
@@ -620,7 +732,40 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 			false,
 		},
 		{
-			"not same height",
+			"false if message's height is less than the given height",
+			[]*proto.Message{
+				{
+					View: &proto.View{
+						Height: height - 1,
+					},
+				},
+			},
+			false,
+		},
+		{
+			"true if message's height equals to the given height",
+			[]*proto.Message{
+				{
+					View: &proto.View{
+						Height: height,
+					},
+				},
+			},
+			true,
+		},
+		{
+			"false if message's height is bigger than the given height",
+			[]*proto.Message{
+				{
+					View: &proto.View{
+						Height: height + 1,
+					},
+				},
+			},
+			false,
+		},
+		{
+			"some of messages' heights are not same to the given height",
 			[]*proto.Message{
 				{
 					View: &proto.View{
@@ -636,7 +781,7 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 			false,
 		},
 		{
-			"same height",
+			"all of messages' heights is same to the given height",
 			[]*proto.Message{
 				{
 					View: &proto.View{

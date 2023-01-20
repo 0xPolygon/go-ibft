@@ -4,8 +4,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/0xPolygon/go-ibft/messages/proto"
 	"github.com/google/uuid"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 type eventManager struct {
@@ -99,8 +100,9 @@ func (em *eventManager) close() {
 	em.subscriptionsLock.Lock()
 	defer em.subscriptionsLock.Unlock()
 
-	for _, subscription := range em.subscriptions {
+	for id, subscription := range em.subscriptions {
 		subscription.close()
+		delete(em.subscriptions, id)
 	}
 
 	atomic.StoreInt64(&em.numSubscriptions, 0)

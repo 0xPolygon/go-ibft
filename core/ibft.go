@@ -12,16 +12,20 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// Logger represents the logger behaviour
 type Logger interface {
 	Info(msg string, args ...interface{})
 	Debug(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
 }
 
+// Messages represents the message managing behaviour
 type Messages interface {
 	// Messages modifiers //
 	AddMessage(message *proto.Message)
 	PruneByHeight(height uint64)
+
+	SignalEvent(message *proto.Message)
 
 	// Messages fetchers //
 	GetValidMessages(
@@ -36,10 +40,13 @@ type Messages interface {
 	Unsubscribe(id messages.SubscriptionID)
 }
 
+const (
+	round0Timeout   = 10 * time.Second
+	roundFactorBase = float64(2)
+)
+
 var (
 	errTimeoutExpired = errors.New("round timeout expired")
-
-	round0Timeout = 10 * time.Second
 )
 
 // IBFT represents a single instance of the IBFT state machine
@@ -123,14 +130,10 @@ func NewIBFT(
 func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 	defer i.wg.Done()
 
-	var (
-		duration     = int(i.baseRoundTimeout)
-		roundFactor  = int(math.Pow(float64(2), float64(round)))
-		roundTimeout = time.Duration(duration * roundFactor)
-	)
+	roundTimeout := getRoundTimeout(i.baseRoundTimeout, i.additionalTimeout, round)
 
 	//	Create a new timer instance
-	timer := time.NewTimer(roundTimeout + i.additionalTimeout)
+	timer := time.NewTimer(roundTimeout)
 
 	select {
 	case <-ctx.Done():
@@ -325,6 +328,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			i.moveToNewRound(ev.round)
 			i.acceptProposal(ev.proposalMessage)
 			i.state.setRoundStarted(true)
+			i.sendPrepareMessage(view)
 		case round := <-i.roundCertificate:
 			teardown()
 			i.log.Info("received future RCC", "round", round)
@@ -344,7 +348,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			teardown()
 
 			return
-		case <-ctx.Done():
+		case <-ctxRound.Done():
 			teardown()
 			i.log.Debug("sequence cancelled")
 
@@ -566,10 +570,8 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 				continue
 			}
 
-			// Accept the proposal since it's valid
-			i.acceptProposal(proposalMessage)
-
 			// Multicast the PREPARE message
+			i.state.setProposalMessage(proposalMessage)
 			i.sendPrepareMessage(view)
 
 			i.log.Debug("prepare message multicasted")
@@ -663,10 +665,29 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		return false
 	}
 
+	if !messages.HasUniqueSenders(certificate.RoundChangeMessages) {
+		return false
+	}
+
 	// Make sure all messages in the RCC are valid Round Change messages
 	for _, rc := range certificate.RoundChangeMessages {
 		// Make sure the message is a Round Change message
 		if rc.Type != proto.MessageType_ROUND_CHANGE {
+			return false
+		}
+
+		// Height of the message matches height of the proposal
+		if rc.View.Height != height {
+			return false
+		}
+
+		// Round of the message matches round of the proposal
+		if rc.View.Round != round {
+			return false
+		}
+
+		// Sender of RCC is valid
+		if !i.backend.IsValidSender(rc) {
 			return false
 		}
 	}
@@ -681,14 +702,14 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
 
 	for _, rcMessage := range rcc.RoundChangeMessages {
-		certificate := messages.ExtractLatestPC(rcMessage)
+		cert := messages.ExtractLatestPC(rcMessage)
 
 		// Check if there is a certificate, and if it's a valid PC
-		if certificate != nil && i.validPC(certificate, msg.View.Round, height) {
-			hash := messages.ExtractProposalHash(certificate.ProposalMessage)
+		if cert != nil && i.validPC(cert, msg.View.Round, height) {
+			hash := messages.ExtractProposalHash(cert.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
-				round: rcMessage.View.Round,
+				round: cert.ProposalMessage.View.Round,
 				hash:  hash,
 			})
 		}
@@ -700,12 +721,12 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 
 	// Find the max round
 	var (
-		maxRound     uint64 = 0
-		expectedHash []byte = nil
+		maxRound     uint64
+		expectedHash []byte
 	)
 
 	for _, tuple := range roundsAndPreparedBlockHashes {
-		if tuple.round > maxRound {
+		if tuple.round >= maxRound {
 			maxRound = tuple.round
 			expectedHash = tuple.hash
 		}
@@ -998,6 +1019,14 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 	// Check if the message should even be considered
 	if i.isAcceptableMessage(message) {
 		i.messages.AddMessage(message)
+
+		msgs := i.messages.GetValidMessages(
+			message.View,
+			message.Type,
+			func(_ *proto.Message) bool { return true })
+		if i.backend.HasQuorum(message.View.Height, msgs, message.Type) {
+			i.messages.SignalEvent(message)
+		}
 	}
 }
 
@@ -1044,6 +1073,8 @@ func (i *IBFT) validPC(
 		return false
 	}
 
+	// Order of messages is important!
+	// Message with type of MessageType_PREPREPARE must be the first element of allMessages slice
 	allMessages := append(
 		[]*proto.Message{certificate.ProposalMessage},
 		certificate.PrepareMessages...,
@@ -1086,6 +1117,11 @@ func (i *IBFT) validPC(
 		return false
 	}
 
+	// Make sure all have the same round
+	if !messages.AllHaveSameRound(allMessages) {
+		return false
+	}
+
 	// Make sure the proposal message is sent by the proposer
 	// for the round
 	proposal := certificate.ProposalMessage
@@ -1093,10 +1129,20 @@ func (i *IBFT) validPC(
 		return false
 	}
 
+	// Make sure that the proposal sender is valid
+	if !i.backend.IsValidSender(proposal) {
+		return false
+	}
+
 	// Make sure the Prepare messages are validators, apart from the proposer
 	for _, message := range certificate.PrepareMessages {
 		// Make sure the sender is part of the validator set
 		if !i.backend.IsValidSender(message) {
+			return false
+		}
+
+		// Make sure the current node is not the proposer
+		if i.backend.IsProposer(message.From, message.View.Height, message.View.Round) {
 			return false
 		}
 	}
@@ -1141,4 +1187,21 @@ func (i *IBFT) sendCommitMessage(view *proto.View) {
 			view,
 		),
 	)
+}
+
+// getRoundTimeout creates a round timeout based on the base timeout and the current round.
+// Exponentially increases timeout depending on the round number.
+// For instance:
+//   - round 1: 1 sec
+//   - round 2: 2 sec
+//   - round 3: 4 sec
+//   - round 4: 8 sec
+func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round uint64) time.Duration {
+	var (
+		duration     = int(baseRoundTimeout)
+		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
+		roundTimeout = time.Duration(duration * roundFactor)
+	)
+
+	return roundTimeout + additionalTimeout
 }

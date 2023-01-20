@@ -6,6 +6,7 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// CommittedSeal Validator proof of signing a committed block
 type CommittedSeal struct {
 	Signer    []byte
 	Signature []byte
@@ -139,7 +140,7 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 		return false
 	}
 
-	var hash []byte = nil
+	var hash []byte
 
 	for _, message := range messages {
 		var extractedHash []byte
@@ -149,6 +150,10 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 			extractedHash = ExtractProposalHash(message)
 		case proto.MessageType_PREPARE:
 			extractedHash = ExtractPrepareHash(message)
+		case proto.MessageType_COMMIT:
+			return false
+		case proto.MessageType_ROUND_CHANGE:
+			return false
 		default:
 			return false
 		}
@@ -176,6 +181,23 @@ func AllHaveLowerRound(messages []*proto.Message, round uint64) bool {
 
 	for _, message := range messages {
 		if message.View.Round >= round {
+			return false
+		}
+	}
+
+	return true
+}
+
+// AllHaveSameRound checks if all messages have the same round
+func AllHaveSameRound(messages []*proto.Message) bool {
+	if len(messages) < 1 {
+		return false
+	}
+
+	var round = messages[0].View.Round
+
+	for _, message := range messages {
+		if message.View.Round != round {
 			return false
 		}
 	}
