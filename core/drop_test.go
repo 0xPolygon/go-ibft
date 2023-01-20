@@ -63,22 +63,22 @@ func TestDropAllAndRecover(t *testing.T) {
 	err := cluster.progressToHeight(5*time.Second, 1)
 	assert.NoError(t, err, "unable to reach height: %w", err)
 	assert.Equal(t, uint64(1), cluster.latestHeight)
-	assertValidInsertedBlocks(insertedBlocks, t) // Make sure the inserted blocks are valid
+	assertValidInsertedBlocks(t, insertedBlocks) // Make sure the inserted blocks are valid
 
 	insertedBlocks = make([][]byte, numNodes) // Purge
 
 	// Stop all nodes and make sure no blocks are written
 	cluster.stopN(len(cluster.nodes))
 	cluster.progressToHeight(5*time.Second, 2)
-	assertNInsertedBlocks(0, insertedBlocks, t)
+	assertNInsertedBlocks(t, 0, insertedBlocks)
 
 	// Start all and expect valid blocks to be written again
 	cluster.startN(len(cluster.nodes))
 	cluster.progressToHeight(5*time.Second, 10)
-	assertValidInsertedBlocks(insertedBlocks, t) // Make sure the inserted blocks are valid
+	assertValidInsertedBlocks(t, insertedBlocks) // Make sure the inserted blocks are valid
 }
 
-func assertNInsertedBlocks(n int, blocks [][]byte, t *testing.T) {
+func assertNInsertedBlocks(t *testing.T, n int, blocks [][]byte) {
 	t.Helper()
 
 	writtenBlocks := 0
@@ -91,7 +91,7 @@ func assertNInsertedBlocks(n int, blocks [][]byte, t *testing.T) {
 	assert.True(t, n == writtenBlocks)
 }
 
-func assertValidInsertedBlocks(blocks [][]byte, t *testing.T) {
+func assertValidInsertedBlocks(t *testing.T, blocks [][]byte) {
 	t.Helper()
 
 	for _, block := range blocks {
