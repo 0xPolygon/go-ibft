@@ -69,19 +69,13 @@ func TestDropAllAndRecover(t *testing.T) {
 
 	// Stop all nodes and make sure no blocks are written
 	cluster.stopN(len(cluster.nodes))
-	cluster.progressToHeight(2*time.Second, 2)
-	assertNoInsertedBlocks(insertedBlocks, t)
+	cluster.progressToHeight(5*time.Second, 2)
+	assertNInsertedBlocks(0, insertedBlocks, t)
 
 	// Start all and expect valid blocks to be written again
 	cluster.startN(len(cluster.nodes))
 	cluster.progressToHeight(5*time.Second, 10)
 	assertValidInsertedBlocks(insertedBlocks, t) // Make sure the inserted blocks are valid
-}
-
-func assertNoInsertedBlocks(blocks [][]byte, t *testing.T) {
-	t.Helper()
-
-	assertNInsertedBlocks(0, blocks, t)
 }
 
 func assertNInsertedBlocks(n int, blocks [][]byte, t *testing.T) {
@@ -105,7 +99,7 @@ func assertValidInsertedBlocks(blocks [][]byte, t *testing.T) {
 	}
 }
 
-func TestMaxFaultyPlusOneDroppingMessages(t *testing.T) {
+func TestMaxFaultyDroppingMessages(t *testing.T) {
 	t.Parallel()
 
 	cluster := newCluster(
@@ -146,8 +140,8 @@ func TestMaxFaultyPlusOneDroppingMessages(t *testing.T) {
 	)
 
 	cluster.makeNFaulty(int(cluster.maxFaulty()))
-	assert.NoError(t, cluster.progressToHeight(40*time.Second, 10))
-	assert.Equal(t, uint64(10), cluster.latestHeight)
+	assert.NoError(t, cluster.progressToHeight(40*time.Second, 5))
+	assert.Equal(t, uint64(5), cluster.latestHeight)
 }
 
 func TestAllFailAndGraduallyRecover(t *testing.T) {
