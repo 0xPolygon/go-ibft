@@ -6,6 +6,7 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+// CommittedSeal Validator proof of signing a committed proposal
 type CommittedSeal struct {
 	Signer    []byte
 	Signature []byte
@@ -47,8 +48,8 @@ func ExtractCommitHash(commitMessage *proto.Message) []byte {
 	return commitData.CommitData.ProposalHash
 }
 
-// ExtractProposedBlock extracts the (EB,r) proposal from the passed in message
-func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
+// ExtractProposal extracts the (rawData,r) proposal from the passed in message
+func ExtractProposal(proposalMessage *proto.Message) *proto.Proposal {
 	if proposalMessage.Type != proto.MessageType_PREPREPARE {
 		return nil
 	}
@@ -56,17 +57,6 @@ func ExtractProposal(proposalMessage *proto.Message) *proto.ProposedBlock {
 	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
 
 	return preprepareData.PreprepareData.Proposal
-}
-
-func ExtractEthereumBlock(proposalMessage *proto.Message) []byte {
-	if proposalMessage.Type != proto.MessageType_PREPREPARE {
-		return nil
-	}
-
-	preprepareData, _ := proposalMessage.Payload.(*proto.Message_PreprepareData)
-	proposal := preprepareData.PreprepareData.Proposal
-
-	return proposal.GetEthereumBlock()
 }
 
 // ExtractProposalHash extracts the proposal hash from the passed in message
@@ -113,15 +103,15 @@ func ExtractLatestPC(roundChangeMessage *proto.Message) *proto.PreparedCertifica
 	return rcData.RoundChangeData.LatestPreparedCertificate
 }
 
-// ExtractLastPreparedProposedBlock extracts the latest prepared proposed block from the passed in message
-func ExtractLastPreparedProposedBlock(roundChangeMessage *proto.Message) *proto.ProposedBlock {
+// ExtractLastPreparedProposal extracts the latest prepared proposal from the passed in message
+func ExtractLastPreparedProposal(roundChangeMessage *proto.Message) *proto.Proposal {
 	if roundChangeMessage.Type != proto.MessageType_ROUND_CHANGE {
 		return nil
 	}
 
 	rcData, _ := roundChangeMessage.Payload.(*proto.Message_RoundChangeData)
 
-	return rcData.RoundChangeData.LastPreparedProposedBlock
+	return rcData.RoundChangeData.LastPreparedProposal
 }
 
 // HasUniqueSenders checks if the messages have unique senders
@@ -150,7 +140,7 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 		return false
 	}
 
-	var hash []byte = nil
+	var hash []byte
 
 	for _, message := range messages {
 		var extractedHash []byte
@@ -160,6 +150,8 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 			extractedHash = ExtractProposalHash(message)
 		case proto.MessageType_PREPARE:
 			extractedHash = ExtractPrepareHash(message)
+		case proto.MessageType_COMMIT, proto.MessageType_ROUND_CHANGE:
+			return false
 		default:
 			return false
 		}
@@ -187,6 +179,23 @@ func AllHaveLowerRound(messages []*proto.Message, round uint64) bool {
 
 	for _, message := range messages {
 		if message.View.Round >= round {
+			return false
+		}
+	}
+
+	return true
+}
+
+// AllHaveSameRound checks if all messages have the same round
+func AllHaveSameRound(messages []*proto.Message) bool {
+	if len(messages) < 1 {
+		return false
+	}
+
+	var round = messages[0].View.Round
+
+	for _, message := range messages {
+		if message.View.Round != round {
 			return false
 		}
 	}

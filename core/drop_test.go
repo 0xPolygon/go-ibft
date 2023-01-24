@@ -25,7 +25,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -33,14 +33,14 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildEthereumBlockFn:      buildValidEthereumBlock,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
@@ -83,7 +83,7 @@ func TestDropMaxFaulty(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -91,14 +91,14 @@ func TestDropMaxFaulty(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildEthereumBlockFn:      buildValidEthereumBlock,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},

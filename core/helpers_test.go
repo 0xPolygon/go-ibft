@@ -14,29 +14,23 @@ import (
 
 var (
 	validEthereumBlock = []byte("valid ethereum block")
-	validProposal      = []byte("valid proposal")
 	validProposalHash  = []byte("valid proposal hash")
 	validCommittedSeal = []byte("valid committed seal")
 )
 
 func isValidProposal(newProposal []byte) bool {
-	return bytes.Equal(newProposal, validProposal)
+	return bytes.Equal(newProposal, validEthereumBlock)
 }
 
 func buildValidEthereumBlock(_ uint64) []byte {
 	return validEthereumBlock
 }
 
-func isValidProposalHash(proposal *proto.ProposedBlock, proposalHash []byte) bool {
-	return true
-	// TODO:
-	//return bytes.Equal(
-	//	proposal,
-	//	validProposal,
-	//) && bytes.Equal(
-	//	proposalHash,
-	//	validProposalHash,
-	//)
+func isValidProposalHash(proposal *proto.Proposal, proposalHash []byte) bool {
+	return bytes.Equal(
+		proposalHash,
+		validProposalHash,
+	)
 }
 
 type node struct {
@@ -50,12 +44,12 @@ func (n *node) addr() []byte {
 }
 
 func (n *node) buildPrePrepare(
-	ethereumBlock []byte,
+	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicPreprepareMessage(
-		ethereumBlock,
+		rawProposal,
 		validProposalHash,
 		certificate,
 		n.address,
@@ -87,7 +81,7 @@ func (n *node) buildCommit(
 }
 
 func (n *node) buildRoundChange(
-	proposal *proto.ProposedBlock,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 ) *proto.Message {
@@ -193,8 +187,8 @@ func (c *cluster) addresses() [][]byte {
 	return addresses
 }
 
-func (c *cluster) hasQuorumFn(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
-	return commonHasQuorumFn(uint64(len(c.nodes)))(blockNumber, messages, msgType)
+func (c *cluster) hasQuorumFn(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	return commonHasQuorumFn(uint64(len(c.nodes)))(height, messages, msgType)
 }
 
 func (c *cluster) isProposer(

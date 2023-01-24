@@ -16,7 +16,7 @@ import (
 
 // roundMessage contains message data within consensus round
 type roundMessage struct {
-	proposal *proto.ProposedBlock
+	proposal *proto.Proposal
 	seal     []byte
 	hash     []byte
 }
@@ -252,19 +252,18 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the proposal is valid if it matches what node 0 proposed
-			backend.isValidBlockFn = func(ethereumBlock []byte) bool {
+			backend.isValidProposalFn = func(rawProposal []byte) bool {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
-				return bytes.Equal(ethereumBlock, message.proposal.EthereumBlock) //TODO: Double-check
+				return bytes.Equal(rawProposal, message.proposal.RawProposal)
 			}
 
 			// Make sure the proposal hash matches
-			backend.isValidProposalHashFn = func(p *proto.ProposedBlock, ph []byte) bool {
+			backend.isValidProposalHashFn = func(proposal *proto.Proposal, hash []byte) bool {
+				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
-				return true
-				//TODO: Impl
-				//message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
-				// return bytes.Equal(p, message.proposal) && bytes.Equal(ph, message.hash)
+				return bytes.Equal(proposal.RawProposal, message.proposal.RawProposal) &&
+					bytes.Equal(hash, message.hash)
 			}
 
 			// Make sure the preprepare message is built correctly
@@ -300,7 +299,7 @@ func TestProperty(t *testing.T) {
 
 			// Make sure the round change message is built correctly
 			backend.buildRoundChangeMessageFn = func(
-				proposal *proto.ProposedBlock,
+				proposal *proto.Proposal,
 				certificate *proto.PreparedCertificate,
 				view *proto.View,
 			) *proto.Message {
@@ -308,15 +307,15 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the inserted proposal is noted
-			backend.insertBlockFn = func(proposal []byte, _ []*messages.CommittedSeal) {
-				insertedProposals.insertProposal(nodeIndex, proposal)
+			backend.insertProposalFn = func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+				insertedProposals.insertProposal(nodeIndex, proposal.RawProposal)
 			}
 
 			// Make sure the proposal can be built
-			backend.buildEthereumBlockFn = func(_ uint64) []byte {
+			backend.buildProposalFn = func(_ uint64) []byte {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
-				return message.proposal.GetEthereumBlock()
+				return message.proposal.GetRawProposal()
 			}
 		}
 
@@ -368,7 +367,7 @@ func TestProperty(t *testing.T) {
 
 					// Make sure inserted block value is correct
 					for _, val := range proposalMap {
-						assert.Equal(t, correctRoundMessage.proposal, val)
+						assert.Equal(t, correctRoundMessage.proposal.RawProposal, val)
 					}
 				} else {
 					// There should not be inserted blocks in bad nodes

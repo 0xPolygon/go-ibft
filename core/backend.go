@@ -1,3 +1,5 @@
+// Package core implements IBFT consensus
+// backend.go defines interfaces of backend, that performs detailed procedure rather than consensus
 package core
 
 import (
@@ -9,7 +11,7 @@ import (
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
 	BuildPrePrepareMessage(
-		ethereumBlock []byte,
+		rawProposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -22,7 +24,7 @@ type MessageConstructor interface {
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
 	BuildRoundChangeMessage(
-		proposal *proto.ProposedBlock,
+		proposal *proto.Proposal,
 		certificate *proto.PreparedCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -30,8 +32,8 @@ type MessageConstructor interface {
 
 // Verifier defines the verifier interface
 type Verifier interface {
-	// IsValidBlock checks if the proposed block is child of parent
-	IsValidBlock(ethereumBlock []byte) bool
+	// IsValidProposal checks if the proposal is child of parent
+	IsValidProposal(rawProposal []byte) bool
 
 	// IsValidSender checks if signature is from sender
 	IsValidSender(msg *proto.Message) bool
@@ -40,7 +42,7 @@ type Verifier interface {
 	IsProposer(id []byte, height, round uint64) bool
 
 	// IsValidProposalHash checks if the hash matches the proposal
-	IsValidProposalHash(proposal *proto.ProposedBlock, hash []byte) bool
+	IsValidProposalHash(proposal *proto.Proposal, hash []byte) bool
 
 	// IsValidCommittedSeal checks if the seal for the proposal is valid
 	IsValidCommittedSeal(proposal []byte, committedSeal *messages.CommittedSeal) bool
@@ -52,17 +54,18 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildProposal builds a new ethereum block
-	BuildEthereumBlock(height uint64) []byte
+	// BuildProposal builds a new proposal for the height
+	BuildProposal(height uint64) []byte
 
-	// InsertBlock inserts a proposal with the specified committed seals
-	// the reason why we are including round here is because a single committedSeal has signed the tuple of (EB, r)
-	InsertBlock(ethereumBlock []byte, round uint64, committedSeals []*messages.CommittedSeal)
+	// InsertProposal inserts a proposal with the specified committed seals
+	// the reason why we are including round here is because a single committedSeal
+	// has signed the tuple of (rawProposal, round)
+	InsertProposal(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte
 
 	// HasQuorum returns true if the quorum is reached
-	// for the specified block height.
-	HasQuorum(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool
+	// for the specified height.
+	HasQuorum(height uint64, msgs []*proto.Message, msgType proto.MessageType) bool
 }
