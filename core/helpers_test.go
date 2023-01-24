@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -13,33 +14,32 @@ import (
 /*	HELPERS */
 
 var (
-	validProposal      = []byte("valid proposal")
+	validEthereumBlock = []byte("valid ethereum block")
 	validProposalHash  = []byte("valid proposal hash")
 	validCommittedSeal = []byte("valid committed seal")
 )
 
 func isValidProposal(newProposal []byte) bool {
-	return bytes.Equal(newProposal, validProposal)
+	return bytes.Equal(newProposal, validEthereumBlock)
 }
 
-func buildValidProposal(_ *proto.View) []byte {
-	return validProposal
+func buildValidEthereumBlock(_ uint64) []byte {
+	return validEthereumBlock
 }
 
-func isValidProposalHash(proposal, proposalHash []byte) bool {
+func isValidProposalHash(proposal *proto.Proposal, proposalHash []byte) bool {
 	return bytes.Equal(
-		proposal,
-		validProposal,
-	) && bytes.Equal(
 		proposalHash,
 		validProposalHash,
 	)
 }
 
 type node struct {
-	core    *IBFT
-	address []byte
-	offline bool
+	core      *IBFT
+	address   []byte
+	offline   bool
+	faulty    bool
+	byzantine bool
 }
 
 func (n *node) addr() []byte {
@@ -47,12 +47,12 @@ func (n *node) addr() []byte {
 }
 
 func (n *node) buildPrePrepare(
-	proposal []byte,
+	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicPreprepareMessage(
-		proposal,
+		rawProposal,
 		validProposalHash,
 		certificate,
 		n.address,
@@ -84,7 +84,7 @@ func (n *node) buildCommit(
 }
 
 func (n *node) buildRoundChange(
-	proposal []byte,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 ) *proto.Message {
@@ -128,6 +128,25 @@ func newCluster(num uint64, init func(*cluster)) *cluster {
 	init(c)
 
 	return c
+}
+
+func (c *cluster) runGradualSequence(ctx context.Context, height uint64) {
+	for nodeIndex, n := range c.nodes {
+		c.wg.Add(1)
+
+		go func(ctx context.Context, ordinal int, node *node) {
+			// Start the main run loop for the node
+			runDelay := ordinal * rand.Intn(1000)
+
+			select {
+			case <-ctx.Done():
+			case <-time.After(time.Duration(runDelay) * time.Millisecond):
+				node.core.RunSequence(ctx, height)
+			}
+
+			c.wg.Done()
+		}(ctx, nodeIndex+1, n)
+	}
 }
 
 func (c *cluster) runSequence(ctx context.Context, height uint64) <-chan struct{} {
@@ -190,8 +209,8 @@ func (c *cluster) addresses() [][]byte {
 	return addresses
 }
 
-func (c *cluster) hasQuorumFn(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
-	return commonHasQuorumFn(uint64(len(c.nodes)))(blockNumber, messages, msgType)
+func (c *cluster) hasQuorumFn(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	return commonHasQuorumFn(uint64(len(c.nodes)))(height, messages, msgType)
 }
 
 func (c *cluster) isProposer(
@@ -215,6 +234,18 @@ func (c *cluster) gossip(msg *proto.Message) {
 
 func (c *cluster) maxFaulty() uint64 {
 	return (uint64(len(c.nodes)) - 1) / 3
+}
+
+func (c *cluster) makeNByzantine(num int) {
+	for i := 0; i < num; i++ {
+		c.nodes[i].byzantine = true
+	}
+}
+
+func (c *cluster) makeNFaulty(num int) {
+	for i := 0; i < num; i++ {
+		c.nodes[i].faulty = true
+	}
 }
 
 func (c *cluster) stopN(num int) {

@@ -1,3 +1,5 @@
+// Package core implements IBFT consensus
+// backend.go defines interfaces of backend, that performs detailed procedure rather than consensus
 package core
 
 import (
@@ -10,7 +12,7 @@ import (
 type MessageConstructor interface {
 	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in view and proposal
 	BuildPrePrepareMessage(
-		proposal []byte,
+		rawProposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -25,7 +27,7 @@ type MessageConstructor interface {
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in view,
 	// latest prepared proposed block, and latest prepared certificate
 	BuildRoundChangeMessage(
-		proposal []byte,
+		proposal *proto.Proposal,
 		certificate *proto.PreparedCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -33,8 +35,8 @@ type MessageConstructor interface {
 
 // Verifier defines the verifier interface
 type Verifier interface {
-	// IsValidBlock checks if the proposed block is valid and the given block is a child of the latest block in local
-	IsValidBlock(block []byte) bool
+	// IsValidProposal if the proposal is valid
+	IsValidProposal(rawProposal []byte) bool
 
 	// IsValidValidator checks if a signature in message is signed by sender
 	// Must check the following things:
@@ -46,7 +48,7 @@ type Verifier interface {
 	IsProposer(id []byte, height, round uint64) bool
 
 	// IsValidProposalHash checks if the hash matches the proposal
-	IsValidProposalHash(proposal, hash []byte) bool
+	IsValidProposalHash(proposal *proto.Proposal, hash []byte) bool
 
 	// IsValidCommittedSeal checks
 	// if signature for proposal hash in committed seal is signed by a validator
@@ -59,16 +61,18 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildProposal builds a new block proposal
-	BuildProposal(view *proto.View) []byte
+	// BuildProposal builds a new proposal for the height
+	BuildProposal(height uint64) []byte
 
-	// InsertBlock inserts a proposal with the specified committed seals
-	InsertBlock(proposal []byte, committedSeals []*messages.CommittedSeal)
+	// InsertProposal inserts a proposal with the specified committed seals
+	// the reason why we are including round here is because a single committedSeal
+	// has signed the tuple of (rawProposal, round)
+	InsertProposal(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte
 
 	// HasQuorum returns true if the quorum is reached
-	// for the specified block height.
-	HasQuorum(blockNumber uint64, msgs []*proto.Message, msgType proto.MessageType) bool
+	// for the specified height.
+	HasQuorum(height uint64, msgs []*proto.Message, msgType proto.MessageType) bool
 }

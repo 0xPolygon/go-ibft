@@ -1,11 +1,13 @@
+// Package messages defines a sub-module to handle IBFT messages
 package messages
 
 import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/0xPolygon/go-ibft/messages/proto"
 	"github.com/google/uuid"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
 type eventManager struct {
@@ -21,6 +23,7 @@ func newEventManager() *eventManager {
 	}
 }
 
+// SubscriptionID is a unique number to identify Subscription
 type SubscriptionID int32
 
 // Subscription is the subscription
@@ -54,7 +57,7 @@ type SubscriptionDetails struct {
 	HasMinRound bool
 
 	// HasQuorumFn is the function used to check for quorum existence
-	HasQuorumFn func(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool
+	HasQuorumFn func(height uint64, messages []*proto.Message, msgType proto.MessageType) bool
 }
 
 // subscribe registers a new listener for message events
