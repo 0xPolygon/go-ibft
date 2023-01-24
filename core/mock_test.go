@@ -19,7 +19,7 @@ var (
 	correctRoundMessage = roundMessage{
 		proposal: &proto.ProposedBlock{
 			EthereumBlock: validEthereumBlock,
-			Round:         0, // TODO: correctRound
+			Round:         0,
 		},
 		hash: []byte("proposal hash"),
 		seal: []byte("seal"),
@@ -27,8 +27,8 @@ var (
 
 	badRoundMessage = roundMessage{
 		proposal: &proto.ProposedBlock{
-			EthereumBlock: []byte("bad"), // TODO: invalidEthereumBlock
-			Round:         100,           // TODO: incorrectRound
+			EthereumBlock: []byte("bad"),
+			Round:         100,
 		},
 		hash: []byte("bad proposal hash"),
 		seal: []byte("bad seal"),

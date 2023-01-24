@@ -40,7 +40,7 @@ func buildBasicPreprepareMessage(
 			PreprepareData: &proto.PrePrepareMessage{
 				Proposal: &proto.ProposedBlock{
 					EthereumBlock: ethereumBlock,
-					Round:         0, //TODO:
+					Round:         view.Round,
 				},
 				Certificate:  certificate,
 				ProposalHash: proposalHash,
@@ -260,7 +260,6 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
-		// TODO: @Yoshiki, change upon changing the InsertBlock
 		assert.True(t, bytes.Equal(block, correctRoundMessage.proposal.GetEthereumBlock()))
 	}
 }
@@ -329,13 +328,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 
 		// Make sure the proposal hash matches
 		backend.isValidProposalHashFn = func(proposal *proto.ProposedBlock, proposalHash []byte) bool {
-			return true
-			// TODO:
-			//if bytes.Equal(proposal, proposals[0]) {
-			//	return bytes.Equal(proposalHash, proposalHashes[0])
-			//}
-
-			//return bytes.Equal(proposalHash, proposalHashes[1])
+			return bytes.Equal(proposal.EthereumBlock, proposals[1]) && bytes.Equal(proposalHash, proposalHashes[1])
 		}
 
 		// Make sure the preprepare message is built correctly

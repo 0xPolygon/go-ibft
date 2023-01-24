@@ -20,7 +20,7 @@ var (
 )
 
 func isValidProposal(newProposal []byte) bool {
-	return bytes.Equal(newProposal, validProposal)
+	return bytes.Equal(newProposal, validEthereumBlock)
 }
 
 func buildValidEthereumBlock(_ uint64) []byte {
@@ -28,15 +28,13 @@ func buildValidEthereumBlock(_ uint64) []byte {
 }
 
 func isValidProposalHash(proposal *proto.ProposedBlock, proposalHash []byte) bool {
-	return true
-	// TODO:
-	//return bytes.Equal(
-	//	proposal,
-	//	validProposal,
-	//) && bytes.Equal(
-	//	proposalHash,
-	//	validProposalHash,
-	//)
+	return bytes.Equal(
+		proposal.EthereumBlock,
+		validEthereumBlock,
+	) && bytes.Equal(
+		proposalHash,
+		validProposalHash,
+	)
 }
 
 type node struct {
