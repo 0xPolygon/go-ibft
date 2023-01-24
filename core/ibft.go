@@ -33,6 +33,11 @@ type Messages interface {
 		messageType proto.MessageType,
 		isValid func(*proto.Message) bool,
 	) []*proto.Message
+	GetExtendedRCC(
+		height uint64,
+		isValidMessage func(message *proto.Message) bool,
+		isValidRCC func(round uint64, msgs []*proto.Message) bool,
+	) []*proto.Message
 	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
 
 	// Messages subscription handlers //
@@ -265,7 +270,7 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case round := <-sub.SubCh:
+		case <-sub.SubCh:
 			rcc := i.handleRoundChangeMessage(
 				&proto.View{
 					Height: height,
@@ -276,8 +281,10 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 				continue
 			}
 
+			newRound := rcc.RoundChangeMessages[0].View.Round
+
 			//	we received a valid RCC for a higher round
-			i.signalNewRCC(ctx, round)
+			i.signalNewRCC(ctx, newRound)
 
 			return
 		}
@@ -433,16 +440,16 @@ func (i *IBFT) waitForRCC(
 // and constructs a RCC if possible
 func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCertificate {
 	var (
-		height = view.Height
-		round  = view.Round
+		height              = view.Height
+		hasAcceptedProposal = i.state.getProposal() != nil
 	)
 
-	isValidFn := func(msg *proto.Message) bool {
+	isValidMsgFn := func(msg *proto.Message) bool {
 		proposal := messages.ExtractLastPreparedProposal(msg)
 		certificate := messages.ExtractLatestPC(msg)
 
 		// Check if the prepared certificate is valid
-		if !i.validPC(certificate, round, height) {
+		if !i.validPC(certificate, msg.View.Round, height) {
 			return false
 		}
 
@@ -450,18 +457,28 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 		return i.proposalMatchesCertificate(proposal, certificate)
 	}
 
-	msgs := i.messages.GetValidMessages(
-		view,
-		proto.MessageType_ROUND_CHANGE,
-		isValidFn,
+	isValidRCCFn := func(round uint64, msgs []*proto.Message) bool {
+		// In case of that ROUND-CHANGE message's round match validator's round
+		// Accept such messages only if the validator has not accepted a proposal at the round
+		if round == view.Round && hasAcceptedProposal {
+			return false
+		}
+
+		return i.backend.HasQuorum(height, msgs, proto.MessageType_ROUND_CHANGE)
+	}
+
+	extendedRCC := i.messages.GetExtendedRCC(
+		height,
+		isValidMsgFn,
+		isValidRCCFn,
 	)
 
-	if !i.backend.HasQuorum(view.Height, msgs, proto.MessageType_ROUND_CHANGE) {
+	if extendedRCC == nil {
 		return nil
 	}
 
 	return &proto.RoundChangeCertificate{
-		RoundChangeMessages: msgs,
+		RoundChangeMessages: extendedRCC,
 	}
 }
 
@@ -973,16 +990,32 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	}
 
 	//	check the messages for any previous proposal (if they have any, it's the same proposal)
-	var previousProposal *proto.Proposal
+	var (
+		previousProposal []byte
+		maxRound         uint64
+	)
 
+	// take previous proposal among the round change messages for the highest round
 	for _, msg := range rcc.RoundChangeMessages {
-		//	if message contains block, break
 		latestPC := messages.ExtractLatestPC(msg)
+		if latestPC == nil {
+			continue
+		}
 
-		if latestPC != nil {
-			previousProposal = messages.ExtractLastPreparedProposal(msg)
+		// skip if message's round is equals to/less than maxRound
+		msgRound := msg.View.Round
+		if msgRound <= maxRound {
+			continue
+		}
 
-			break
+		lastPB := messages.ExtractLastPreparedProposal(msg)
+		if lastPB == nil {
+			continue
+		}
+
+		if msgRound > maxRound {
+			previousProposal = lastPB.RawProposal
+			maxRound = msgRound
 		}
 	}
 
@@ -1001,7 +1034,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	}
 
 	return i.backend.BuildPrePrepareMessage(
-		previousProposal.GetRawProposal(),
+		previousProposal,
 		rcc,
 		&proto.View{
 			Height: height,

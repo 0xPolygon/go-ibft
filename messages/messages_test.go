@@ -267,6 +267,67 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 	}
 }
 
+// TestMessages_GetExtendedRCC makes sure
+// Messages returns the ROUND-CHANGE messages for the highest round
+// where all messages are valid
+func TestMessages_GetExtendedRCC(t *testing.T) {
+	t.Parallel()
+
+	var (
+		height uint64 = 0
+		quorum        = 5
+	)
+
+	messages := NewMessages()
+	defer messages.Close()
+
+	// Generate round messages
+	randomMessages := map[uint64][]*proto.Message{
+		0: generateRandomMessages(quorum-1, &proto.View{
+			Height: height,
+			Round:  0,
+		}, proto.MessageType_ROUND_CHANGE),
+
+		1: generateRandomMessages(quorum, &proto.View{
+			Height: height,
+			Round:  1,
+		}, proto.MessageType_ROUND_CHANGE),
+
+		2: generateRandomMessages(quorum, &proto.View{
+			Height: height,
+			Round:  2,
+		}, proto.MessageType_ROUND_CHANGE),
+
+		3: generateRandomMessages(quorum-1, &proto.View{
+			Height: height,
+			Round:  3,
+		}, proto.MessageType_ROUND_CHANGE),
+	}
+
+	// Add the messages
+	for _, roundMessages := range randomMessages {
+		for _, message := range roundMessages {
+			messages.AddMessage(message)
+		}
+	}
+
+	extendedRCC := messages.GetExtendedRCC(
+		height,
+		func(message *proto.Message) bool {
+			return true
+		},
+		func(round uint64, messages []*proto.Message) bool {
+			return len(messages) >= quorum
+		},
+	)
+
+	assert.ElementsMatch(
+		t,
+		randomMessages[2],
+		extendedRCC,
+	)
+}
+
 // TestMessages_GetMostRoundChangeMessages makes sure
 // the round messages for the round with the most round change
 // messages are fetched

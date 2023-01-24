@@ -389,6 +389,16 @@ func TestRunNewRound_Proposer(t *testing.T) {
 							isValid,
 						)
 					},
+					getExtendedRCCFn: func(
+						height uint64,
+						isValidMessage func(message *proto.Message) bool,
+						isValidRCC func(round uint64, messages []*proto.Message,
+						) bool) []*proto.Message {
+						return filterMessages(
+							roundChangeMessages,
+							isValidMessage,
+						)
+					},
 				}
 			)
 
@@ -548,6 +558,16 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						return filterMessages(
 							roundChangeMessages,
 							isValid,
+						)
+					},
+					getExtendedRCCFn: func(
+						height uint64,
+						isValidMessage func(message *proto.Message) bool,
+						isValidRCC func(round uint64, messages []*proto.Message) bool,
+					) []*proto.Message {
+						return filterMessages(
+							roundChangeMessages,
+							isValidMessage,
 						)
 					},
 				}
@@ -2389,6 +2409,27 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 					roundChangeMessages,
 					isValid,
 				)
+			},
+			getExtendedRCCFn: func(
+				height uint64,
+				isValidMessage func(message *proto.Message) bool,
+				isValidRCC func(round uint64, messages []*proto.Message) bool,
+			) []*proto.Message {
+				messages := filterMessages(
+					roundChangeMessages,
+					isValidMessage,
+				)
+
+				if len(messages) == 0 {
+					return nil
+				}
+
+				round := messages[0].View.Round
+				if !isValidRCC(round, messages) {
+					return nil
+				}
+
+				return messages
 			},
 		}
 	)

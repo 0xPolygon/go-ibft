@@ -251,6 +251,11 @@ type mockMessages struct {
 		messageType proto.MessageType,
 		isValid func(message *proto.Message) bool,
 	) []*proto.Message
+	getExtendedRCCFn func(
+		height uint64,
+		isValidMessage func(message *proto.Message) bool,
+		isValidRCC func(round uint64, messages []*proto.Message) bool,
+	) []*proto.Message
 	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.Message
 
 	subscribeFn   func(details messages.SubscriptionDetails) *messages.Subscription
@@ -299,6 +304,18 @@ func (m mockMessages) SignalEvent(msg *proto.Message) {
 	if m.signalEventFn != nil {
 		m.signalEventFn(msg)
 	}
+}
+
+func (m mockMessages) GetExtendedRCC(
+	height uint64,
+	isValidMessage func(message *proto.Message) bool,
+	isValidRCC func(round uint64, messages []*proto.Message) bool,
+) []*proto.Message {
+	if m.getExtendedRCCFn != nil {
+		return m.getExtendedRCCFn(height, isValidMessage, isValidRCC)
+	}
+
+	return nil
 }
 
 func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.Message {
