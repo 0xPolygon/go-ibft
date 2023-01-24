@@ -23,7 +23,8 @@ func proposalMatches(proposal *proto.ProposedBlock, message *proto.Message) bool
 
 	extractedProposal := preprepareData.PreprepareData.Proposal
 
-	return bytes.Equal(proposal.EthereumBlock, extractedProposal.EthereumBlock)
+	return proposal.Round == extractedProposal.Round &&
+		bytes.Equal(proposal.EthereumBlock, extractedProposal.EthereumBlock)
 }
 
 func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
