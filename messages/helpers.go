@@ -2,8 +2,14 @@ package messages
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
+)
+
+var (
+	// ErrWrongCommitMessageType is an error indicating wrong type in commit messages
+	ErrWrongCommitMessageType = errors.New("wrong type message is included in COMMIT messages")
 )
 
 // CommittedSeal Validator proof of signing a committed proposal
@@ -13,18 +19,19 @@ type CommittedSeal struct {
 }
 
 // ExtractCommittedSeals extracts the committed seals from the passed in messages
-func ExtractCommittedSeals(commitMessages []*proto.Message) []*CommittedSeal {
+func ExtractCommittedSeals(commitMessages []*proto.Message) ([]*CommittedSeal, error) {
 	committedSeals := make([]*CommittedSeal, 0)
 
 	for _, commitMessage := range commitMessages {
 		if commitMessage.Type != proto.MessageType_COMMIT {
-			continue
+			// safe check
+			return nil, ErrWrongCommitMessageType
 		}
 
 		committedSeals = append(committedSeals, ExtractCommittedSeal(commitMessage))
 	}
 
-	return committedSeals
+	return committedSeals, nil
 }
 
 // ExtractCommittedSeal extracts the committed seal from the passed in message

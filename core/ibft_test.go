@@ -2499,7 +2499,6 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 	defer cancelFn()
 
 	var (
-		//TODO:
 		proposal = &proto.Proposal{}
 		round    = uint64(10)
 		height   = uint64(1)
