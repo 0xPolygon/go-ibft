@@ -16,11 +16,11 @@ type state struct {
 	// latestPC is the latest prepared certificate
 	latestPC *proto.PreparedCertificate
 
-	// latestPreparedProposedBlock is the block
+	// latestPreparedProposal is the proposal
 	// for which Q(N)-1 PREPARE messages were received
-	latestPreparedProposedBlock []byte
+	latestPreparedProposal *proto.Proposal
 
-	//	accepted block proposal for current round
+	//	accepted proposal for current round
 	proposalMessage *proto.Message
 
 	//	validated commit seals
@@ -52,7 +52,7 @@ func (s *state) clear(height uint64) {
 	s.commitSent = false
 	s.proposalMessage = nil
 	s.latestPC = nil
-	s.latestPreparedProposedBlock = nil
+	s.latestPreparedProposal = nil
 
 	s.view = &proto.View{
 		Height: height,
@@ -67,11 +67,11 @@ func (s *state) getLatestPC() *proto.PreparedCertificate {
 	return s.latestPC
 }
 
-func (s *state) getLatestPreparedProposedBlock() []byte {
+func (s *state) getLatestPreparedProposal() *proto.Proposal {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.latestPreparedProposedBlock
+	return s.latestPreparedProposal
 }
 
 func (s *state) getProposalMessage() *proto.Message {
@@ -109,12 +109,22 @@ func (s *state) getHeight() uint64 {
 	return s.view.Height
 }
 
-func (s *state) getProposal() []byte {
+func (s *state) getProposal() *proto.Proposal {
 	s.RLock()
 	defer s.RUnlock()
 
 	if s.proposalMessage != nil {
 		return messages.ExtractProposal(s.proposalMessage)
+	}
+
+	return nil
+}
+
+func (s *state) getRawDataFromProposal() []byte {
+	proposal := s.getProposal()
+
+	if proposal != nil {
+		return proposal.RawProposal
 	}
 
 	return nil
@@ -173,11 +183,11 @@ func (s *state) newRound() {
 
 func (s *state) finalizePrepare(
 	certificate *proto.PreparedCertificate,
-	latestPPB []byte,
+	latestPPB *proto.Proposal,
 ) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.latestPC = certificate
-	s.latestPreparedProposedBlock = latestPPB
+	s.latestPreparedProposal = latestPPB
 }

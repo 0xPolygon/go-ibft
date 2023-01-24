@@ -1,3 +1,5 @@
+// Package core implements IBFT consensus
+// backend.go defines interfaces of backend, that performs detailed procedure rather than consensus
 package core
 
 import (
@@ -6,23 +8,26 @@ import (
 )
 
 // MessageConstructor defines a message constructor interface
+// All constructed messages must be signed by a validator for the whole message
 type MessageConstructor interface {
-	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in proposal
+	// BuildPrePrepareMessage builds a PREPREPARE message based on the passed in view and proposal
 	BuildPrePrepareMessage(
-		proposal []byte,
+		rawProposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
 	) *proto.Message
 
-	// BuildPrepareMessage builds a PREPARE message based on the passed in proposal
+	// BuildPrepareMessage builds a PREPARE message based on the passed in view and proposal hash
 	BuildPrepareMessage(proposalHash []byte, view *proto.View) *proto.Message
 
-	// BuildCommitMessage builds a COMMIT message based on the passed in proposal
+	// BuildCommitMessage builds a COMMIT message based on the passed in view and proposal hash
+	// Must create a committed seal for proposal hash and include it into the message
 	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message
 
-	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in proposal
+	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in view,
+	// latest prepared proposed block, and latest prepared certificate
 	BuildRoundChangeMessage(
-		proposal []byte,
+		proposal *proto.Proposal,
 		certificate *proto.PreparedCertificate,
 		view *proto.View,
 	) *proto.Message
@@ -30,20 +35,24 @@ type MessageConstructor interface {
 
 // Verifier defines the verifier interface
 type Verifier interface {
-	// IsValidBlock checks if the proposed block is child of parent
-	IsValidBlock(block []byte) bool
+	// IsValidProposal if the proposal is valid
+	IsValidProposal(rawProposal []byte) bool
 
-	// IsValidSender checks if signature is from sender
-	IsValidSender(msg *proto.Message) bool
+	// IsValidValidator checks if a signature in message is signed by sender
+	// Must check the following things:
+	// (1) recover the signature and the signer matches from address in message
+	// (2) the signer address is one of the validators at the height in message
+	IsValidValidator(msg *proto.Message) bool
 
 	// IsProposer checks if the passed in ID is the Proposer for current view (sequence, round)
 	IsProposer(id []byte, height, round uint64) bool
 
 	// IsValidProposalHash checks if the hash matches the proposal
-	IsValidProposalHash(proposal, hash []byte) bool
+	IsValidProposalHash(proposal *proto.Proposal, hash []byte) bool
 
-	// IsValidCommittedSeal checks if the seal for the proposal is valid
-	IsValidCommittedSeal(proposal []byte, committedSeal *messages.CommittedSeal) bool
+	// IsValidCommittedSeal checks
+	// if signature for proposal hash in committed seal is signed by a validator
+	IsValidCommittedSeal(proposalHash []byte, committedSeal *messages.CommittedSeal) bool
 }
 
 // Backend defines an interface all backend implementations
@@ -52,16 +61,18 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildProposal builds a new block proposal
-	BuildProposal(view *proto.View) []byte
+	// BuildProposal builds a new proposal for the height
+	BuildProposal(height uint64) []byte
 
-	// InsertBlock inserts a proposal with the specified committed seals
-	InsertBlock(proposal []byte, committedSeals []*messages.CommittedSeal)
+	// InsertProposal inserts a proposal with the specified committed seals
+	// the reason why we are including round here is because a single committedSeal
+	// has signed the tuple of (rawProposal, round)
+	InsertProposal(proposal *proto.Proposal, committedSeals []*messages.CommittedSeal)
 
 	// ID returns the validator's ID
 	ID() []byte
 
 	// HasQuorum returns true if the quorum is reached
-	// for the specified block height.
-	HasQuorum(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool
+	// for the specified height.
+	HasQuorum(height uint64, msgs []*proto.Message, msgType proto.MessageType) bool
 }
