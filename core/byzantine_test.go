@@ -451,7 +451,7 @@ func (b *mockBackendBuilder) build(node *node) *mockBackend {
 	return &mockBackend{
 		isValidProposalFn:      isValidProposal,
 		isValidProposalHashFn:  isValidProposalHash,
-		isValidSenderFn:        nil,
+		IsValidValidatorFn:     nil,
 		isValidCommittedSealFn: nil,
 		isProposerFn:           b.isProposerFn,
 		idFn:                   b.idFn,

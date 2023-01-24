@@ -41,7 +41,7 @@ func newCorrectRoundMessage(round uint64) roundMessage {
 
 // Define delegation methods
 type isValidBlockDelegate func([]byte) bool
-type isValidSenderDelegate func(*proto.Message) bool
+type IsValidValidatorDelegate func(*proto.Message) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
 type buildEthereumBlockDelegate func(uint64) []byte
 type isValidProposalHashDelegate func(*proto.Proposal, []byte) bool
@@ -67,7 +67,7 @@ type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
 	isValidProposalFn      isValidBlockDelegate
-	isValidSenderFn        isValidSenderDelegate
+	IsValidValidatorFn     IsValidValidatorDelegate
 	isProposerFn           isProposerDelegate
 	buildProposalFn        buildEthereumBlockDelegate
 	isValidProposalHashFn  isValidProposalHashDelegate
@@ -104,9 +104,9 @@ func (m mockBackend) IsValidProposal(proposal []byte) bool {
 	return true
 }
 
-func (m mockBackend) IsValidSender(msg *proto.Message) bool {
-	if m.isValidSenderFn != nil {
-		return m.isValidSenderFn(msg)
+func (m mockBackend) IsValidValidator(msg *proto.Message) bool {
+	if m.IsValidValidatorFn != nil {
+		return m.IsValidValidatorFn(msg)
 	}
 
 	return true

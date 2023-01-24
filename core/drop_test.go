@@ -32,7 +32,7 @@ func TestDropAllAndRecover(t *testing.T) {
 					&mockBackend{
 						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
-						isValidSenderFn:        nil,
+						IsValidValidatorFn:     nil,
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
@@ -115,7 +115,7 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 					&mockBackend{
 						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
-						isValidSenderFn:        nil,
+						IsValidValidatorFn:     nil,
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
@@ -166,7 +166,7 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 					&mockBackend{
 						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
-						isValidSenderFn:        nil,
+						IsValidValidatorFn:     nil,
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
@@ -233,7 +233,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 					&mockBackend{
 						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
-						isValidSenderFn:        nil,
+						IsValidValidatorFn:     nil,
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
@@ -291,7 +291,7 @@ func TestDropMaxFaulty(t *testing.T) {
 					&mockBackend{
 						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
-						isValidSenderFn:        nil,
+						IsValidValidatorFn:     nil,
 						isValidCommittedSealFn: nil,
 						isProposerFn:           c.isProposer,
 
