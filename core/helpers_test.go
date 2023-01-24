@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -37,9 +38,11 @@ func isValidProposalHash(proposal, proposalHash []byte) bool {
 }
 
 type node struct {
-	core    *IBFT
-	address []byte
-	offline bool
+	core      *IBFT
+	address   []byte
+	offline   bool
+	faulty    bool
+	byzantine bool
 }
 
 func (n *node) addr() []byte {
@@ -130,6 +133,27 @@ func newCluster(num uint64, init func(*cluster)) *cluster {
 	return c
 }
 
+func (c *cluster) runGradualSequence(height uint64, timeout time.Duration) {
+	ctx, _ := context.WithTimeout(context.Background(), timeout)
+
+	for nodeIndex, n := range c.nodes {
+		c.wg.Add(1)
+
+		go func(ctx context.Context, ordinal int, node *node) {
+			// Start the main run loop for the node
+			runDelay := ordinal * rand.Intn(1000)
+
+			select {
+			case <-ctx.Done():
+			case <-time.After(time.Duration(runDelay) * time.Millisecond):
+				node.core.RunSequence(ctx, height)
+			}
+
+			c.wg.Done()
+		}(ctx, nodeIndex+1, n)
+	}
+}
+
 func (c *cluster) runSequence(ctx context.Context, height uint64) <-chan struct{} {
 	done := make(chan struct{})
 
@@ -215,6 +239,18 @@ func (c *cluster) gossip(msg *proto.Message) {
 
 func (c *cluster) maxFaulty() uint64 {
 	return (uint64(len(c.nodes)) - 1) / 3
+}
+
+func (c *cluster) makeNByzantine(num int) {
+	for i := 0; i < num; i++ {
+		c.nodes[i].byzantine = true
+	}
+}
+
+func (c *cluster) makeNFaulty(num int) {
+	for i := 0; i < num; i++ {
+		c.nodes[i].faulty = true
+	}
 }
 
 func (c *cluster) stopN(num int) {
