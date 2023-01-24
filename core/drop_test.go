@@ -2,11 +2,13 @@ package core
 
 import (
 	"bytes"
-	"github.com/0xPolygon/go-ibft/messages"
-	"github.com/0xPolygon/go-ibft/messages/proto"
+	"context"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/0xPolygon/go-ibft/messages"
+	"github.com/0xPolygon/go-ibft/messages/proto"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,7 +30,7 @@ func TestDropAllAndRecover(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -36,14 +38,14 @@ func TestDropAllAndRecover(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: func(proposal []byte, _ []*messages.CommittedSeal) {
-							insertedBlocks[i] = proposal
+						insertProposalFn: func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+							insertedBlocks[i] = proposal.RawProposal
 						},
 						hasQuorumFn: c.hasQuorumFn,
 					},
@@ -69,12 +71,12 @@ func TestDropAllAndRecover(t *testing.T) {
 
 	// Stop all nodes and make sure no blocks are written
 	cluster.stopN(len(cluster.nodes))
-	cluster.progressToHeight(5*time.Second, 2)
+	assert.NoError(t, cluster.progressToHeight(5*time.Second, 2))
 	assertNInsertedBlocks(t, 0, insertedBlocks)
 
 	// Start all and expect valid blocks to be written again
 	cluster.startN(len(cluster.nodes))
-	cluster.progressToHeight(5*time.Second, 10)
+	assert.NoError(t, cluster.progressToHeight(5*time.Second, 10))
 	assertValidInsertedBlocks(t, insertedBlocks) // Make sure the inserted blocks are valid
 }
 
@@ -82,6 +84,7 @@ func assertNInsertedBlocks(t *testing.T, n int, blocks [][]byte) {
 	t.Helper()
 
 	writtenBlocks := 0
+
 	for _, block := range blocks {
 		if !bytes.Equal(block, nil) {
 			writtenBlocks++
@@ -95,7 +98,7 @@ func assertValidInsertedBlocks(t *testing.T, blocks [][]byte) {
 	t.Helper()
 
 	for _, block := range blocks {
-		assert.True(t, bytes.Equal(block, validProposal))
+		assert.True(t, bytes.Equal(block, validEthereumBlock))
 	}
 }
 
@@ -110,7 +113,7 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -118,14 +121,14 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 					&mockTransport{multicastFn: func(message *proto.Message) {
 						if currentNode.faulty && rand.Intn(100) < 50 {
@@ -161,7 +164,7 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -169,14 +172,14 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: func(proposal []byte, _ []*messages.CommittedSeal) {
-							insertedBlocks[nodeIndex] = proposal
+						insertProposalFn: func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
+							insertedBlocks[nodeIndex] = proposal.RawProposal
 						},
 						hasQuorumFn: c.hasQuorumFn,
 					},
@@ -193,14 +196,20 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 	)
 
 	// Start the main run loops
-	cluster.runGradualSequence(1, 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	t.Cleanup(func() {
+		cancel()
+	})
+
+	cluster.runGradualSequence(ctx, 1)
 
 	// Wait until the main run loops finish
 	cluster.wg.Wait()
 
 	// Make sure the inserted blocks match what node 0 proposed
 	for _, block := range insertedBlocks {
-		assert.True(t, bytes.Equal(block, validProposal))
+		assert.True(t, bytes.Equal(block, validEthereumBlock))
 	}
 }
 
@@ -222,7 +231,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -230,14 +239,14 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},
@@ -280,7 +289,7 @@ func TestDropMaxFaulty(t *testing.T) {
 				node.core = NewIBFT(
 					mockLogger{},
 					&mockBackend{
-						isValidBlockFn:         isValidProposal,
+						isValidProposalFn:      isValidProposal,
 						isValidProposalHashFn:  isValidProposalHash,
 						isValidSenderFn:        nil,
 						isValidCommittedSealFn: nil,
@@ -288,14 +297,14 @@ func TestDropMaxFaulty(t *testing.T) {
 
 						idFn: node.addr,
 
-						buildProposalFn:           buildValidProposal,
+						buildProposalFn:           buildValidEthereumBlock,
 						buildPrePrepareMessageFn:  node.buildPrePrepare,
 						buildPrepareMessageFn:     node.buildPrepare,
 						buildCommitMessageFn:      node.buildCommit,
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
-						insertBlockFn: nil,
-						hasQuorumFn:   c.hasQuorumFn,
+						insertProposalFn: nil,
+						hasQuorumFn:      c.hasQuorumFn,
 					},
 
 					&mockTransport{multicastFn: c.gossip},

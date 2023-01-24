@@ -14,24 +14,21 @@ import (
 /*	HELPERS */
 
 var (
-	validProposal      = []byte("valid proposal")
+	validEthereumBlock = []byte("valid ethereum block")
 	validProposalHash  = []byte("valid proposal hash")
 	validCommittedSeal = []byte("valid committed seal")
 )
 
 func isValidProposal(newProposal []byte) bool {
-	return bytes.Equal(newProposal, validProposal)
+	return bytes.Equal(newProposal, validEthereumBlock)
 }
 
-func buildValidProposal(_ *proto.View) []byte {
-	return validProposal
+func buildValidEthereumBlock(_ uint64) []byte {
+	return validEthereumBlock
 }
 
-func isValidProposalHash(proposal, proposalHash []byte) bool {
+func isValidProposalHash(proposal *proto.Proposal, proposalHash []byte) bool {
 	return bytes.Equal(
-		proposal,
-		validProposal,
-	) && bytes.Equal(
 		proposalHash,
 		validProposalHash,
 	)
@@ -50,12 +47,12 @@ func (n *node) addr() []byte {
 }
 
 func (n *node) buildPrePrepare(
-	proposal []byte,
+	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
 ) *proto.Message {
 	return buildBasicPreprepareMessage(
-		proposal,
+		rawProposal,
 		validProposalHash,
 		certificate,
 		n.address,
@@ -87,7 +84,7 @@ func (n *node) buildCommit(
 }
 
 func (n *node) buildRoundChange(
-	proposal []byte,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 ) *proto.Message {
@@ -133,9 +130,7 @@ func newCluster(num uint64, init func(*cluster)) *cluster {
 	return c
 }
 
-func (c *cluster) runGradualSequence(height uint64, timeout time.Duration) {
-	ctx, _ := context.WithTimeout(context.Background(), timeout)
-
+func (c *cluster) runGradualSequence(ctx context.Context, height uint64) {
 	for nodeIndex, n := range c.nodes {
 		c.wg.Add(1)
 
@@ -214,8 +209,8 @@ func (c *cluster) addresses() [][]byte {
 	return addresses
 }
 
-func (c *cluster) hasQuorumFn(blockNumber uint64, messages []*proto.Message, msgType proto.MessageType) bool {
-	return commonHasQuorumFn(uint64(len(c.nodes)))(blockNumber, messages, msgType)
+func (c *cluster) hasQuorumFn(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	return commonHasQuorumFn(uint64(len(c.nodes)))(height, messages, msgType)
 }
 
 func (c *cluster) isProposer(

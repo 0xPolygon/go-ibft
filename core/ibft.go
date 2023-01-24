@@ -445,7 +445,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 	)
 
 	isValidMsgFn := func(msg *proto.Message) bool {
-		proposal := messages.ExtractLastPreparedProposedBlock(msg)
+		proposal := messages.ExtractLastPreparedProposal(msg)
 		certificate := messages.ExtractLatestPC(msg)
 
 		// Check if the prepared certificate is valid
@@ -485,7 +485,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 // proposalMatchesCertificate checks a prepared certificate
 // against a proposal
 func (i *IBFT) proposalMatchesCertificate(
-	proposal []byte,
+	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 ) bool {
 	// Both the certificate and proposal need to be set
@@ -612,6 +612,11 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 		proposalHash = messages.ExtractProposalHash(msg)
 	)
 
+	//	round matches
+	if proposal.Round != view.Round {
+		return false
+	}
+
 	//	is proposer
 	if !i.backend.IsProposer(msg.From, height, round) {
 		return false
@@ -622,8 +627,8 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 		return false
 	}
 
-	//	is valid block
-	return i.backend.IsValidBlock(proposal)
+	//	is valid proposal
+	return i.backend.IsValidProposal(proposal.GetRawProposal())
 }
 
 // validateProposal0 validates the proposal for round 0
@@ -939,8 +944,11 @@ func (i *IBFT) runFin() {
 
 	// Insert the block to the node's underlying
 	// blockchain layer
-	i.backend.InsertBlock(
-		i.state.getProposal(),
+	i.backend.InsertProposal(
+		&proto.Proposal{
+			RawProposal: i.state.getRawDataFromProposal(),
+			Round:       i.state.getRound(),
+		},
 		i.state.getCommittedSeals(),
 	)
 
@@ -967,10 +975,10 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 
 	if round == 0 {
-		proposal := i.backend.BuildProposal(view)
+		rawProposal := i.backend.BuildProposal(height)
 
 		return i.backend.BuildPrePrepareMessage(
-			proposal,
+			rawProposal,
 			nil,
 			&proto.View{
 				Height: height,
@@ -1005,20 +1013,20 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 			continue
 		}
 
-		lastPB := messages.ExtractLastPreparedProposedBlock(msg)
+		lastPB := messages.ExtractLastPreparedProposal(msg)
 		if lastPB == nil {
 			continue
 		}
 
 		if msgRound > maxRound {
-			previousProposal = lastPB
+			previousProposal = lastPB.RawProposal
 			maxRound = msgRound
 		}
 	}
 
 	if previousProposal == nil {
 		//	build new proposal
-		proposal := i.backend.BuildProposal(view)
+		proposal := i.backend.BuildProposal(height)
 
 		return i.backend.BuildPrePrepareMessage(
 			proposal,
@@ -1197,7 +1205,7 @@ func (i *IBFT) sendPreprepareMessage(message *proto.Message) {
 func (i *IBFT) sendRoundChangeMessage(height, newRound uint64) {
 	i.transport.Multicast(
 		i.backend.BuildRoundChangeMessage(
-			i.state.getLatestPreparedProposedBlock(),
+			i.state.getLatestPreparedProposal(),
 			i.state.getLatestPC(),
 			&proto.View{
 				Height: height,

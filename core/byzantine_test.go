@@ -2,9 +2,10 @@ package core
 
 import (
 	"bytes"
-	"github.com/0xPolygon/go-ibft/messages/proto"
 	"testing"
 	"time"
+
+	"github.com/0xPolygon/go-ibft/messages/proto"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -12,6 +13,7 @@ import (
 func TestByzantineBehaviour(t *testing.T) {
 	t.Parallel()
 
+	//nolint:dupl
 	t.Run("malicious hash in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -78,6 +80,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -112,6 +115,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc", func(t *testing.T) {
 		t.Parallel()
 
@@ -145,6 +149,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -179,6 +184,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and bad hash in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -213,6 +219,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and bad hash in prepare", func(t *testing.T) {
 		t.Parallel()
 
@@ -247,6 +254,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and bad commit seal", func(t *testing.T) {
 		t.Parallel()
 
@@ -283,7 +291,7 @@ func TestByzantineBehaviour(t *testing.T) {
 }
 
 func createBadRoundRoundChangeFn(node *node) buildRoundChangeMessageDelegate {
-	return func(proposal []byte,
+	return func(proposal *proto.Proposal,
 		rcc *proto.PreparedCertificate,
 		view *proto.View) *proto.Message {
 		if node.byzantine {
@@ -441,19 +449,19 @@ func (b *mockBackendBuilder) build(node *node) *mockBackend {
 	}
 
 	return &mockBackend{
-		isValidBlockFn:         isValidProposal,
+		isValidProposalFn:      isValidProposal,
 		isValidProposalHashFn:  isValidProposalHash,
 		isValidSenderFn:        nil,
 		isValidCommittedSealFn: nil,
 		isProposerFn:           b.isProposerFn,
 		idFn:                   b.idFn,
 
-		buildProposalFn:           buildValidProposal,
+		buildProposalFn:           buildValidEthereumBlock,
 		buildPrePrepareMessageFn:  b.buildPrePrepareMessageFn,
 		buildPrepareMessageFn:     b.buildPrepareMessageFn,
 		buildCommitMessageFn:      b.buildCommitMessageFn,
 		buildRoundChangeMessageFn: b.buildRoundChangeMessageFn,
-		insertBlockFn:             nil,
+		insertProposalFn:          nil,
 		hasQuorumFn:               b.hasQuorumFn,
 	}
 }
