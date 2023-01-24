@@ -130,9 +130,7 @@ func newCluster(num uint64, init func(*cluster)) *cluster {
 	return c
 }
 
-func (c *cluster) runGradualSequence(height uint64, timeout time.Duration) {
-	ctx, _ := context.WithTimeout(context.Background(), timeout)
-
+func (c *cluster) runGradualSequence(ctx context.Context, height uint64) {
 	for nodeIndex, n := range c.nodes {
 		c.wg.Add(1)
 

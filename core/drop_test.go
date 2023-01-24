@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"math/rand"
 	"testing"
 	"time"
@@ -70,12 +71,12 @@ func TestDropAllAndRecover(t *testing.T) {
 
 	// Stop all nodes and make sure no blocks are written
 	cluster.stopN(len(cluster.nodes))
-	cluster.progressToHeight(5*time.Second, 2)
+	assert.NoError(t, cluster.progressToHeight(5*time.Second, 2))
 	assertNInsertedBlocks(t, 0, insertedBlocks)
 
 	// Start all and expect valid blocks to be written again
 	cluster.startN(len(cluster.nodes))
-	cluster.progressToHeight(5*time.Second, 10)
+	assert.NoError(t, cluster.progressToHeight(5*time.Second, 10))
 	assertValidInsertedBlocks(t, insertedBlocks) // Make sure the inserted blocks are valid
 }
 
@@ -83,6 +84,7 @@ func assertNInsertedBlocks(t *testing.T, n int, blocks [][]byte) {
 	t.Helper()
 
 	writtenBlocks := 0
+
 	for _, block := range blocks {
 		if !bytes.Equal(block, nil) {
 			writtenBlocks++
@@ -194,7 +196,13 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 	)
 
 	// Start the main run loops
-	cluster.runGradualSequence(1, 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	t.Cleanup(func() {
+		cancel()
+	})
+
+	cluster.runGradualSequence(ctx, 1)
 
 	// Wait until the main run loops finish
 	cluster.wg.Wait()

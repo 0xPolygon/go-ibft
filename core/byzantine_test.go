@@ -13,6 +13,7 @@ import (
 func TestByzantineBehaviour(t *testing.T) {
 	t.Parallel()
 
+	//nolint:dupl
 	t.Run("malicious hash in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -79,6 +80,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -113,6 +115,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc", func(t *testing.T) {
 		t.Parallel()
 
@@ -146,6 +149,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -180,6 +184,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and bad hash in proposal", func(t *testing.T) {
 		t.Parallel()
 
@@ -214,6 +219,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and bad hash in prepare", func(t *testing.T) {
 		t.Parallel()
 
@@ -248,6 +254,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		assert.Equal(t, uint64(2), cluster.latestHeight)
 	})
 
+	//nolint:dupl
 	t.Run("malicious +1 round in rcc and bad commit seal", func(t *testing.T) {
 		t.Parallel()
 
