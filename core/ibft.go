@@ -543,7 +543,7 @@ func (i *IBFT) runReceptions(ctx context.Context) {
 	wg.Wait()
 }
 
-// runPrePrePare starts reception of PREPREPARE (PROPOSAL) message
+// runPrePrepare starts reception of PREPREPARE message
 func (i *IBFT) runPrePrepare(ctx context.Context) {
 	i.log.Debug("enter: reception of PREPREPARE message")
 	defer i.log.Debug("exit: reception of PREPREPARE message")
@@ -777,10 +777,10 @@ func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 	return msgs[0]
 }
 
-// runPrepare starts reception of PREPARE message
+// runPrepare starts reception of PREPARE messages
 func (i *IBFT) runPrepare(ctx context.Context) {
-	i.log.Debug("enter: reception of PREPARE message")
-	defer i.log.Debug("exit: reception of PREPARE message")
+	i.log.Debug("enter: reception of PREPARE messages")
+	defer i.log.Debug("exit: reception of PREPARE messages")
 
 	var (
 		// Grab the current view
@@ -863,7 +863,7 @@ func (i *IBFT) handlePrepare(view *proto.View) []*proto.Message {
 	return prepareMessages
 }
 
-// runCommit runs the Commit IBFT state
+// runCommit starts reception of COMMIT messages
 func (i *IBFT) runCommit(ctx context.Context) {
 	i.log.Debug("enter: reception of COMMIT message")
 	defer i.log.Debug("exit: reception of COMMIT message")
