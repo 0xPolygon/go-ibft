@@ -803,9 +803,6 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 	for {
 		prepareMessages := i.handlePrepare(view)
 		if prepareMessages != nil {
-			// Multicast the COMMIT message
-			i.sendCommitMessage(view)
-			i.state.setCommitSent(true)
 
 			i.log.Debug("commit message multicasted")
 
@@ -816,6 +813,11 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 				},
 				i.state.getProposal(),
 			)
+
+			i.state.setCommitSent(true)
+
+			// Multicast the COMMIT message
+			i.sendCommitMessage(view)
 
 			return
 		}
@@ -966,6 +968,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 
 	i.state.setRoundStarted(false)
 	i.state.setProposalMessage(nil)
+	i.state.setCommitSent(false)
 }
 
 func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Message {
