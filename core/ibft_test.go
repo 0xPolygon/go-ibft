@@ -366,6 +366,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						}
 					},
 				}
+				//nolint:dupl
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						return &messages.Subscription{
@@ -538,6 +539,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						}
 					},
 				}
+				//nolint:dupl
 				messages = mockMessages{
 					subscribeFn: func(_ messages.SubscriptionDetails) *messages.Subscription {
 						return &messages.Subscription{

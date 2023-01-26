@@ -803,7 +803,6 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 	for {
 		prepareMessages := i.handlePrepare(view)
 		if prepareMessages != nil {
-
 			i.log.Debug("commit message multicasted")
 
 			i.state.finalizePrepare(
