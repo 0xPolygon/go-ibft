@@ -1,7 +1,9 @@
+// Package proto defines the code for protocol buffer
 package proto
 
 import "google.golang.org/protobuf/proto"
 
+// PayloadNoSig returns marshaled message without signature
 func (m *Message) PayloadNoSig() ([]byte, error) {
 	mm, _ := proto.Clone(m).(*Message)
 	mm.Signature = nil
@@ -31,6 +33,7 @@ func (pc *PreparedCertificate) Copy() *PreparedCertificate {
 	proposal, _ := proto.Clone(pc.ProposalMessage).(*Message)
 
 	preparedMessages := make([]*Message, len(pc.PrepareMessages))
+
 	for idx, pm := range pc.PrepareMessages {
 		prepareMsg, _ := proto.Clone(pm).(*Message)
 

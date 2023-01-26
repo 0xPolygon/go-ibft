@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
+
 	protoBuf "google.golang.org/protobuf/proto"
 )
 
