@@ -5,6 +5,7 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
+	protoBuf "google.golang.org/protobuf/proto"
 )
 
 type state struct {
@@ -92,7 +93,9 @@ func (s *state) setProposalMessage(proposalMessage *proto.Message) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.proposalMessage = proposalMessage
+	proposalMsg, _ := protoBuf.Clone(proposalMessage).(*proto.Message)
+
+	s.proposalMessage = proposalMsg
 }
 
 func (s *state) getRound() uint64 {
@@ -122,7 +125,6 @@ func (s *state) getProposal() *proto.Proposal {
 
 func (s *state) getRawDataFromProposal() []byte {
 	proposal := s.getProposal()
-
 	if proposal != nil {
 		return proposal.RawProposal
 	}
@@ -169,7 +171,11 @@ func (s *state) setCommittedSeals(seals []*messages.CommittedSeal) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.seals = seals
+	s.seals = s.seals[:0]
+
+	for _, seal := range seals {
+		s.seals = append(s.seals, seal.Copy())
+	}
 }
 
 func (s *state) newRound() {
@@ -188,6 +194,6 @@ func (s *state) finalizePrepare(
 	s.Lock()
 	defer s.Unlock()
 
-	s.latestPC = certificate
-	s.latestPreparedProposal = latestPPB
+	s.latestPC = certificate.Copy()
+	s.latestPreparedProposal = latestPPB.Copy()
 }
