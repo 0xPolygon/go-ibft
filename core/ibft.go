@@ -803,8 +803,6 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 	for {
 		prepareMessages := i.handlePrepare(view)
 		if prepareMessages != nil {
-			i.log.Debug("commit message multicasted")
-
 			i.state.finalizePrepare(
 				&proto.PreparedCertificate{
 					ProposalMessage: i.state.getProposalMessage(),
@@ -817,6 +815,8 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 
 			// Multicast the COMMIT message
 			i.sendCommitMessage(view)
+
+			i.log.Debug("commit message multicasted")
 
 			return
 		}
