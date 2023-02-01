@@ -722,15 +722,14 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
 
 	for _, rcMessage := range rcc.RoundChangeMessages {
-		pc := messages.ExtractLatestPC(rcMessage)
+		cert := messages.ExtractLatestPC(rcMessage)
 
 		// Check if there is a certificate, and if it's a valid PC
-		if pc != nil && i.validPC(pc, proposal.Round, height) {
-			proposal := messages.ExtractProposal(pc.ProposalMessage)
-			hash := messages.ExtractProposalHash(pc.ProposalMessage)
+		if cert != nil && i.validPC(cert, msg.View.Round, height) {
+			hash := messages.ExtractProposalHash(cert.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
-				round: proposal.Round,
+				round: cert.ProposalMessage.View.Round,
 				hash:  hash,
 			})
 		}
