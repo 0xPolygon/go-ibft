@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"math"
@@ -662,9 +661,8 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		height = view.Height
 		round  = view.Round
 
-		proposal     = messages.ExtractProposal(msg)
-		proposalHash = messages.ExtractProposalHash(msg)
-		rcc          = messages.ExtractRoundChangeCertificate(msg)
+		proposal = messages.ExtractProposal(msg)
+		rcc      = messages.ExtractRoundChangeCertificate(msg)
 	)
 
 	// Make sure common proposal validations pass
@@ -755,7 +753,14 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		}
 	}
 
-	return bytes.Equal(expectedHash, proposalHash)
+	// Make sure hash of (EB, maxR) matches expected hash
+	return i.backend.IsValidProposalHash(
+		&proto.Proposal{
+			RawProposal: proposal.RawProposal,
+			Round:       maxRound,
+		},
+		expectedHash,
+	)
 }
 
 // handlePrePrepare parses the received proposal and performs
