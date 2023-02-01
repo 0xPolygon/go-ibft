@@ -25,7 +25,7 @@ type MessageConstructor interface {
 	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in view,
-	// latest prepared proposed block, and latest prepared certificate
+	// latest prepared proposal, and latest prepared certificate
 	BuildRoundChangeMessage(
 		proposal *proto.Proposal,
 		certificate *proto.PreparedCertificate,
@@ -35,7 +35,7 @@ type MessageConstructor interface {
 
 // Verifier defines the verifier interface
 type Verifier interface {
-	// IsValidProposal if the proposal is valid
+	// IsValidProposal checks if the proposal is valid
 	IsValidProposal(rawProposal []byte) bool
 
 	// IsValidValidator checks if a signature in message is signed by sender
@@ -61,8 +61,8 @@ type Backend interface {
 	MessageConstructor
 	Verifier
 
-	// BuildProposal builds a new proposal for the height
-	BuildProposal(height uint64) []byte
+	// BuildProposal builds a new proposal for the given view (height and round)
+	BuildProposal(view *proto.View) []byte
 
 	// InsertProposal inserts a proposal with the specified committed seals
 	// the reason why we are including round here is because a single committedSeal
