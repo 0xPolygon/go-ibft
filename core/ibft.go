@@ -662,6 +662,7 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 		height = view.Height
 		round  = view.Round
 
+		proposal     = messages.ExtractProposal(msg)
 		proposalHash = messages.ExtractProposalHash(msg)
 		rcc          = messages.ExtractRoundChangeCertificate(msg)
 	)
@@ -723,14 +724,15 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 	roundsAndPreparedBlockHashes := make([]roundHashTuple, 0)
 
 	for _, rcMessage := range rcc.RoundChangeMessages {
-		cert := messages.ExtractLatestPC(rcMessage)
+		pc := messages.ExtractLatestPC(rcMessage)
 
 		// Check if there is a certificate, and if it's a valid PC
-		if cert != nil && i.validPC(cert, msg.View.Round, height) {
-			hash := messages.ExtractProposalHash(cert.ProposalMessage)
+		if pc != nil && i.validPC(pc, proposal.Round, height) {
+			proposal := messages.ExtractProposal(pc.ProposalMessage)
+			hash := messages.ExtractProposalHash(pc.ProposalMessage)
 
 			roundsAndPreparedBlockHashes = append(roundsAndPreparedBlockHashes, roundHashTuple{
-				round: cert.ProposalMessage.View.Round,
+				round: proposal.Round,
 				hash:  hash,
 			})
 		}
@@ -1007,9 +1009,11 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 			continue
 		}
 
+		proposal := messages.ExtractProposal(latestPC.ProposalMessage)
+		round := proposal.Round
+
 		// skip if message's round is equals to/less than maxRound
-		msgRound := msg.View.Round
-		if msgRound <= maxRound {
+		if previousProposal != nil && round <= maxRound {
 			continue
 		}
 
@@ -1018,10 +1022,8 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 			continue
 		}
 
-		if msgRound > maxRound {
-			previousProposal = lastPB.RawProposal
-			maxRound = msgRound
-		}
+		previousProposal = lastPB.RawProposal
+		maxRound = round
 	}
 
 	if previousProposal == nil {
