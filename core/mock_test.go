@@ -120,9 +120,9 @@ func (m mockBackend) IsProposer(id []byte, sequence, round uint64) bool {
 	return false
 }
 
-func (m mockBackend) BuildProposal(height uint64) []byte {
+func (m mockBackend) BuildProposal(view *proto.View) []byte {
 	if m.buildProposalFn != nil {
-		return m.buildProposalFn(height)
+		return m.buildProposalFn(view.Height)
 	}
 
 	return nil
