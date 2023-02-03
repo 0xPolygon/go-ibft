@@ -2317,58 +2317,6 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		assert.False(t, i.validateProposal(proposal, baseView))
 	})
 
-	//nolint:dupl
-	t.Run("round is not correct", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			quorum     = uint64(4)
-			round      = uint64(1)
-			id         = []byte("node id")
-			uniqueNode = []byte("unique node")
-
-			log     = mockLogger{}
-			backend = mockBackend{
-				idFn: func() []byte {
-					return id
-				},
-				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
-					if bytes.Equal(proposer, uniqueNode) {
-						return true
-					}
-
-					return bytes.Equal(proposer, id)
-				},
-			}
-			transport = mockTransport{}
-		)
-
-		i := NewIBFT(log, backend, transport)
-
-		baseView := &proto.View{
-			Height: 0,
-			Round:  round,
-		}
-		proposal := &proto.Message{
-			View: baseView,
-			From: uniqueNode,
-			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
-				PreprepareData: &proto.PrePrepareMessage{
-					Certificate: &proto.RoundChangeCertificate{
-						RoundChangeMessages: generateMessages(quorum, proto.MessageType_ROUND_CHANGE),
-					},
-					Proposal: &proto.Proposal{
-						Round: 0,
-					},
-				},
-			},
-		}
-
-		assert.False(t, i.validateProposal(proposal, baseView))
-	})
-
-	//nolint:dupl
 	t.Run("round is not correct", func(t *testing.T) {
 		t.Parallel()
 
