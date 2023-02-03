@@ -13,12 +13,16 @@ import (
 func TestByzantineBehaviour(t *testing.T) {
 	t.Parallel()
 
+	var (
+		numNodes uint64 = 6
+	)
+
 	//nolint:dupl
 	t.Run("malicious hash in proposal", func(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -51,7 +55,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -85,7 +89,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -120,7 +124,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -154,7 +158,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -189,7 +193,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -224,7 +228,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node
@@ -259,7 +263,7 @@ func TestByzantineBehaviour(t *testing.T) {
 		t.Parallel()
 
 		cluster := newCluster(
-			6,
+			numNodes,
 			func(c *cluster) {
 				for _, node := range c.nodes {
 					currentNode := node

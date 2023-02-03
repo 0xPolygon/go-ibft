@@ -18,6 +18,20 @@ type CommittedSeal struct {
 	Signature []byte
 }
 
+// Copy is a helper method for deep copy of CommittedSeal
+func (cs *CommittedSeal) Copy() *CommittedSeal {
+	signer := make([]byte, len(cs.Signer))
+	signature := make([]byte, len(cs.Signature))
+
+	copy(signer, cs.Signer)
+	copy(signature, cs.Signature)
+
+	return &CommittedSeal{
+		Signer:    signer,
+		Signature: signature,
+	}
+}
+
 // ExtractCommittedSeals extracts the committed seals from the passed in messages
 func ExtractCommittedSeals(commitMessages []*proto.Message) ([]*CommittedSeal, error) {
 	committedSeals := make([]*CommittedSeal, 0)
@@ -36,6 +50,10 @@ func ExtractCommittedSeals(commitMessages []*proto.Message) ([]*CommittedSeal, e
 
 // ExtractCommittedSeal extracts the committed seal from the passed in message
 func ExtractCommittedSeal(commitMessage *proto.Message) *CommittedSeal {
+	if commitMessage.Type != proto.MessageType_COMMIT {
+		return nil
+	}
+
 	commitData, _ := commitMessage.Payload.(*proto.Message_CommitData)
 
 	return &CommittedSeal{
