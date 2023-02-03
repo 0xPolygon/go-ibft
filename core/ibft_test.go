@@ -2490,7 +2490,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		assert.False(t, i.validateProposal(proposal, baseView))
 	})
 
-	t.Run("A messages in RoundChangeCertificate has wrong height", func(t *testing.T) {
+	t.Run("One message in RoundChangeCertificate has wrong height", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -2551,7 +2551,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		assert.False(t, i.validateProposal(proposal, baseView))
 	})
 
-	t.Run("A messages in RoundChangeCertificate has wrong round", func(t *testing.T) {
+	t.Run("One message in RoundChangeCertificate has wrong round", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -2612,7 +2612,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		assert.False(t, i.validateProposal(proposal, baseView))
 	})
 
-	t.Run("A messages in RoundChangeCertificate is created by non-validator", func(t *testing.T) {
+	t.Run("One message in RoundChangeCertificate is created by non-validator", func(t *testing.T) {
 		t.Parallel()
 
 		var (
