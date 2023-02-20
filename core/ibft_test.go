@@ -1137,12 +1137,25 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 			acceptable:    false,
 		},
 		{
-			name: "higher height number",
+			name: "higher height, same round number",
 			msgView: &proto.View{
 				Height: baseView.Height + 100,
 				Round:  baseView.Round,
 			},
 			stateView:     baseView,
+			invalidSender: false,
+			acceptable:    true,
+		},
+		{
+			name: "higher height, lower round number",
+			msgView: &proto.View{
+				Height: baseView.Height + 100,
+				Round:  baseView.Round,
+			},
+			stateView: &proto.View{
+				Height: baseView.Height,
+				Round:  baseView.Round + 1,
+			},
 			invalidSender: false,
 			acceptable:    true,
 		},
