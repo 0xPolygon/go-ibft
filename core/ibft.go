@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"errors"
 	"math"
 	"sync"
 	"time"
@@ -47,6 +48,10 @@ type Messages interface {
 const (
 	round0Timeout   = 10 * time.Second
 	roundFactorBase = float64(2)
+)
+
+var (
+	errTimeoutExpired = errors.New("round timeout expired")
 )
 
 // IBFT represents a single instance of the IBFT state machine
@@ -119,7 +124,7 @@ func NewIBFT(
 			},
 			seals:        make([]*messages.CommittedSeal, 0),
 			roundStarted: false,
-			commitSent:   false,
+			name:         newRound,
 		},
 		baseRoundTimeout: round0Timeout,
 	}
@@ -390,7 +395,7 @@ func (i *IBFT) startRound(ctx context.Context) {
 		i.log.Debug("pre-prepare message multicasted")
 	}
 
-	i.runReceptions(ctx)
+	i.runStates(ctx)
 }
 
 // waitForRCC waits for valid RCC for the specified height and round
@@ -516,37 +521,38 @@ func (i *IBFT) proposalMatchesCertificate(
 	return true
 }
 
-// runReceptions spawn processes to handle message for the round
-func (i *IBFT) runReceptions(ctx context.Context) {
-	var wg sync.WaitGroup
+// runStates is the main loop which performs state transitions
+func (i *IBFT) runStates(ctx context.Context) {
+	var timeout error
 
-	wg.Add(3)
+	for {
+		switch i.state.getStateName() {
+		case newRound:
+			timeout = i.runNewRound(ctx)
+		case prepare:
+			timeout = i.runPrepare(ctx)
+		case commit:
+			timeout = i.runCommit(ctx)
+		case fin:
+			i.runFin()
+			//	Block inserted without any errors,
+			// sequence is complete
+			i.signalRoundDone(ctx)
 
-	go func() {
-		defer wg.Done()
+			return
+		}
 
-		i.runPrePrepare(ctx)
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		i.runPrepare(ctx)
-	}()
-
-	go func() {
-		defer wg.Done()
-
-		i.runCommit(ctx)
-	}()
-
-	wg.Wait()
+		if timeout != nil {
+			// Timeout received
+			return
+		}
+	}
 }
 
-// runPrePrepare starts reception of PREPREPARE message
-func (i *IBFT) runPrePrepare(ctx context.Context) {
-	i.log.Debug("enter: reception of PREPREPARE message")
-	defer i.log.Debug("exit: reception of PREPREPARE message")
+// runNewRound runs the New Round IBFT state
+func (i *IBFT) runNewRound(ctx context.Context) error {
+	i.log.Debug("enter: new round state")
+	defer i.log.Debug("exit: new round state")
 
 	var (
 		// Grab the current view
@@ -569,25 +575,28 @@ func (i *IBFT) runPrePrepare(ctx context.Context) {
 	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
-		// SubscriptionDetails conditions have been met,
-		// grab the proposal messages
-		proposalMessage := i.handlePrePrepare(view)
-		if proposalMessage != nil {
+		select {
+		case <-ctx.Done():
+			// Stop signal received, exit
+			return errTimeoutExpired
+		case <-sub.SubCh:
+			// SubscriptionDetails conditions have been met,
+			// grab the proposal messages
+			proposalMessage := i.handlePrePrepare(view)
+			if proposalMessage == nil {
+				continue
+			}
+
 			// Multicast the PREPARE message
-			i.acceptProposal(proposalMessage)
+			i.state.setProposalMessage(proposalMessage)
 			i.sendPrepareMessage(view)
 
 			i.log.Debug("prepare message multicasted")
 
-			return
-		}
+			// Move to the prepare state
+			i.state.changeState(prepare)
 
-		select {
-		case <-ctx.Done():
-			// Stop signal received, exit
-			return
-		case <-sub.SubCh:
-			continue
+			return nil
 		}
 	}
 }
@@ -750,11 +759,6 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 // handlePrePrepare parses the received proposal and performs
 // a transition to PREPARE state, if the proposal is valid
 func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
-	// exit if node has received valid proposal
-	if i.state.getProposalMessage() != nil {
-		return nil
-	}
-
 	isValidPrePrepare := func(message *proto.Message) bool {
 		if view.Round == 0 {
 			//	proposal must be for round 0
@@ -777,10 +781,10 @@ func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
 	return msgs[0]
 }
 
-// runPrepare starts reception of PREPARE messages
-func (i *IBFT) runPrepare(ctx context.Context) {
-	i.log.Debug("enter: reception of PREPARE messages")
-	defer i.log.Debug("exit: reception of PREPARE messages")
+// runPrepare runs the Prepare IBFT state
+func (i *IBFT) runPrepare(ctx context.Context) error {
+	i.log.Debug("enter: prepare state")
+	defer i.log.Debug("exit: prepare state")
 
 	var (
 		// Grab the current view
@@ -801,46 +805,24 @@ func (i *IBFT) runPrepare(ctx context.Context) {
 	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
-		prepareMessages := i.handlePrepare(view)
-		if prepareMessages != nil {
-			i.state.finalizePrepare(
-				&proto.PreparedCertificate{
-					ProposalMessage: i.state.getProposalMessage(),
-					PrepareMessages: prepareMessages,
-				},
-				i.state.getProposal(),
-			)
-
-			i.state.setCommitSent(true)
-
-			// Multicast the COMMIT message
-			i.sendCommitMessage(view)
-
-			i.log.Debug("commit message multicasted")
-
-			return
-		}
-
-		//	quorum of valid prepare messages not received, retry
 		select {
 		case <-ctx.Done():
 			// Stop signal received, exit
-			return
+			return errTimeoutExpired
 		case <-sub.SubCh:
-			continue
+			if !i.handlePrepare(view) {
+				//	quorum of valid prepare messages not received, retry
+				continue
+			}
+
+			return nil
 		}
 	}
 }
 
 // handlePrepare parses available prepare messages and performs
 // a transition to COMMIT state, if quorum was reached
-func (i *IBFT) handlePrepare(view *proto.View) []*proto.Message {
-	// exit if node has not received a proposal for round yet
-	// or node has sent commit message already
-	if i.state.getProposalMessage() == nil || i.state.getCommitSent() {
-		return nil
-	}
-
+func (i *IBFT) handlePrepare(view *proto.View) bool {
 	isValidPrepare := func(message *proto.Message) bool {
 		// Verify that the proposal hash is valid
 		return i.backend.IsValidProposalHash(
@@ -857,16 +839,29 @@ func (i *IBFT) handlePrepare(view *proto.View) []*proto.Message {
 
 	if !i.backend.HasQuorum(view.Height, prepareMessages, proto.MessageType_PREPARE) {
 		//	quorum not reached, keep polling
-		return nil
+		return false
 	}
 
-	return prepareMessages
+	// Multicast the COMMIT message
+	i.sendCommitMessage(view)
+
+	i.log.Debug("commit message multicasted")
+
+	i.state.finalizePrepare(
+		&proto.PreparedCertificate{
+			ProposalMessage: i.state.getProposalMessage(),
+			PrepareMessages: prepareMessages,
+		},
+		i.state.getProposal(),
+	)
+
+	return true
 }
 
-// runCommit starts reception of COMMIT messages
-func (i *IBFT) runCommit(ctx context.Context) {
-	i.log.Debug("enter: reception of COMMIT message")
-	defer i.log.Debug("exit: reception of COMMIT message")
+// runCommit runs the Commit IBFT state
+func (i *IBFT) runCommit(ctx context.Context) error {
+	i.log.Debug("enter: commit state")
+	defer i.log.Debug("exit: commit state")
 
 	var (
 		// Grab the current view
@@ -887,19 +882,17 @@ func (i *IBFT) runCommit(ctx context.Context) {
 	defer i.messages.Unsubscribe(sub.ID)
 
 	for {
-		if i.handleCommit(view) {
-			i.signalRoundDone(ctx)
-
-			return
-		}
-
-		//	quorum not reached, retry
 		select {
 		case <-ctx.Done():
 			// Stop signal received, exit
-			return
+			return errTimeoutExpired
 		case <-sub.SubCh:
-			continue
+			if !i.handleCommit(view) {
+				//	quorum not reached, retry
+				continue
+			}
+
+			return nil
 		}
 	}
 }
@@ -907,10 +900,6 @@ func (i *IBFT) runCommit(ctx context.Context) {
 // handleCommit parses available commit messages and performs
 // a transition to FIN state, if quorum was reached
 func (i *IBFT) handleCommit(view *proto.View) bool {
-	if i.state.getProposalMessage() == nil {
-		return false
-	}
-
 	isValidCommit := func(message *proto.Message) bool {
 		var (
 			proposalHash  = messages.ExtractCommitHash(message)
@@ -942,6 +931,17 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 	// Set the committed seals
 	i.state.setCommittedSeals(commitSeals)
 
+	//	Move to the fin state
+	i.state.changeState(fin)
+
+	return true
+}
+
+// runFin runs the fin state (block insertion)
+func (i *IBFT) runFin() {
+	i.log.Debug("enter: fin state")
+	defer i.log.Debug("exit: fin state")
+
 	// Insert the block to the node's underlying
 	// blockchain layer
 	i.backend.InsertProposal(
@@ -954,11 +954,9 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 
 	// Remove stale messages
 	i.messages.PruneByHeight(i.state.getHeight())
-
-	return true
 }
 
-// moveToNewRound changes round and resets state
+// moveToNewRound moves the state to the new round
 func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.setView(&proto.View{
 		Height: i.state.getHeight(),
@@ -967,7 +965,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 
 	i.state.setRoundStarted(false)
 	i.state.setProposalMessage(nil)
-	i.state.setCommitSent(false)
+	i.state.changeState(newRound)
 }
 
 func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Message {
@@ -1058,10 +1056,11 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 	)
 }
 
-// acceptProposal accepts the proposal and saves it into state
+// acceptProposal accepts the proposal and moves the state
 func (i *IBFT) acceptProposal(proposalMessage *proto.Message) {
-	//	accept newly proposed block
+	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposalMessage(proposalMessage)
+	i.state.changeState(prepare)
 }
 
 // AddMessage adds a new message to the IBFT message system
