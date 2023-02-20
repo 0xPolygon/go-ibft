@@ -1074,12 +1074,16 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 	if i.isAcceptableMessage(message) {
 		i.messages.AddMessage(message)
 
-		msgs := i.messages.GetValidMessages(
-			message.View,
-			message.Type,
-			func(_ *proto.Message) bool { return true })
-		if i.backend.HasQuorum(message.View.Height, msgs, message.Type) {
-			i.messages.SignalEvent(message)
+		// Signal event if the quorum is reached. Since the subscriptions refer to the state height,
+		// no need to call this if the message height is not equal to the state height
+		if message.View.Height == i.state.getHeight() {
+			msgs := i.messages.GetValidMessages(
+				message.View,
+				message.Type,
+				func(_ *proto.Message) bool { return true })
+			if i.backend.HasQuorum(message.View.Height, msgs, message.Type) {
+				i.messages.SignalEvent(message)
+			}
 		}
 	}
 }
@@ -1102,8 +1106,12 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 		return false
 	}
 
-	// Make sure the message round is >= the current state round
-	return message.View.Round >= i.state.getRound()
+	// Make sure if the heights are the same, the message round is >= the current state round
+	if i.state.getHeight() == message.View.Height {
+		return message.View.Round >= i.state.getRound()
+	}
+
+	return true
 }
 
 // ExtendRoundTimeout extends each round's timer by the specified amount.
