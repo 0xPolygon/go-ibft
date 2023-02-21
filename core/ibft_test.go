@@ -1117,54 +1117,80 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 
 	testTable := []struct {
 		name          string
-		view          *proto.View
-		currentView   *proto.View
+		msgView       *proto.View
+		stateView     *proto.View
 		invalidSender bool
 		acceptable    bool
 	}{
 		{
-			"invalid sender",
-			nil,
-			baseView,
-			true,
-			false,
+			name:          "invalid sender",
+			msgView:       nil,
+			stateView:     baseView,
+			invalidSender: true,
+			acceptable:    false,
 		},
 		{
-			"malformed message",
-			nil,
-			baseView,
-			false,
-			false,
+			name:          "malformed message",
+			msgView:       nil,
+			stateView:     baseView,
+			invalidSender: false,
+			acceptable:    false,
 		},
 		{
-			"higher height number",
-			&proto.View{
+			name: "higher height, same round number",
+			msgView: &proto.View{
 				Height: baseView.Height + 100,
 				Round:  baseView.Round,
 			},
-			baseView,
-			false,
-			true,
+			stateView:     baseView,
+			invalidSender: false,
+			acceptable:    true,
 		},
 		{
-			"higher round number",
-			&proto.View{
+			name: "higher height, lower round number",
+			msgView: &proto.View{
+				Height: baseView.Height + 100,
+				Round:  baseView.Round,
+			},
+			stateView: &proto.View{
 				Height: baseView.Height,
 				Round:  baseView.Round + 1,
 			},
-			baseView,
-			false,
-			true,
+			invalidSender: false,
+			acceptable:    true,
 		},
 		{
-			"lower height number",
-			baseView,
-			&proto.View{
+			name: "same heights, higher round number",
+			msgView: &proto.View{
+				Height: baseView.Height,
+				Round:  baseView.Round + 1,
+			},
+			stateView:     baseView,
+			invalidSender: false,
+			acceptable:    true,
+		},
+		{
+			name: "same heights, lower round number",
+			msgView: &proto.View{
+				Height: baseView.Height,
+				Round:  baseView.Round + 1,
+			},
+			stateView: &proto.View{
+				Height: baseView.Height,
+				Round:  baseView.Round + 2,
+			},
+			invalidSender: false,
+			acceptable:    false,
+		},
+		{
+			name:    "lower height number",
+			msgView: baseView,
+			stateView: &proto.View{
 				Height: baseView.Height + 1,
 				Round:  baseView.Round,
 			},
-			false,
-			false,
+			invalidSender: false,
+			acceptable:    false,
 		},
 	}
 
@@ -1184,10 +1210,10 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 				}
 			)
 			i := NewIBFT(log, backend, transport)
-			i.state.view = testCase.currentView
+			i.state.view = testCase.stateView
 
 			message := &proto.Message{
-				View: testCase.view,
+				View: testCase.msgView,
 			}
 
 			assert.Equal(t, testCase.acceptable, i.isAcceptableMessage(message))
