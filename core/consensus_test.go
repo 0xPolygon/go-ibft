@@ -124,10 +124,10 @@ func quorum(numNodes uint64) uint64 {
 	}
 }
 
-func commonHasQuorumFn(numNodes uint64) func(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+func commonHasQuorumFn(numNodes uint64) func(messages []*proto.Message, msgType proto.MessageType) bool {
 	quorum := quorum(numNodes)
 
-	return func(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
+	return func(messages []*proto.Message, msgType proto.MessageType) bool {
 		switch msgType {
 		case proto.MessageType_PREPREPARE:
 			return len(messages) >= 0

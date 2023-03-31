@@ -29,7 +29,7 @@ func (ms *Messages) Subscribe(details SubscriptionDetails) *Subscription {
 	// Check if any condition is already met
 	msgs := ms.GetValidMessages(details.View, details.MessageType, func(_ *proto.Message) bool { return true })
 
-	if details.HasQuorumFn(details.View.Height, msgs, details.MessageType) {
+	if details.HasQuorumFn(msgs, details.MessageType) {
 		ms.eventManager.signalEvent(details.MessageType, details.View)
 	}
 

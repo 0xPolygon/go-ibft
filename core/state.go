@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math/big"
 	"sync"
 
 	"github.com/0xPolygon/go-ibft/messages"
@@ -54,6 +55,14 @@ type state struct {
 	roundStarted bool
 
 	name stateType
+
+	// quorumSize represents quorum for the height specified in the current View
+	quorumSize *big.Int
+
+	// validatorsVotingPower is a map of the validator addresses on their voting power for
+	// the height specified in the current View
+	//TODO add address instead of string
+	validatorsVotingPower map[string]*big.Int
 }
 
 func (s *state) getView() *proto.View {
@@ -66,7 +75,7 @@ func (s *state) getView() *proto.View {
 	}
 }
 
-func (s *state) clear(height uint64) {
+func (s *state) reset(i *IBFT, height uint64) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -81,6 +90,8 @@ func (s *state) clear(height uint64) {
 		Height: height,
 		Round:  0,
 	}
+
+	return s.setQuorumData(i)
 }
 
 func (s *state) getLatestPC() *proto.PreparedCertificate {
@@ -218,4 +229,42 @@ func (s *state) finalizePrepare(
 
 	// Move to the commit state
 	s.name = commit
+}
+
+func (s *state) setQuorumData(i *IBFT) error {
+	var err error
+	if s.validatorsVotingPower, err = i.backend.GetVotingPower(s.view.Height); err != nil {
+		return err
+	}
+
+	totalVotingPower := calculateTotalVotingPower(s.validatorsVotingPower)
+	s.quorumSize = calculateQuorum(totalVotingPower)
+
+	return nil
+}
+
+func calculateQuorum(totalVotingPower *big.Int) *big.Int {
+	quorum := new(big.Int)
+	quorum.Mul(totalVotingPower, big.NewInt(2))
+
+	return BigIntDivCeil(quorum, big.NewInt(3))
+}
+
+func calculateTotalVotingPower(validatorsVotingPower map[string]*big.Int) *big.Int {
+	totalVotingPower := big.NewInt(0)
+	for _, validatorVotingPower := range validatorsVotingPower {
+		totalVotingPower = totalVotingPower.Add(totalVotingPower, validatorVotingPower)
+	}
+
+	return totalVotingPower
+}
+
+// BigIntDivCeil performs integer division and rounds given result to next bigger integer number
+// It is calculated using this formula result = (a + b - 1) / b
+func BigIntDivCeil(a, b *big.Int) *big.Int {
+	result := new(big.Int)
+
+	return result.Add(a, b).
+		Sub(result, big.NewInt(1)).
+		Div(result, b)
 }

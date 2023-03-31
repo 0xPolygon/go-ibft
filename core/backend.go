@@ -3,6 +3,8 @@
 package core
 
 import (
+	"math/big"
+
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
@@ -72,7 +74,7 @@ type Backend interface {
 	// ID returns the validator's ID
 	ID() []byte
 
-	// HasQuorum returns true if the quorum is reached
+	// GetVotingPower returns map of validators addresses and their voting powers
 	// for the specified height.
-	HasQuorum(height uint64, msgs []*proto.Message, msgType proto.MessageType) bool
+	GetVotingPower(height uint64) (map[string]*big.Int, error)
 }

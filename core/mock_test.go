@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,7 +63,8 @@ type buildRoundChangeMessageDelegate func(
 
 type insertProposalDelegate func(*proto.Proposal, []*messages.CommittedSeal)
 type idDelegate func() []byte
-type hasQuorumDelegate func(uint64, []*proto.Message, proto.MessageType) bool
+type hasQuorumDelegate func([]*proto.Message, proto.MessageType) bool
+type getVotingPowerDelegate func(uint64) (map[string]*big.Int, error)
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -80,6 +82,7 @@ type mockBackend struct {
 	insertProposalFn          insertProposalDelegate
 	idFn                      idDelegate
 	hasQuorumFn               hasQuorumDelegate
+	getVotingPowerFn          getVotingPowerDelegate
 }
 
 func (m mockBackend) ID() []byte {
@@ -193,10 +196,18 @@ func (m mockBackend) BuildRoundChangeMessage(
 
 func (m mockBackend) HasQuorum(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
 	if m.hasQuorumFn != nil {
-		return m.hasQuorumFn(height, messages, msgType)
+		return m.hasQuorumFn(messages, msgType)
 	}
 
 	return true
+}
+
+func (m mockBackend) GetVotingPower(height uint64) (map[string]*big.Int, error) {
+	if m.getVotingPowerFn != nil {
+		return m.getVotingPowerFn(height)
+	}
+
+	return map[string]*big.Int{}, nil
 }
 
 // Define delegation methods
