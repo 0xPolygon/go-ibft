@@ -63,8 +63,9 @@ type buildRoundChangeMessageDelegate func(
 
 type insertProposalDelegate func(*proto.Proposal, []*messages.CommittedSeal)
 type idDelegate func() []byte
-type hasQuorumDelegate func([]*proto.Message, proto.MessageType) bool
 type getVotingPowerDelegate func(uint64) (map[string]*big.Int, error)
+
+var _ Backend = &mockBackend{}
 
 // mockBackend is the mock backend structure that is configurable
 type mockBackend struct {
@@ -81,7 +82,6 @@ type mockBackend struct {
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
 	insertProposalFn          insertProposalDelegate
 	idFn                      idDelegate
-	hasQuorumFn               hasQuorumDelegate
 	getVotingPowerFn          getVotingPowerDelegate
 }
 
@@ -192,14 +192,6 @@ func (m mockBackend) BuildRoundChangeMessage(
 		Type:    proto.MessageType_ROUND_CHANGE,
 		Payload: nil,
 	}
-}
-
-func (m mockBackend) HasQuorum(height uint64, messages []*proto.Message, msgType proto.MessageType) bool {
-	if m.hasQuorumFn != nil {
-		return m.hasQuorumFn(messages, msgType)
-	}
-
-	return true
 }
 
 func (m mockBackend) GetVotingPower(height uint64) (map[string]*big.Int, error) {

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"math/big"
 	"math/rand"
 	"sync"
 	"time"
@@ -209,10 +211,6 @@ func (c *cluster) addresses() [][]byte {
 	return addresses
 }
 
-func (c *cluster) hasQuorumFn(messages []*proto.Message, msgType proto.MessageType) bool {
-	return commonHasQuorumFn(uint64(len(c.nodes)))(messages, msgType)
-}
-
 func (c *cluster) isProposer(
 	from []byte,
 	height,
@@ -257,5 +255,41 @@ func (c *cluster) stopN(num int) {
 func (c *cluster) startN(num int) {
 	for i := 0; i < num; i++ {
 		c.nodes[i].offline = false
+	}
+}
+
+func testCommonGetVotingPowertFn(nodes [][]byte) func(u uint64) (map[string]*big.Int, error) {
+	return func(u uint64) (map[string]*big.Int, error) {
+		result := map[string]*big.Int{}
+
+		for _, x := range nodes {
+			result[string(x)] = big.NewInt(1)
+		}
+
+		return result, nil
+	}
+}
+
+func testCommonGetVotingPowertFnForCnt(nodesCnt int) func(u uint64) (map[string]*big.Int, error) {
+	return func(u uint64) (map[string]*big.Int, error) {
+		result := map[string]*big.Int{}
+
+		for i := 0; i < nodesCnt; i++ {
+			result[fmt.Sprintf("%d", i)] = big.NewInt(1)
+		}
+
+		return result, nil
+	}
+}
+
+func testCommonGetVotingPowertFnForNodes(nodes []*node) func(u uint64) (map[string]*big.Int, error) {
+	return func(u uint64) (map[string]*big.Int, error) {
+		result := map[string]*big.Int{}
+
+		for _, x := range nodes {
+			result[string(x.address)] = big.NewInt(1)
+		}
+
+		return result, nil
 	}
 }

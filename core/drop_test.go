@@ -47,7 +47,7 @@ func TestDropAllAndRecover(t *testing.T) {
 						insertProposalFn: func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 							insertedBlocks[i] = proposal.RawProposal
 						},
-						hasQuorumFn: c.hasQuorumFn,
+						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 					&mockTransport{multicastFn: func(message *proto.Message) {
 						if currentNode.offline {
@@ -128,7 +128,7 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
 						insertProposalFn: nil,
-						hasQuorumFn:      c.hasQuorumFn,
+						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 					&mockTransport{multicastFn: func(message *proto.Message) {
 						if currentNode.faulty && rand.Intn(100) < 50 {
@@ -181,7 +181,7 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 						insertProposalFn: func(proposal *proto.Proposal, _ []*messages.CommittedSeal) {
 							insertedBlocks[nodeIndex] = proposal.RawProposal
 						},
-						hasQuorumFn: c.hasQuorumFn,
+						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 					&mockTransport{multicastFn: func(msg *proto.Message) {
 						if !currentNode.offline {
@@ -246,7 +246,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
 						insertProposalFn: nil,
-						hasQuorumFn:      c.hasQuorumFn,
+						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 
 					&mockTransport{multicastFn: c.gossip},
@@ -304,7 +304,7 @@ func TestDropMaxFaulty(t *testing.T) {
 						buildRoundChangeMessageFn: node.buildRoundChange,
 
 						insertProposalFn: nil,
-						hasQuorumFn:      c.hasQuorumFn,
+						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 
 					&mockTransport{multicastFn: c.gossip},
