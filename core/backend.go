@@ -74,7 +74,7 @@ type Backend interface {
 	// ID returns the validator's ID
 	ID() []byte
 
-	// GetVotingPower returns map of validators addresses and their voting powers
+	// GetVotingPowers returns map of validators addresses and their voting powers
 	// for the specified height.
-	GetVotingPower(height uint64) (map[string]*big.Int, error)
+	GetVotingPowers(height uint64) (map[string]*big.Int, error)
 }

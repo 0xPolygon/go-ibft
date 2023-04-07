@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math/big"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
@@ -332,7 +332,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 						return true
 					},
-					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 					buildProposalFn: func(_ uint64) []byte {
 						return correctRoundMessage.proposal.GetRawProposal()
 					},
@@ -438,7 +438,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			quorum := uint64(4)
 			ctx, cancelFn := context.WithCancel(context.Background())
 
-			roundChangeMessages := generateMessages(quorum, proto.MessageType_ROUND_CHANGE)
+			roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
 			prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
 
 			for index, message := range prepareMessages {
@@ -499,7 +499,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 						return bytes.Equal(proposerID, proposer)
 					},
-					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 					buildProposalFn: func(_ uint64) []byte {
 						return proposal
 					},
@@ -569,6 +569,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
+			votingPowers, _ := i.backend.GetVotingPowers(0)
+			require.NoError(t, i.validatorManager.Init(votingPowers))
 			i.messages = messages
 			i.state.setView(&proto.View{
 				Height: 0,
@@ -792,7 +794,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 					idFn: func() []byte {
 						return []byte("non proposer")
 					},
-					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
 						return &proto.Message{
 							View: view,
@@ -837,6 +839,8 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
+			votingPowers, _ := i.backend.GetVotingPowers(0)
+			require.NoError(t, i.validatorManager.Init(votingPowers))
 			i.messages = messages
 			i.state.setView(&proto.View{
 				Height: 0,
@@ -927,6 +931,7 @@ func TestRunPrepare(t *testing.T) {
 											ProposalHash: correctRoundMessage.hash,
 										},
 									},
+									From: []byte("node 0"),
 								},
 							},
 							isValid,
@@ -936,6 +941,8 @@ func TestRunPrepare(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
+			votingPowers, _ := i.backend.GetVotingPowers(0)
+			require.NoError(t, i.validatorManager.Init(votingPowers))
 			i.state.name = prepare
 			i.state.roundStarted = true
 			i.state.proposalMessage = &proto.Message{
@@ -981,7 +988,7 @@ func TestRunCommit(t *testing.T) {
 			var (
 				wg sync.WaitGroup
 
-				signer                                           = []byte("signer")
+				signer                                           = []byte("node 0")
 				insertedProposal       []byte                    = nil
 				insertedCommittedSeals []*messages.CommittedSeal = nil
 				committedSeals                                   = []*messages.CommittedSeal{
@@ -1038,6 +1045,8 @@ func TestRunCommit(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
+			votingPowers, _ := i.backend.GetVotingPowers(0)
+			require.NoError(t, i.validatorManager.Init(votingPowers))
 			i.messages = messages
 			i.state.proposalMessage = &proto.Message{
 				Payload: &proto.Message_PreprepareData{
@@ -1429,7 +1438,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 
 						return false
 					},
-					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				}
 				transport = mockTransport{}
 				mMessages = mockMessages{
@@ -1455,6 +1464,8 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
+			votingPowers, _ := i.backend.GetVotingPowers(0)
+			require.NoError(t, i.validatorManager.Init(votingPowers))
 			i.messages = mMessages
 
 			wg.Add(1)
@@ -1550,7 +1561,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 		)
 
@@ -1573,7 +1584,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 		)
 
@@ -1598,7 +1609,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 		)
 
@@ -1627,7 +1638,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 		)
 
@@ -1654,7 +1665,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 		)
 
@@ -1685,7 +1696,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 		)
 
@@ -1721,7 +1732,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return !bytes.Equal(proposer, sender)
 				},
@@ -1763,7 +1774,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return !bytes.Equal(proposer, sender)
 				},
@@ -1806,7 +1817,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return !bytes.Equal(proposer, sender)
 				},
@@ -1845,7 +1856,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
@@ -1888,7 +1899,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
@@ -1931,7 +1942,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return true
 				},
@@ -1970,7 +1981,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			log       = mockLogger{}
 			transport = mockTransport{}
 			backend   = mockBackend{
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
@@ -1981,6 +1992,8 @@ func TestIBFT_ValidPC(t *testing.T) {
 		)
 
 		i := NewIBFT(log, backend, transport)
+		votingPowers, _ := i.backend.GetVotingPowers(0)
+		require.NoError(t, i.validatorManager.Init(votingPowers))
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -2209,7 +2222,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				isProposerFn: func(_ []byte, _ uint64, _ uint64) bool {
 					return true
 				},
-				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+				getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			}
 			transport = mockTransport{}
 		)
@@ -2401,7 +2414,7 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 		log       = mockLogger{}
 		transport = mockTransport{}
 		backend   = mockBackend{
-			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 			isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 				return bytes.Equal(proposer, []byte("unique node"))
 			},
@@ -2448,6 +2461,9 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	)
 
 	i := NewIBFT(log, backend, transport)
+	votingPowers, _ := i.backend.GetVotingPowers(0)
+	require.NoError(t, i.validatorManager.Init(votingPowers))
+
 	i.messages = messages
 
 	ctx, cancelFn := context.WithCancel(context.Background())
@@ -2519,7 +2535,7 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 
 		log     = mockLogger{}
 		backend = mockBackend{
-			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 		}
 		transport = mockTransport{}
 	)
@@ -2579,7 +2595,7 @@ func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
 
 		log     = mockLogger{}
 		backend = mockBackend{
-			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(int(quorum)),
+			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
 		}
 		transport = mockTransport{}
 	)
@@ -2689,13 +2705,11 @@ func TestIBFT_AddMessage(t *testing.T) {
 		validMsgType = proto.MessageType_PREPREPARE
 	)
 
-	var validSender = []byte{1, 2, 3}
+	var validSender = []byte("node 0")
 
 	executeTest := func(
-		msg *proto.Message,
-		hasQuorum, shouldAddMessageCalled, shouldHasQuorumCalled, shouldSignalEventCalled bool) {
+		msg *proto.Message, shouldAddMessageCalled, shouldSignalEventCalled bool, quorumSize uint64) {
 		var (
-			hasQuorumCalled   = false
 			signalEventCalled = false
 			addMessageCalled  = false
 			log               = mockLogger{}
@@ -2708,12 +2722,14 @@ func TestIBFT_AddMessage(t *testing.T) {
 			return bytes.Equal(m.From, validSender)
 		}
 
-		backend.getVotingPowerFn = func(u uint64) (map[string]*big.Int, error) {
-			hasQuorumCalled = true
+		backend.getVotingPowerFn = testCommonGetVotingPowertFnForCnt(quorumSize)
 
-			assert.Equal(t, validHeight, u)
-
-			return testCommonGetVotingPowertFnForCnt(len(validSender))(u)
+		messages.getValidMessagesFn = func(
+			view *proto.View,
+			messageType proto.MessageType,
+			isValid func(message *proto.Message) bool,
+		) []*proto.Message {
+			return []*proto.Message{msg}
 		}
 
 		messages.addMessageFn = func(m *proto.Message) {
@@ -2727,20 +2743,21 @@ func TestIBFT_AddMessage(t *testing.T) {
 		}
 
 		i := NewIBFT(log, backend, transport)
+		votingPowers, _ := i.backend.GetVotingPowers(0)
+		require.NoError(t, i.validatorManager.Init(votingPowers))
 		i.messages = messages
 		i.state.view = &proto.View{Height: validHeight, Round: validRound}
 
 		i.AddMessage(msg)
 
 		assert.Equal(t, shouldAddMessageCalled, addMessageCalled)
-		assert.Equal(t, shouldHasQuorumCalled, hasQuorumCalled)
 		assert.Equal(t, shouldSignalEventCalled, signalEventCalled)
 	}
 
 	t.Run("nil message case", func(t *testing.T) {
 		t.Parallel()
 
-		executeTest(nil, true, false, false, false)
+		executeTest(nil, false, false, 1)
 	})
 
 	t.Run("!isAcceptableMessage - invalid sender", func(t *testing.T) {
@@ -2750,7 +2767,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			View: &proto.View{Height: validHeight, Round: validRound},
 			Type: validMsgType,
 		}
-		executeTest(msg, true, false, false, false)
+		executeTest(msg, false, false, 1)
 	})
 
 	t.Run("!isAcceptableMessage - invalid view", func(t *testing.T) {
@@ -2760,7 +2777,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			From: validSender,
 			Type: validMsgType,
 		}
-		executeTest(msg, true, false, false, false)
+		executeTest(msg, false, false, 1)
 	})
 
 	t.Run("!isAcceptableMessage - invalid height", func(t *testing.T) {
@@ -2771,7 +2788,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			Type: validMsgType,
 			View: &proto.View{Height: validHeight - 1, Round: validRound},
 		}
-		executeTest(msg, true, false, false, false)
+		executeTest(msg, false, false, 1)
 	})
 
 	t.Run("!isAcceptableMessage - invalid round", func(t *testing.T) {
@@ -2782,7 +2799,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			Type: validMsgType,
 			View: &proto.View{Height: validHeight, Round: validRound - 1},
 		}
-		executeTest(msg, true, false, false, false)
+		executeTest(msg, false, false, 1)
 	})
 
 	t.Run("correct - but quorum not reached", func(t *testing.T) {
@@ -2790,10 +2807,10 @@ func TestIBFT_AddMessage(t *testing.T) {
 
 		msg := &proto.Message{
 			From: validSender,
-			Type: validMsgType,
+			Type: proto.MessageType_PREPARE,
 			View: &proto.View{Height: validHeight, Round: validRound},
 		}
-		executeTest(msg, false, true, true, false)
+		executeTest(msg, true, false, 2)
 	})
 
 	t.Run("correct - quorum reached", func(t *testing.T) {
@@ -2804,6 +2821,6 @@ func TestIBFT_AddMessage(t *testing.T) {
 			Type: validMsgType,
 			View: &proto.View{Height: validHeight, Round: validRound},
 		}
-		executeTest(msg, true, true, true, true)
+		executeTest(msg, true, true, 1)
 	})
 }

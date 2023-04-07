@@ -270,12 +270,12 @@ func testCommonGetVotingPowertFn(nodes [][]byte) func(u uint64) (map[string]*big
 	}
 }
 
-func testCommonGetVotingPowertFnForCnt(nodesCnt int) func(u uint64) (map[string]*big.Int, error) {
+func testCommonGetVotingPowertFnForCnt(nodesCnt uint64) func(u uint64) (map[string]*big.Int, error) {
 	return func(u uint64) (map[string]*big.Int, error) {
 		result := map[string]*big.Int{}
 
-		for i := 0; i < nodesCnt; i++ {
-			result[fmt.Sprintf("%d", i)] = big.NewInt(1)
+		for i := 0; i < int(nodesCnt); i++ {
+			result[fmt.Sprintf("node %d", i)] = big.NewInt(1)
 		}
 
 		return result, nil

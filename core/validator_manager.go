@@ -66,8 +66,6 @@ func (vm *ValidatorManager) HasQuorum(addressMap map[string]struct{}) bool {
 
 // HasPrepareQuorum provides information on whether prepared messages have reached the quorum
 func (vm *ValidatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
-	// TODO get proposer from the backend for the specific round and height
-	// or expect that the proposal is accepted and that the right one??
 	if proposalMessage == nil {
 		vm.log.Info("HasPrepareQuorum - proposalMessage is not set")
 

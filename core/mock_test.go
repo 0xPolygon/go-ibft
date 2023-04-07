@@ -194,7 +194,7 @@ func (m mockBackend) BuildRoundChangeMessage(
 	}
 }
 
-func (m mockBackend) GetVotingPower(height uint64) (map[string]*big.Int, error) {
+func (m mockBackend) GetVotingPowers(height uint64) (map[string]*big.Int, error) {
 	if m.getVotingPowerFn != nil {
 		return m.getVotingPowerFn(height)
 	}

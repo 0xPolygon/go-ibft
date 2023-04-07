@@ -101,6 +101,7 @@ type IBFT struct {
 	// state modification routines
 	wg sync.WaitGroup
 
+	// validatorManager keeps quorumSize and voting power information
 	validatorManager *ValidatorManager
 }
 
@@ -296,7 +297,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	i.state.reset(h)
 
 	// init validator manager
-	votingPowerMap, err := i.backend.GetVotingPower(h)
+	votingPowerMap, err := i.backend.GetVotingPowers(h)
 	if err != nil {
 		i.log.Error("failed to run sequence get voting power", "height", h, "error", err)
 
