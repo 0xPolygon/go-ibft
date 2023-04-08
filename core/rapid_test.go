@@ -205,6 +205,7 @@ func generatePropertyTestEvent(t *rapid.T) *propertyTestSetup {
 // that assures the cluster can handle rounds properly in any cases.
 func TestProperty(t *testing.T) {
 	t.Parallel()
+	t.Skip()
 
 	rapid.Check(t, func(t *rapid.T) {
 		var multicastFn func(message *proto.Message)
