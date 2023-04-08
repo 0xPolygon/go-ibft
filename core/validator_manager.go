@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"math/big"
+	"sync"
 
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
@@ -14,6 +15,8 @@ var (
 
 // ValidatorManager keeps voting power and other informations about validators
 type ValidatorManager struct {
+	vpLock *sync.RWMutex
+
 	// quorumSize represents quorum for the height specified in the current View
 	quorumSize *big.Int
 
@@ -30,11 +33,15 @@ func NewValidatorManager(log Logger) *ValidatorManager {
 		quorumSize:            big.NewInt(0),
 		validatorsVotingPower: nil,
 		log:                   log,
+		vpLock:                &sync.RWMutex{},
 	}
 }
 
 // Init sets voting power and quorum size
 func (vm *ValidatorManager) Init(validatorsVotingPower map[string]*big.Int) error {
+	vm.vpLock.Lock()
+	defer vm.vpLock.Unlock()
+
 	totalVotingPower := calculateTotalVotingPower(validatorsVotingPower)
 	if totalVotingPower.Cmp(big.NewInt(0)) <= 0 {
 		return errVotingPowerNotCorrect
@@ -48,6 +55,9 @@ func (vm *ValidatorManager) Init(validatorsVotingPower map[string]*big.Int) erro
 
 // HasQuorum provides information on whether messages have reached the quorum
 func (vm *ValidatorManager) HasQuorum(addressMap map[string]struct{}) bool {
+	vm.vpLock.RLock()
+	defer vm.vpLock.RUnlock()
+
 	// if not initialized correctly return false
 	if vm.validatorsVotingPower == nil {
 		return false
