@@ -19,8 +19,8 @@ type ValidatorBackend interface {
 	GetVotingPowers(height uint64) (map[string]*big.Int, error)
 }
 
-// validatorManager keeps voting power and other information about validators
-type validatorManager struct {
+// ValidatorManager keeps voting power and other information about validators
+type ValidatorManager struct {
 	vpLock *sync.RWMutex
 
 	// quorumSize represents quorum for the height specified in the current View
@@ -35,9 +35,9 @@ type validatorManager struct {
 	log Logger
 }
 
-// newValidatorManager creates new ValidatorManager
-func newValidatorManager(backend ValidatorBackend, log Logger) *validatorManager {
-	return &validatorManager{
+// NewValidatorManager creates new ValidatorManager
+func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager {
+	return &ValidatorManager{
 		quorumSize:            big.NewInt(0),
 		backend:               backend,
 		validatorsVotingPower: nil,
@@ -46,8 +46,8 @@ func newValidatorManager(backend ValidatorBackend, log Logger) *validatorManager
 	}
 }
 
-// init sets voting power and quorum size
-func (vm *validatorManager) init(height uint64) error {
+// Init sets voting power and quorum size
+func (vm *ValidatorManager) Init(height uint64) error {
 	vm.vpLock.Lock()
 	defer vm.vpLock.Unlock()
 
@@ -67,8 +67,8 @@ func (vm *validatorManager) init(height uint64) error {
 	return nil
 }
 
-// hasQuorum provides information on whether messages have reached the quorum
-func (vm *validatorManager) hasQuorum(sendersAddrs map[string]struct{}) bool {
+// HasQuorum provides information on whether messages have reached the quorum
+func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 	vm.vpLock.RLock()
 	defer vm.vpLock.RUnlock()
 
@@ -88,8 +88,8 @@ func (vm *validatorManager) hasQuorum(sendersAddrs map[string]struct{}) bool {
 	return messageVotePower.Cmp(vm.quorumSize) >= 0
 }
 
-// hasPrepareQuorum provides information on whether prepared messages have reached the quorum
-func (vm *validatorManager) hasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
+// HasPrepareQuorum provides information on whether prepared messages have reached the quorum
+func (vm *ValidatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
 	if proposalMessage == nil {
 		vm.log.Error("HasPrepareQuorum - proposalMessage is not set")
 
@@ -111,7 +111,7 @@ func (vm *validatorManager) hasPrepareQuorum(proposalMessage *proto.Message, msg
 		sendersAddressesMap[string(message.From)] = struct{}{}
 	}
 
-	return vm.hasQuorum(sendersAddressesMap)
+	return vm.HasQuorum(sendersAddressesMap)
 }
 
 func calculateQuorum(totalVotingPower *big.Int) *big.Int {
