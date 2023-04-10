@@ -66,7 +66,7 @@ func (s *state) getView() *proto.View {
 	}
 }
 
-func (s *state) clear(height uint64) {
+func (s *state) reset(height uint64) {
 	s.Lock()
 	defer s.Unlock()
 

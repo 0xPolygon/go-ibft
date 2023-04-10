@@ -27,7 +27,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadHashPrePrepareMessageFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -60,7 +60,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withProposerFn(c.isProposer)
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrepareMessageFn(createBadHashPrepareMessageFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -94,7 +94,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadRoundPrePrepareMessageFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -129,7 +129,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withProposerFn(createForcedRCProposerFn(c))
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -164,7 +164,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadRoundPrePrepareMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -199,7 +199,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrePrepareMessageFn(createBadHashPrePrepareMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -234,7 +234,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildPrepareMessageFn(createBadHashPrepareMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -269,7 +269,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					backendBuilder.withIDFn(currentNode.addr)
 					backendBuilder.withBuildCommitMessageFn(createBadCommitMessageFn(currentNode))
 					backendBuilder.withBuildRoundChangeMessageFn(createBadRoundRoundChangeFn(currentNode))
-					backendBuilder.withHasQuorumFn(c.hasQuorumFn)
+					backendBuilder.withGetVotingPowerFn(testCommonGetVotingPowertFnForNodes(c.nodes))
 
 					node.core = NewIBFT(
 						mockLogger{},
@@ -400,7 +400,7 @@ type mockBackendBuilder struct {
 	buildCommitMessageFn      buildCommitMessageDelegate
 	buildRoundChangeMessageFn buildRoundChangeMessageDelegate
 
-	hasQuorumFn hasQuorumDelegate
+	getVotingPowerFn getVotingPowerDelegate
 }
 
 func (b *mockBackendBuilder) withProposerFn(f isProposerDelegate) {
@@ -427,8 +427,8 @@ func (b *mockBackendBuilder) withIDFn(f idDelegate) {
 	b.idFn = f
 }
 
-func (b *mockBackendBuilder) withHasQuorumFn(f hasQuorumDelegate) {
-	b.hasQuorumFn = f
+func (b *mockBackendBuilder) withGetVotingPowerFn(f getVotingPowerDelegate) {
+	b.getVotingPowerFn = f
 }
 
 func (b *mockBackendBuilder) build(node *node) *mockBackend {
@@ -462,6 +462,6 @@ func (b *mockBackendBuilder) build(node *node) *mockBackend {
 		buildCommitMessageFn:      b.buildCommitMessageFn,
 		buildRoundChangeMessageFn: b.buildRoundChangeMessageFn,
 		insertProposalFn:          nil,
-		hasQuorumFn:               b.hasQuorumFn,
+		getVotingPowerFn:          b.getVotingPowerFn,
 	}
 }

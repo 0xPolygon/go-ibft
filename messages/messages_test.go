@@ -391,9 +391,6 @@ func TestMessages_EventManager(t *testing.T) {
 	subscription := messages.Subscribe(SubscriptionDetails{
 		MessageType: messageType,
 		View:        baseView,
-		HasQuorumFn: func(_ uint64, messages []*proto.Message, _ proto.MessageType) bool {
-			return len(messages) >= numMessages
-		},
 	})
 
 	defer messages.Unsubscribe(subscription.ID)
