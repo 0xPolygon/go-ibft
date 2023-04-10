@@ -13,7 +13,13 @@ var (
 	errVotingPowerNotCorrect = errors.New("total voting power is zero or less")
 )
 
-// ValidatorManager keeps voting power and other informations about validators
+// ValidatorBackend defines interface that has GetVotingPower
+type ValidatorBackend interface {
+	// GetVotingPowers returns map of validators addresses and their voting powers for the specified height.
+	GetVotingPowers(height uint64) (map[string]*big.Int, error)
+}
+
+// ValidatorManager keeps voting power and other information about validators
 type ValidatorManager struct {
 	vpLock *sync.RWMutex
 
@@ -24,13 +30,16 @@ type ValidatorManager struct {
 	// the height specified in the current View
 	validatorsVotingPower map[string]*big.Int
 
+	backend ValidatorBackend
+
 	log Logger
 }
 
 // NewValidatorManager creates new ValidatorManager
-func NewValidatorManager(log Logger) *ValidatorManager {
+func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager {
 	return &ValidatorManager{
 		quorumSize:            big.NewInt(0),
+		backend:               backend,
 		validatorsVotingPower: nil,
 		log:                   log,
 		vpLock:                &sync.RWMutex{},
@@ -38,9 +47,14 @@ func NewValidatorManager(log Logger) *ValidatorManager {
 }
 
 // Init sets voting power and quorum size
-func (vm *ValidatorManager) Init(validatorsVotingPower map[string]*big.Int) error {
+func (vm *ValidatorManager) Init(height uint64) error {
 	vm.vpLock.Lock()
 	defer vm.vpLock.Unlock()
+
+	validatorsVotingPower, err := vm.backend.GetVotingPowers(height)
+	if err != nil {
+		return err
+	}
 
 	totalVotingPower := calculateTotalVotingPower(validatorsVotingPower)
 	if totalVotingPower.Cmp(big.NewInt(0)) <= 0 {
@@ -54,7 +68,7 @@ func (vm *ValidatorManager) Init(validatorsVotingPower map[string]*big.Int) erro
 }
 
 // HasQuorum provides information on whether messages have reached the quorum
-func (vm *ValidatorManager) HasQuorum(addressMap map[string]struct{}) bool {
+func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 	vm.vpLock.RLock()
 	defer vm.vpLock.RUnlock()
 
@@ -65,7 +79,7 @@ func (vm *ValidatorManager) HasQuorum(addressMap map[string]struct{}) bool {
 
 	messageVotePower := big.NewInt(0)
 
-	for from := range addressMap {
+	for from := range sendersAddrs {
 		if vote, ok := vm.validatorsVotingPower[from]; ok {
 			messageVotePower.Add(messageVotePower, vote)
 		}
@@ -77,7 +91,7 @@ func (vm *ValidatorManager) HasQuorum(addressMap map[string]struct{}) bool {
 // HasPrepareQuorum provides information on whether prepared messages have reached the quorum
 func (vm *ValidatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
 	if proposalMessage == nil {
-		vm.log.Info("HasPrepareQuorum - proposalMessage is not set")
+		vm.log.Error("HasPrepareQuorum - proposalMessage is not set")
 
 		return false
 	}
@@ -89,7 +103,7 @@ func (vm *ValidatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msg
 
 	for _, message := range msgs {
 		if bytes.Equal(message.From, proposerAddress) {
-			vm.log.Info("HasPrepareQuorum - proposer is among signers but it is not expected to be")
+			vm.log.Error("HasPrepareQuorum - proposer is among signers but it is not expected to be")
 
 			return false
 		}
@@ -125,8 +139,8 @@ func bigIntDivCeil(a, b *big.Int) *big.Int {
 		Div(result, b)
 }
 
-// ConvertMessageToAddressSet converts messages slice to addresses map
-func ConvertMessageToAddressSet(messages []*proto.Message) map[string]struct{} {
+// convertMessageToAddressSet converts messages slice to addresses map
+func convertMessageToAddressSet(messages []*proto.Message) map[string]struct{} {
 	result := make(map[string]struct{}, len(messages))
 
 	for _, x := range messages {

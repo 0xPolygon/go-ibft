@@ -130,7 +130,7 @@ func NewIBFT(
 			name:         newRound,
 		},
 		baseRoundTimeout: round0Timeout,
-		validatorManager: NewValidatorManager(log),
+		validatorManager: NewValidatorManager(backend, log),
 	}
 }
 
@@ -296,16 +296,8 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	// Set the starting state data
 	i.state.reset(h)
 
-	// init validator manager
-	votingPowerMap, err := i.backend.GetVotingPowers(h)
-	if err != nil {
-		i.log.Error("failed to run sequence get voting power", "height", h, "error", err)
-
-		return
-	}
-
-	if err := i.validatorManager.Init(votingPowerMap); err != nil {
-		i.log.Error("failed to run sequence - set quorum data", "height", h, "error", err)
+	if err := i.validatorManager.Init(h); err != nil {
+		i.log.Error("failed to run sequence - validator manager init", "height", h, "error", err)
 
 		return
 	}
@@ -1158,7 +1150,7 @@ func (i *IBFT) validPC(
 
 	// Make sure there are at least Quorum (PP + P) messages
 	// hasQuorum directly since the messages are of different types
-	if !i.validatorManager.HasQuorum(ConvertMessageToAddressSet(allMessages)) {
+	if !i.validatorManager.HasQuorum(convertMessageToAddressSet(allMessages)) {
 		return false
 	}
 
@@ -1269,7 +1261,7 @@ func (i *IBFT) hasQuorumByMsgType(msgs []*proto.Message, msgType proto.MessageTy
 	case proto.MessageType_PREPARE:
 		return i.validatorManager.HasPrepareQuorum(i.state.getProposalMessage(), msgs)
 	case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
-		return i.validatorManager.HasQuorum(ConvertMessageToAddressSet(msgs))
+		return i.validatorManager.HasQuorum(convertMessageToAddressSet(msgs))
 	default:
 		return false
 	}

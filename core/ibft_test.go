@@ -569,8 +569,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			votingPowers, _ := i.backend.GetVotingPowers(0)
-			require.NoError(t, i.validatorManager.Init(votingPowers))
+			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
 			i.state.setView(&proto.View{
 				Height: 0,
@@ -839,8 +838,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			votingPowers, _ := i.backend.GetVotingPowers(0)
-			require.NoError(t, i.validatorManager.Init(votingPowers))
+			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
 			i.state.setView(&proto.View{
 				Height: 0,
@@ -941,8 +939,7 @@ func TestRunPrepare(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			votingPowers, _ := i.backend.GetVotingPowers(0)
-			require.NoError(t, i.validatorManager.Init(votingPowers))
+			require.NoError(t, i.validatorManager.Init(0))
 			i.state.name = prepare
 			i.state.roundStarted = true
 			i.state.proposalMessage = &proto.Message{
@@ -1045,8 +1042,7 @@ func TestRunCommit(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			votingPowers, _ := i.backend.GetVotingPowers(0)
-			require.NoError(t, i.validatorManager.Init(votingPowers))
+			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
 			i.state.proposalMessage = &proto.Message{
 				Payload: &proto.Message_PreprepareData{
@@ -1464,8 +1460,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			)
 
 			i := NewIBFT(log, backend, transport)
-			votingPowers, _ := i.backend.GetVotingPowers(0)
-			require.NoError(t, i.validatorManager.Init(votingPowers))
+			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = mMessages
 
 			wg.Add(1)
@@ -1992,9 +1987,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		)
 
 		i := NewIBFT(log, backend, transport)
-		votingPowers, _ := i.backend.GetVotingPowers(0)
-		require.NoError(t, i.validatorManager.Init(votingPowers))
-
+		require.NoError(t, i.validatorManager.Init(0))
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
 		certificate := &proto.PreparedCertificate{
@@ -2461,8 +2454,7 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 	)
 
 	i := NewIBFT(log, backend, transport)
-	votingPowers, _ := i.backend.GetVotingPowers(0)
-	require.NoError(t, i.validatorManager.Init(votingPowers))
+	require.NoError(t, i.validatorManager.Init(uint64(0)))
 
 	i.messages = messages
 
@@ -2743,8 +2735,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 		}
 
 		i := NewIBFT(log, backend, transport)
-		votingPowers, _ := i.backend.GetVotingPowers(0)
-		require.NoError(t, i.validatorManager.Init(votingPowers))
+		require.NoError(t, i.validatorManager.Init(0))
 		i.messages = messages
 		i.state.view = &proto.View{Height: validHeight, Round: validRound}
 

@@ -3,8 +3,6 @@
 package core
 
 import (
-	"math/big"
-
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
@@ -62,6 +60,7 @@ type Verifier interface {
 type Backend interface {
 	MessageConstructor
 	Verifier
+	ValidatorBackend
 
 	// BuildProposal builds a new proposal for the given view (height and round)
 	BuildProposal(view *proto.View) []byte
@@ -73,8 +72,4 @@ type Backend interface {
 
 	// ID returns the validator's ID
 	ID() []byte
-
-	// GetVotingPowers returns map of validators addresses and their voting powers
-	// for the specified height.
-	GetVotingPowers(height uint64) (map[string]*big.Int, error)
 }
