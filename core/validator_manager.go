@@ -35,8 +35,8 @@ type validatorManager struct {
 	log Logger
 }
 
-// NewValidatorManager creates new ValidatorManager
-func NewValidatorManager(backend ValidatorBackend, log Logger) *validatorManager {
+// newValidatorManager creates new ValidatorManager
+func newValidatorManager(backend ValidatorBackend, log Logger) *validatorManager {
 	return &validatorManager{
 		quorumSize:            big.NewInt(0),
 		backend:               backend,
@@ -46,8 +46,8 @@ func NewValidatorManager(backend ValidatorBackend, log Logger) *validatorManager
 	}
 }
 
-// Init sets voting power and quorum size
-func (vm *validatorManager) Init(height uint64) error {
+// init sets voting power and quorum size
+func (vm *validatorManager) init(height uint64) error {
 	vm.vpLock.Lock()
 	defer vm.vpLock.Unlock()
 
@@ -67,8 +67,8 @@ func (vm *validatorManager) Init(height uint64) error {
 	return nil
 }
 
-// HasQuorum provides information on whether messages have reached the quorum
-func (vm *validatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
+// hasQuorum provides information on whether messages have reached the quorum
+func (vm *validatorManager) hasQuorum(sendersAddrs map[string]struct{}) bool {
 	vm.vpLock.RLock()
 	defer vm.vpLock.RUnlock()
 
@@ -88,8 +88,8 @@ func (vm *validatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 	return messageVotePower.Cmp(vm.quorumSize) >= 0
 }
 
-// HasPrepareQuorum provides information on whether prepared messages have reached the quorum
-func (vm *validatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
+// hasPrepareQuorum provides information on whether prepared messages have reached the quorum
+func (vm *validatorManager) hasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
 	if proposalMessage == nil {
 		vm.log.Error("HasPrepareQuorum - proposalMessage is not set")
 
@@ -111,7 +111,7 @@ func (vm *validatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msg
 		sendersAddressesMap[string(message.From)] = struct{}{}
 	}
 
-	return vm.HasQuorum(sendersAddressesMap)
+	return vm.hasQuorum(sendersAddressesMap)
 }
 
 func calculateQuorum(totalVotingPower *big.Int) *big.Int {
