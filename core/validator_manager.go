@@ -19,8 +19,8 @@ type ValidatorBackend interface {
 	GetVotingPowers(height uint64) (map[string]*big.Int, error)
 }
 
-// ValidatorManager keeps voting power and other information about validators
-type ValidatorManager struct {
+// validatorManager keeps voting power and other information about validators
+type validatorManager struct {
 	vpLock *sync.RWMutex
 
 	// quorumSize represents quorum for the height specified in the current View
@@ -36,8 +36,8 @@ type ValidatorManager struct {
 }
 
 // NewValidatorManager creates new ValidatorManager
-func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager {
-	return &ValidatorManager{
+func NewValidatorManager(backend ValidatorBackend, log Logger) *validatorManager {
+	return &validatorManager{
 		quorumSize:            big.NewInt(0),
 		backend:               backend,
 		validatorsVotingPower: nil,
@@ -47,7 +47,7 @@ func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager
 }
 
 // Init sets voting power and quorum size
-func (vm *ValidatorManager) Init(height uint64) error {
+func (vm *validatorManager) Init(height uint64) error {
 	vm.vpLock.Lock()
 	defer vm.vpLock.Unlock()
 
@@ -68,7 +68,7 @@ func (vm *ValidatorManager) Init(height uint64) error {
 }
 
 // HasQuorum provides information on whether messages have reached the quorum
-func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
+func (vm *validatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 	vm.vpLock.RLock()
 	defer vm.vpLock.RUnlock()
 
@@ -89,7 +89,7 @@ func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 }
 
 // HasPrepareQuorum provides information on whether prepared messages have reached the quorum
-func (vm *ValidatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
+func (vm *validatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
 	if proposalMessage == nil {
 		vm.log.Error("HasPrepareQuorum - proposalMessage is not set")
 
@@ -123,7 +123,7 @@ func calculateQuorum(totalVotingPower *big.Int) *big.Int {
 func calculateTotalVotingPower(validatorsVotingPower map[string]*big.Int) *big.Int {
 	totalVotingPower := big.NewInt(0)
 	for _, validatorVotingPower := range validatorsVotingPower {
-		totalVotingPower = totalVotingPower.Add(totalVotingPower, validatorVotingPower)
+		totalVotingPower.Add(totalVotingPower, validatorVotingPower)
 	}
 
 	return totalVotingPower

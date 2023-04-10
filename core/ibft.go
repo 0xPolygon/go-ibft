@@ -102,7 +102,7 @@ type IBFT struct {
 	wg sync.WaitGroup
 
 	// validatorManager keeps quorumSize and voting power information
-	validatorManager *ValidatorManager
+	validatorManager *validatorManager
 }
 
 // NewIBFT creates a new instance of the IBFT consensus protocol
