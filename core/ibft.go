@@ -25,7 +25,7 @@ type Messages interface {
 	AddMessage(message *proto.Message)
 	PruneByHeight(height uint64)
 
-	SignalEvent(message *proto.Message)
+	SignalEvent(messageType proto.MessageType, view *proto.View)
 
 	// Messages fetchers //
 	GetValidMessages(
@@ -1085,7 +1085,7 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 				message.Type,
 				func(_ *proto.Message) bool { return true })
 			if i.hasQuorumByMsgType(msgs, message.Type) {
-				i.messages.SignalEvent(message)
+				i.messages.SignalEvent(message.Type, message.View)
 			}
 		}
 	}
@@ -1275,7 +1275,7 @@ func (i *IBFT) subscribe(details messages.SubscriptionDetails) *messages.Subscri
 		func(_ *proto.Message) bool { return true })
 	// Check if any condition is already met
 	if i.hasQuorumByMsgType(msgs, details.MessageType) {
-		i.messages.SignalEvent(msgs[0])
+		i.messages.SignalEvent(details.MessageType, details.View)
 	}
 
 	return subscription

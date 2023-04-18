@@ -2730,7 +2730,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			assert.Equal(t, msg, m)
 		}
 
-		messages.signalEventFn = func(*proto.Message) {
+		messages.signalEventFn = func(messageType proto.MessageType, messageView *proto.View) {
 			signalEventCalled = true
 		}
 
