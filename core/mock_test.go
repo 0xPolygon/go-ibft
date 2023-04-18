@@ -247,7 +247,7 @@ func (l mockLogger) Error(msg string, args ...interface{}) {
 type mockMessages struct {
 	addMessageFn    func(message *proto.Message)
 	pruneByHeightFn func(height uint64)
-	signalEventFn   func(message *proto.Message)
+	signalEventFn   func(messageType proto.MessageType, messageView *proto.View)
 
 	getValidMessagesFn func(
 		view *proto.View,
@@ -303,9 +303,9 @@ func (m mockMessages) PruneByHeight(height uint64) {
 	}
 }
 
-func (m mockMessages) SignalEvent(msg *proto.Message) {
+func (m mockMessages) SignalEvent(msgType proto.MessageType, view *proto.View) {
 	if m.signalEventFn != nil {
-		m.signalEventFn(msg)
+		m.signalEventFn(msgType, view)
 	}
 }
 

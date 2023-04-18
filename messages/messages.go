@@ -65,14 +65,10 @@ func (ms *Messages) AddMessage(message *proto.Message) {
 }
 
 // SignalEvent signals event
-func (ms *Messages) SignalEvent(message *proto.Message) {
-	ms.eventManager.signalEvent(
-		message.Type,
-		&proto.View{
-			Height: message.View.Height,
-			Round:  message.View.Round,
-		},
-	)
+func (ms *Messages) SignalEvent(messageType proto.MessageType, view *proto.View) {
+	ms.eventManager.signalEvent(messageType, &proto.View{
+		Height: view.Height,
+		Round:  view.Round})
 }
 
 // Close closes event manager

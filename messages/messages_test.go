@@ -399,7 +399,7 @@ func TestMessages_EventManager(t *testing.T) {
 	randomMessages := generateRandomMessages(numMessages, baseView, messageType)
 	for _, message := range randomMessages {
 		messages.AddMessage(message)
-		messages.SignalEvent(message)
+		messages.SignalEvent(message.Type, message.View)
 	}
 
 	// Wait for the subscription event to happen
