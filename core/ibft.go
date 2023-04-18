@@ -1275,7 +1275,11 @@ func (i *IBFT) subscribe(details messages.SubscriptionDetails) *messages.Subscri
 		func(_ *proto.Message) bool { return true })
 	// Check if any condition is already met
 	if i.hasQuorumByMsgType(msgs, details.MessageType) {
-		i.messages.SignalEvent(msgs[0])
+		if len(msgs) > 0 {
+			i.messages.SignalEvent(msgs[0])
+		} else {
+			i.messages.SignalEvent(i.state.getProposalMessage())
+		}
 	}
 
 	return subscription
