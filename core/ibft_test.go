@@ -2293,7 +2293,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		assert.False(t, i.validateProposal(proposal, baseView))
 	})
 
-	t.Run("current node should not be the proposer", func(t *testing.T) {
+	t.Run("sender is not the correct proposer", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -2384,6 +2384,409 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		}
 
 		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("A message in RoundChangeCertificate is not ROUND-CHANGE message", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum     = uint64(4)
+			round      = uint64(1)
+			id         = []byte("node id")
+			uniqueNode = []byte("unique node")
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, uniqueNode)
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		// 4 ROUND-CHANGE messages + 1 COMMIT message (wrong type message)
+		roundChangeMessages := make([]*proto.Message, 0)
+
+		for idx := 0; idx < int(quorum); idx++ {
+			roundChangeMessages = append(roundChangeMessages, &proto.Message{
+				From: []byte(fmt.Sprintf("node%d", idx)),
+				View: &proto.View{
+					Height: 0,
+					Round:  round,
+				},
+				Type:    proto.MessageType_ROUND_CHANGE,
+				Payload: &proto.Message_RoundChangeData{},
+			})
+		}
+
+		roundChangeMessages = append(roundChangeMessages, &proto.Message{
+			From: []byte(fmt.Sprintf("node%d", quorum)),
+			View: &proto.View{
+				Height: 0,
+				Round:  0,
+			},
+			Type:    proto.MessageType_COMMIT,
+			Payload: &proto.Message_RoundChangeData{},
+		})
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  round,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			From: uniqueNode,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+					Proposal: &proto.Proposal{
+						Round: round,
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("One message in RoundChangeCertificate has wrong height", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum     = uint64(4)
+			round      = uint64(1)
+			id         = []byte("node id")
+			uniqueNode = []byte("unique node")
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, uniqueNode)
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		// 4 ROUND-CHANGE messages
+		roundChangeMessages := make([]*proto.Message, quorum)
+
+		for idx := range roundChangeMessages {
+			roundChangeMessages[idx] = &proto.Message{
+				From: []byte(fmt.Sprintf("node%d", idx)),
+				View: &proto.View{
+					Height: 100, // wrong height
+					Round:  round,
+				},
+				Type:    proto.MessageType_ROUND_CHANGE,
+				Payload: &proto.Message_RoundChangeData{},
+			}
+		}
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  round,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			From: uniqueNode,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+					Proposal: &proto.Proposal{
+						Round: round,
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("One message in RoundChangeCertificate has wrong round", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum     = uint64(4)
+			round      = uint64(1)
+			id         = []byte("node id")
+			uniqueNode = []byte("unique node")
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, uniqueNode)
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		// 4 ROUND-CHANGE messages with wrong round
+		roundChangeMessages := make([]*proto.Message, quorum)
+
+		for idx := range roundChangeMessages {
+			roundChangeMessages[idx] = &proto.Message{
+				From: []byte(fmt.Sprintf("node%d", idx)),
+				View: &proto.View{
+					Height: 0,
+					Round:  round + 1, // wrong round
+				},
+				Type:    proto.MessageType_ROUND_CHANGE,
+				Payload: &proto.Message_RoundChangeData{},
+			}
+		}
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  round,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			From: uniqueNode,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+					Proposal: &proto.Proposal{
+						Round: round,
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("One message in RoundChangeCertificate is created by non-validator", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum       = uint64(4)
+			round        = uint64(1)
+			id           = []byte("node id")
+			uniqueNode   = []byte("unique node")
+			nonValidator = []byte("non validator")
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
+					return bytes.Equal(proposer, uniqueNode)
+				},
+				IsValidValidatorFn: func(m *proto.Message) bool {
+					return !bytes.Equal(m.From, nonValidator)
+				},
+			}
+			transport = mockTransport{}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		// 4 ROUND-CHANGE messages by validators + 1 ROUND-CHANGE message by non-validator
+		roundChangeMessages := make([]*proto.Message, 0)
+
+		for idx := 0; idx < int(quorum); idx++ {
+			roundChangeMessages = append(roundChangeMessages, &proto.Message{
+				From: []byte(fmt.Sprintf("node%d", idx)),
+				View: &proto.View{
+					Height: 0,
+					Round:  round,
+				},
+				Type:    proto.MessageType_ROUND_CHANGE,
+				Payload: &proto.Message_RoundChangeData{},
+			})
+		}
+
+		roundChangeMessages = append(roundChangeMessages, &proto.Message{
+			From: nonValidator,
+			View: &proto.View{
+				Height: 0,
+				Round:  round,
+			},
+			Type:    proto.MessageType_ROUND_CHANGE,
+			Payload: &proto.Message_RoundChangeData{},
+		})
+
+		baseView := &proto.View{
+			Height: 0,
+			Round:  round,
+		}
+		proposal := &proto.Message{
+			View: baseView,
+			From: uniqueNode,
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+					Proposal: &proto.Proposal{
+						Round: round,
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, baseView))
+	})
+
+	t.Run("hash of (RawProposal, maxRound) doesn't equal to the hash in proposal message", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			quorum    = uint64(4)
+			round     = uint64(2)
+			id        = []byte("node id")
+			proposers = [][]byte{
+				[]byte("proposer 0"), // proposer for round 0
+				[]byte("proposer 1"), // proposer for round 1
+				[]byte("proposer 2"), // proposer for round 2
+			}
+
+			nonValidator = []byte("non validator")
+			rawProposal  = []byte("raw proposal")
+
+			hashFn = func(rawProposal []byte, round uint64) []byte {
+				return []byte(fmt.Sprintf("%s_%d", rawProposal, round))
+			}
+
+			correctProposalHash = hashFn(rawProposal, round)
+
+			log     = mockLogger{}
+			backend = mockBackend{
+				idFn: func() []byte {
+					return id
+				},
+				isProposerFn: func(proposer []byte, _ uint64, round uint64) bool {
+					return bytes.Equal(proposer, proposers[round])
+				},
+				IsValidValidatorFn: func(m *proto.Message) bool {
+					return !bytes.Equal(m.From, nonValidator)
+				},
+				isValidProposalHashFn: func(p *proto.Proposal, b []byte) bool {
+					return bytes.Equal(
+						b,
+						hashFn(p.RawProposal, p.Round),
+					)
+				},
+			}
+			transport = mockTransport{}
+
+			views = []*proto.View{
+				{
+					Height: 0,
+					Round:  round - 2,
+				},
+				// previous round
+				{
+					Height: 0,
+					Round:  round - 1,
+				},
+				// current round
+				{
+					Height: 0,
+					Round:  round,
+				},
+			}
+		)
+
+		i := NewIBFT(log, backend, transport)
+
+		// previous PREPREPARE + PREPARE messages whose proposal hashes are not correct
+		previousProposal := &proto.Message{
+			View: views[0],
+			From: proposers[0],
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					// the hash should be (proposal, 0)
+					Proposal: &proto.Proposal{
+						Round:       round - 2,
+						RawProposal: rawProposal,
+					},
+					// the hash is created from (proposal, 2)
+					ProposalHash: correctProposalHash,
+				},
+			},
+		}
+
+		previousPrepares := make([]*proto.Message, quorum)
+		for idx := range previousPrepares {
+			previousPrepares[idx] = &proto.Message{
+				From: []byte(fmt.Sprintf("node%d", idx)),
+				View: views[0],
+				Type: proto.MessageType_PREPARE,
+				Payload: &proto.Message_PrepareData{
+					PrepareData: &proto.PrepareMessage{
+						ProposalHash: correctProposalHash,
+					},
+				},
+			}
+		}
+
+		// ROUND-CHANGE messages for round 2
+		roundChangeMessages := make([]*proto.Message, quorum)
+
+		for idx := range roundChangeMessages {
+			roundChangeMessages[idx] = &proto.Message{
+				From: []byte(fmt.Sprintf("node%d", idx)),
+				View: views[2],
+				Type: proto.MessageType_ROUND_CHANGE,
+				Payload: &proto.Message_RoundChangeData{
+					RoundChangeData: &proto.RoundChangeMessage{
+						LatestPreparedCertificate: &proto.PreparedCertificate{
+							ProposalMessage: previousProposal,
+							PrepareMessages: previousPrepares,
+						},
+					},
+				},
+			}
+		}
+
+		// proposal with RoundChangeCertificate
+		proposal := &proto.Message{
+			View: views[2],
+			From: proposers[2],
+			Type: proto.MessageType_PREPREPARE,
+			Payload: &proto.Message_PreprepareData{
+				PreprepareData: &proto.PrePrepareMessage{
+					Certificate: &proto.RoundChangeCertificate{
+						RoundChangeMessages: roundChangeMessages,
+					},
+					ProposalHash: hashFn(rawProposal, round),
+					Proposal: &proto.Proposal{
+						Round:       round,
+						RawProposal: rawProposal,
+					},
+				},
+			},
+		}
+
+		assert.False(t, i.validateProposal(proposal, views[2]))
 	})
 }
 
