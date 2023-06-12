@@ -89,9 +89,14 @@ func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 }
 
 // HasPrepareQuorum provides information on whether prepared messages have reached the quorum
-func (vm *ValidatorManager) HasPrepareQuorum(proposalMessage *proto.Message, msgs []*proto.Message) bool {
+func (vm *ValidatorManager) HasPrepareQuorum(stateName stateType, proposalMessage *proto.Message,
+	msgs []*proto.Message) bool {
 	if proposalMessage == nil {
-		vm.log.Error("HasPrepareQuorum - proposalMessage is not set")
+		// If the state is in prepare phase, the proposal must be set. Otherwise, just return false since
+		// this is a valid scenario e.g. proposal msg is received before prepare msg for the same view
+		if stateName == prepare {
+			vm.log.Error("HasPrepareQuorum - proposalMessage is not set")
+		}
 
 		return false
 	}
