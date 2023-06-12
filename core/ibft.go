@@ -1265,7 +1265,7 @@ func (i *IBFT) hasQuorumByMsgType(msgs []*proto.Message, msgType proto.MessageTy
 	case proto.MessageType_PREPREPARE:
 		return len(msgs) >= 1
 	case proto.MessageType_PREPARE:
-		return i.validatorManager.HasPrepareQuorum(i.state.getProposalMessage(), msgs)
+		return i.validatorManager.HasPrepareQuorum(i.state.getStateName(), i.state.getProposalMessage(), msgs)
 	case proto.MessageType_ROUND_CHANGE, proto.MessageType_COMMIT:
 		return i.validatorManager.HasQuorum(convertMessageToAddressSet(msgs))
 	default:
