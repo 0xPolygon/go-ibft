@@ -1320,17 +1320,3 @@ func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round ui
 
 	return roundTimeout + additionalTimeout
 }
-
-// Metrics struct is used for prometheus metrics
-type Metrics struct {
-	roundDuration    prometheus.Histogram
-	sequenceDuration prometheus.Histogram
-}
-
-// NewMetrics create new instance of metrics
-func NewMetrics(roundDuration, sequenceDuration prometheus.Histogram) *Metrics {
-	return &Metrics{
-		roundDuration:    roundDuration,
-		sequenceDuration: sequenceDuration,
-	}
-}
