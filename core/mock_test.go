@@ -402,7 +402,7 @@ func newMockCluster(
 		}
 
 		// Create a new instance of the IBFT node
-		nodes[index] = NewIBFT(logger, backend, transport)
+		nodes[index] = NewIBFT(logger, backend, transport, nil)
 
 		// Instantiate context for the nodes
 		nodeCtxs[index] = newMockNodeContext()

@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Logger represents the logger behaviour
@@ -102,6 +103,8 @@ type IBFT struct {
 
 	// validatorManager keeps quorumSize and voting power information
 	validatorManager *ValidatorManager
+
+	metrics *Metrics
 }
 
 // NewIBFT creates a new instance of the IBFT consensus protocol
@@ -109,6 +112,7 @@ func NewIBFT(
 	log Logger,
 	backend Backend,
 	transport Transport,
+	metrics *Metrics,
 ) *IBFT {
 	return &IBFT{
 		log:              log,
@@ -130,6 +134,7 @@ func NewIBFT(
 		},
 		baseRoundTimeout: round0Timeout,
 		validatorManager: NewValidatorManager(backend, log),
+		metrics:          metrics,
 	}
 }
 
@@ -139,6 +144,11 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 	defer i.wg.Done()
 
 	roundTimeout := getRoundTimeout(i.baseRoundTimeout, i.additionalTimeout, round)
+
+	if i.metrics != nil {
+		prometheusTimer := prometheus.NewTimer(i.metrics.roundDuration)
+		defer prometheusTimer.ObserveDuration()
+	}
 
 	//	Create a new timer instance
 	timer := time.NewTimer(roundTimeout)
@@ -292,6 +302,11 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 
 // RunSequence runs the IBFT sequence for the specified height
 func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
+	if i.metrics != nil {
+		prometheusTimer := prometheus.NewTimer(i.metrics.sequenceDuration)
+		defer prometheusTimer.ObserveDuration()
+	}
+
 	// Set the starting state data
 	i.state.reset(h)
 
@@ -1302,4 +1317,19 @@ func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round ui
 	)
 
 	return roundTimeout + additionalTimeout
+}
+
+// Metrics struct is used for prometheus metrics
+type Metrics struct {
+	roundDuration prometheus.Histogram
+
+	sequenceDuration prometheus.Histogram
+}
+
+// NewMetrics create new instance of metrics
+func NewMetrics(roundDuration, sequenceDuration prometheus.Histogram) *Metrics {
+	return &Metrics{
+		roundDuration:    roundDuration,
+		sequenceDuration: sequenceDuration,
+	}
 }

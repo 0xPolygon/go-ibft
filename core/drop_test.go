@@ -56,7 +56,7 @@ func TestDropAllAndRecover(t *testing.T) {
 
 						c.gossip(message)
 					}},
-				)
+					nil)
 			}
 		},
 	)
@@ -137,7 +137,7 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 
 						c.gossip(message)
 					}},
-				)
+					nil)
 			}
 		},
 	)
@@ -190,7 +190,7 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 							}
 						}
 					}},
-				)
+					nil)
 			}
 		},
 	)
@@ -250,7 +250,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 					},
 
 					&mockTransport{multicastFn: c.gossip},
-				)
+					nil)
 			}
 		},
 	)
@@ -308,7 +308,7 @@ func TestDropMaxFaulty(t *testing.T) {
 					},
 
 					&mockTransport{multicastFn: c.gossip},
-				)
+					nil)
 			}
 		},
 	)

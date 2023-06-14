@@ -33,7 +33,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -66,7 +66,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -100,7 +100,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -135,7 +135,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -170,7 +170,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -205,7 +205,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -240,7 +240,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
@@ -275,7 +275,7 @@ func TestByzantineBehaviour(t *testing.T) {
 						mockLogger{},
 						backendBuilder.build(currentNode),
 						&mockTransport{multicastFn: c.gossip},
-					)
+						nil)
 				}
 			},
 		)
