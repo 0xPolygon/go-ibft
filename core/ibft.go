@@ -104,6 +104,8 @@ type IBFT struct {
 	// validatorManager keeps quorumSize and voting power information
 	validatorManager *ValidatorManager
 
+	// metirc data used to create histograms
+	// it has to be registreted by utilizator of this library (go-ibft)
 	metrics *Metrics
 }
 
@@ -1321,8 +1323,7 @@ func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round ui
 
 // Metrics struct is used for prometheus metrics
 type Metrics struct {
-	roundDuration prometheus.Histogram
-
+	roundDuration    prometheus.Histogram
 	sequenceDuration prometheus.Histogram
 }
 
