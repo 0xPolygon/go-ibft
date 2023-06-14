@@ -104,7 +104,7 @@ type IBFT struct {
 	// validatorManager keeps quorumSize and voting power information
 	validatorManager *ValidatorManager
 
-	// metirc data used to create histograms
+	// metrics contains data used to create histograms
 	// it has to be registreted by utilizator of this library (go-ibft)
 	metrics *Metrics
 }
