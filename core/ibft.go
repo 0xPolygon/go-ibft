@@ -9,7 +9,8 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/hashicorp/go-metrics"
+	"github.com/hashicorp/go-metrics/prometheus"
 )
 
 // Logger represents the logger behaviour
@@ -116,6 +117,8 @@ func NewIBFT(
 	transport Transport,
 	metrics *Metrics,
 ) *IBFT {
+	InitializeMetrics()
+
 	return &IBFT{
 		log:              log,
 		backend:          backend,
@@ -145,18 +148,16 @@ func NewIBFT(
 func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 	defer i.wg.Done()
 
-	roundTimeout := getRoundTimeout(i.baseRoundTimeout, i.additionalTimeout, round)
+	start := time.Now()
 
-	if i.metrics != nil {
-		prometheusTimer := prometheus.NewTimer(i.metrics.roundDuration)
-		defer prometheusTimer.ObserveDuration()
-	}
+	roundTimeout := getRoundTimeout(i.baseRoundTimeout, i.additionalTimeout, round)
 
 	//	Create a new timer instance
 	timer := time.NewTimer(roundTimeout)
 
 	select {
 	case <-ctx.Done():
+		SetEndTime("round", start)
 		// Stop signal received, stop the timer
 		timer.Stop()
 	case <-timer.C:
@@ -304,13 +305,10 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 
 // RunSequence runs the IBFT sequence for the specified height
 func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
-	if i.metrics != nil {
-		prometheusTimer := prometheus.NewTimer(i.metrics.sequenceDuration)
-		defer prometheusTimer.ObserveDuration()
-	}
-
 	// Set the starting state data
 	i.state.reset(h)
+
+	start := time.Now()
 
 	if err := i.validatorManager.Init(h); err != nil {
 		i.log.Error("failed to run sequence - validator manager init", "height", h, "error", err)
@@ -323,6 +321,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence done", "height", h)
+	defer SetEndTime("sequence", start)
 
 	for {
 		view := i.state.getView()
@@ -386,6 +385,28 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			return
 		}
 	}
+}
+
+// InitializeMetrics set metrics instance
+func InitializeMetrics() {
+	inm := metrics.NewInmemSink(10*time.Second, time.Minute)
+	metrics.DefaultInmemSignal(inm)
+
+	promSink, _ := prometheus.NewPrometheusSinkFrom(prometheus.PrometheusOpts{
+		Name:       "goIbft_prometheus_sink",
+		Expiration: 0,
+	})
+
+	metricsConf := metrics.DefaultConfig("goIbft")
+	metricsConf.EnableHostname = false
+	_, _ = metrics.NewGlobal(metricsConf, metrics.FanoutSink{
+		inm, promSink,
+	})
+}
+
+// SetEndTime sets end time to metrics
+func SetEndTime(prefix string, start time.Time) {
+	metrics.SetGauge([]string{prefix, "duration"}, float32(time.Since(start).Seconds()))
 }
 
 // startRound runs the state machine loop for the current round
