@@ -32,8 +32,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -65,8 +64,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -99,8 +97,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -134,8 +131,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -169,8 +165,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -204,8 +199,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -239,8 +233,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)
@@ -274,8 +267,7 @@ func TestByzantineBehaviour(t *testing.T) {
 					node.core = NewIBFT(
 						mockLogger{},
 						backendBuilder.build(currentNode),
-						&mockTransport{multicastFn: c.gossip},
-						nil)
+						&mockTransport{multicastFn: c.gossip})
 				}
 			},
 		)

@@ -275,7 +275,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			i.messages = messages
 
 			i.wg.Add(1)
@@ -397,7 +397,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			i.messages = messages
 			i.state.setView(&proto.View{
 				Height: 0,
@@ -568,7 +568,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
 			i.state.setView(&proto.View{
@@ -675,7 +675,7 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 		}
 	)
 
-	i := NewIBFT(log, backend, transport, nil)
+	i := NewIBFT(log, backend, transport)
 	i.messages = messages
 
 	// Make sure the notification is sent out
@@ -837,7 +837,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
 			i.state.setView(&proto.View{
@@ -938,7 +938,7 @@ func TestRunPrepare(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.state.name = prepare
 			i.state.roundStarted = true
@@ -1041,7 +1041,7 @@ func TestRunCommit(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
 			i.state.proposalMessage = &proto.Message{
@@ -1201,7 +1201,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 					},
 				}
 			)
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			i.state.view = testCase.stateView
 
 			message := &proto.Message{
@@ -1229,7 +1229,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 			backend   = mockBackend{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -1258,7 +1258,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 			backend   = mockBackend{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 		i.baseRoundTimeout = 0 * time.Second
 
 		ctx, cancelFn := context.WithCancel(context.Background())
@@ -1304,7 +1304,7 @@ func TestIBFT_MoveToNewRound(t *testing.T) {
 			backend   = mockBackend{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		i.moveToNewRound(expectedNewRound)
 
@@ -1459,7 +1459,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 				}
 			)
 
-			i := NewIBFT(log, backend, transport, nil)
+			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = mMessages
 
@@ -1516,7 +1516,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			backend   = mockBackend{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		assert.True(t, i.validPC(certificate, 0, 0))
 	})
@@ -1530,7 +1530,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			backend   = mockBackend{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
 			ProposalMessage: nil,
@@ -1560,7 +1560,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
 			ProposalMessage: &proto.Message{},
@@ -1583,7 +1583,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
 			ProposalMessage: &proto.Message{
@@ -1608,7 +1608,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
 			ProposalMessage: &proto.Message{
@@ -1637,7 +1637,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
 			ProposalMessage: &proto.Message{
@@ -1664,7 +1664,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1695,7 +1695,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1734,7 +1734,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1776,7 +1776,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1819,7 +1819,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1862,7 +1862,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1905,7 +1905,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1944,7 +1944,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -1986,7 +1986,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 		require.NoError(t, i.validatorManager.Init(0))
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
@@ -2024,7 +2024,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2061,7 +2061,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2098,7 +2098,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2132,7 +2132,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2173,7 +2173,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2220,7 +2220,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2268,7 +2268,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2312,7 +2312,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2361,7 +2361,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		baseView := &proto.View{
 			Height: 0,
@@ -2407,7 +2407,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages + 1 COMMIT message (wrong type message)
 		roundChangeMessages := make([]*proto.Message, 0)
@@ -2478,7 +2478,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages
 		roundChangeMessages := make([]*proto.Message, quorum)
@@ -2539,7 +2539,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages with wrong round
 		roundChangeMessages := make([]*proto.Message, quorum)
@@ -2604,7 +2604,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			transport = mockTransport{}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages by validators + 1 ROUND-CHANGE message by non-validator
 		roundChangeMessages := make([]*proto.Message, 0)
@@ -2714,7 +2714,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			}
 		)
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 
 		// previous PREPREPARE + PREPARE messages whose proposal hashes are not correct
 		previousProposal := &proto.Message{
@@ -2856,7 +2856,7 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 		}
 	)
 
-	i := NewIBFT(log, backend, transport, nil)
+	i := NewIBFT(log, backend, transport)
 	require.NoError(t, i.validatorManager.Init(uint64(0)))
 
 	i.messages = messages
@@ -2935,7 +2935,7 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 		transport = mockTransport{}
 	)
 
-	i := NewIBFT(log, backend, transport, nil)
+	i := NewIBFT(log, backend, transport)
 	i.newProposal = make(chan newProposalEvent, 1)
 
 	ev := newProposalEvent{
@@ -2995,7 +2995,7 @@ func TestIBFT_RunSequence_FutureRCC(t *testing.T) {
 		transport = mockTransport{}
 	)
 
-	i := NewIBFT(log, backend, transport, nil)
+	i := NewIBFT(log, backend, transport)
 	i.roundCertificate = make(chan uint64, 1)
 
 	// Make sure the round event is waiting
@@ -3037,7 +3037,7 @@ func TestIBFT_ExtendRoundTimer(t *testing.T) {
 		transport = mockTransport{}
 	)
 
-	i := NewIBFT(log, backend, transport, nil)
+	i := NewIBFT(log, backend, transport)
 
 	i.ExtendRoundTimeout(additionalTimeout)
 
@@ -3137,7 +3137,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			signalEventCalled = true
 		}
 
-		i := NewIBFT(log, backend, transport, nil)
+		i := NewIBFT(log, backend, transport)
 		require.NoError(t, i.validatorManager.Init(0))
 		i.messages = messages
 		i.state.view = &proto.View{Height: validHeight, Round: validRound}

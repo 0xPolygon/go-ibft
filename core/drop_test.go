@@ -55,8 +55,7 @@ func TestDropAllAndRecover(t *testing.T) {
 						}
 
 						c.gossip(message)
-					}},
-					nil)
+					}})
 			}
 		},
 	)
@@ -136,8 +135,7 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 						}
 
 						c.gossip(message)
-					}},
-					nil)
+					}})
 			}
 		},
 	)
@@ -189,8 +187,7 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 								node.core.AddMessage(msg)
 							}
 						}
-					}},
-					nil)
+					}})
 			}
 		},
 	)
@@ -249,8 +246,7 @@ func TestDropMaxFaultyPlusOne(t *testing.T) {
 						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 
-					&mockTransport{multicastFn: c.gossip},
-					nil)
+					&mockTransport{multicastFn: c.gossip})
 			}
 		},
 	)
@@ -307,8 +303,7 @@ func TestDropMaxFaulty(t *testing.T) {
 						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
 
-					&mockTransport{multicastFn: c.gossip},
-					nil)
+					&mockTransport{multicastFn: c.gossip})
 			}
 		},
 	)

@@ -104,10 +104,6 @@ type IBFT struct {
 
 	// validatorManager keeps quorumSize and voting power information
 	validatorManager *ValidatorManager
-
-	// metrics contains data used to create histograms
-	// it has to be registreted by utilizator of this library (go-ibft)
-	metrics *Metrics
 }
 
 // NewIBFT creates a new instance of the IBFT consensus protocol
@@ -115,7 +111,6 @@ func NewIBFT(
 	log Logger,
 	backend Backend,
 	transport Transport,
-	metrics *Metrics,
 ) *IBFT {
 	InitializeMetrics()
 
@@ -139,7 +134,6 @@ func NewIBFT(
 		},
 		baseRoundTimeout: round0Timeout,
 		validatorManager: NewValidatorManager(backend, log),
-		metrics:          metrics,
 	}
 }
 
