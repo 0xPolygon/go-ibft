@@ -134,8 +134,8 @@ func NewIBFT(
 	}
 }
 
-// SetTime function set duration to gauge
-func SetTime(prefix string, startTime time.Time) {
+// SetMeasurementTime function set duration to gauge
+func SetMeasurementTime(prefix string, startTime time.Time) {
 	metrics.SetGauge([]string{"go-ibft", prefix, "duration"}, float32(time.Since(startTime).Seconds()))
 }
 
@@ -153,7 +153,7 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 
 	select {
 	case <-ctx.Done():
-		SetTime("round", startTime)
+		SetMeasurementTime("round", startTime)
 		// Stop signal received, stop the timer
 		timer.Stop()
 	case <-timer.C:
@@ -317,7 +317,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence done", "height", h)
-	defer SetTime("sequence", startTime)
+	defer SetMeasurementTime("sequence", startTime)
 
 	for {
 		view := i.state.getView()
