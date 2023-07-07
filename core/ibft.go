@@ -9,6 +9,7 @@ import (
 
 	"github.com/0xPolygon/go-ibft/messages"
 	"github.com/0xPolygon/go-ibft/messages/proto"
+	"github.com/armon/go-metrics"
 )
 
 // Logger represents the logger behaviour
@@ -133,10 +134,17 @@ func NewIBFT(
 	}
 }
 
+// SetMeasurementTime function set duration to gauge
+func SetMeasurementTime(prefix string, startTime time.Time) {
+	metrics.SetGauge([]string{"go-ibft", prefix, "duration"}, float32(time.Since(startTime).Seconds()))
+}
+
 // startRoundTimer starts the exponential round timer, based on the
 // passed in round number
 func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 	defer i.wg.Done()
+
+	startTime := time.Now()
 
 	roundTimeout := getRoundTimeout(i.baseRoundTimeout, i.additionalTimeout, round)
 
@@ -145,6 +153,7 @@ func (i *IBFT) startRoundTimer(ctx context.Context, round uint64) {
 
 	select {
 	case <-ctx.Done():
+		SetMeasurementTime("round", startTime)
 		// Stop signal received, stop the timer
 		timer.Stop()
 	case <-timer.C:
@@ -292,6 +301,8 @@ func (i *IBFT) watchForRoundChangeCertificates(ctx context.Context) {
 
 // RunSequence runs the IBFT sequence for the specified height
 func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
+	startTime := time.Now()
+
 	// Set the starting state data
 	i.state.reset(h)
 
@@ -306,6 +317,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence done", "height", h)
+	defer SetMeasurementTime("sequence", startTime)
 
 	for {
 		view := i.state.getView()
