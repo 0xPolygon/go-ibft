@@ -48,13 +48,19 @@ func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager
 
 // Init sets voting power and quorum size
 func (vm *ValidatorManager) Init(height uint64) error {
-	vm.vpLock.Lock()
-	defer vm.vpLock.Unlock()
-
 	validatorsVotingPower, err := vm.backend.GetVotingPowers(height)
 	if err != nil {
 		return err
 	}
+
+	return vm.setCurrentVotingPower(validatorsVotingPower)
+}
+
+// setCurrentVotingPower sets the current total voting power and quorum size
+// based on current validators voting power
+func (vm *ValidatorManager) setCurrentVotingPower(validatorsVotingPower map[string]*big.Int) error {
+	vm.vpLock.Lock()
+	defer vm.vpLock.Unlock()
 
 	totalVotingPower := calculateTotalVotingPower(validatorsVotingPower)
 	if totalVotingPower.Cmp(big.NewInt(0)) <= 0 {
@@ -85,6 +91,7 @@ func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 		}
 	}
 
+	// aggVotingPower >= (2 * totalVotingPower / 3) + 1
 	return messageVotePower.Cmp(vm.quorumSize) >= 0
 }
 
@@ -119,10 +126,12 @@ func (vm *ValidatorManager) HasPrepareQuorum(stateName stateType, proposalMessag
 	return vm.HasQuorum(sendersAddressesMap)
 }
 
+// calculateQuorum calculates quorum size which is FLOOR(2 * totalVotingPower / 3) + 1
 func calculateQuorum(totalVotingPower *big.Int) *big.Int {
 	quorum := new(big.Int).Mul(totalVotingPower, big.NewInt(2))
 
-	return bigIntDivCeil(quorum, big.NewInt(3))
+	// this will floor the (2 * totalVotingPower/3) and add 1
+	return quorum.Div(quorum, big.NewInt(3)).Add(quorum, big.NewInt(1))
 }
 
 func calculateTotalVotingPower(validatorsVotingPower map[string]*big.Int) *big.Int {
@@ -132,16 +141,6 @@ func calculateTotalVotingPower(validatorsVotingPower map[string]*big.Int) *big.I
 	}
 
 	return totalVotingPower
-}
-
-// bigIntDivCeil performs integer division and rounds given result to next bigger integer number
-// It is calculated using this formula result = (a + b - 1) / b
-func bigIntDivCeil(a, b *big.Int) *big.Int {
-	result := new(big.Int)
-
-	return result.Add(a, b).
-		Sub(result, big.NewInt(1)).
-		Div(result, b)
 }
 
 // convertMessageToAddressSet converts messages slice to addresses map
