@@ -1161,11 +1161,6 @@ func (i *IBFT) validPC(
 		certificate.PrepareMessages...,
 	)
 
-	// Make sure the senders are unique
-	if !messages.HasUniqueSenders(allMessages) {
-		return false
-	}
-
 	// Make sure there are at least Quorum (PP + P) messages
 	// hasQuorum directly since the messages are of different types
 	if !i.validatorManager.HasQuorum(convertMessageToAddressSet(allMessages)) {
@@ -1184,23 +1179,8 @@ func (i *IBFT) validPC(
 		}
 	}
 
-	// Make sure the proposal hashes match
-	if !messages.HaveSameProposalHash(allMessages) {
-		return false
-	}
-
-	// Make sure all the messages have a round number lower than rLimit
-	if !messages.AllHaveLowerRound(allMessages, rLimit) {
-		return false
-	}
-
-	// Make sure all the messages have the same height
-	if !messages.AllHaveSameHeight(allMessages, height) {
-		return false
-	}
-
-	// Make sure all have the same round
-	if !messages.AllHaveSameRound(allMessages) {
+	// Make sure the round, height and proposal hashes match and the senders are unique
+	if !messages.AreValidPCMessages(allMessages, height, rLimit) {
 		return false
 	}
 
