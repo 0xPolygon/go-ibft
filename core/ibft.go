@@ -1143,7 +1143,7 @@ func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 // validPC verifies that the prepared certificate is valid
 func (i *IBFT) validPC(
 	certificate *proto.PreparedCertificate,
-	rLimit,
+	roundLimit,
 	height uint64,
 ) bool {
 	if certificate == nil {
@@ -1180,7 +1180,7 @@ func (i *IBFT) validPC(
 	}
 
 	// Make sure the round, height and proposal hashes match and the senders are unique
-	if !messages.AreValidPCMessages(allMessages, height, rLimit) {
+	if !messages.AreValidPCMessages(allMessages, height, roundLimit) {
 		return false
 	}
 

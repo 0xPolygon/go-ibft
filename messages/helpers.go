@@ -127,7 +127,7 @@ func HasUniqueSenders(messages []*proto.Message) bool {
 		return false
 	}
 
-	senderMap := make(map[string]struct{})
+	senderMap := make(map[string]struct{}, len(messages))
 
 	for _, message := range messages {
 		key := string(message.From)
@@ -158,7 +158,7 @@ func AreValidPCMessages(messages []*proto.Message, height uint64, roundLimit uin
 			return false
 		}
 
-		// all messages must have the same round that is not greater than rount limit
+		// all messages must have the same round that is not greater than round limit
 		if message.View.Round != round || message.View.Round >= roundLimit {
 			return false
 		}
