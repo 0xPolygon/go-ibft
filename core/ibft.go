@@ -1143,7 +1143,7 @@ func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 // validPC verifies that the prepared certificate is valid
 func (i *IBFT) validPC(
 	certificate *proto.PreparedCertificate,
-	rLimit,
+	roundLimit,
 	height uint64,
 ) bool {
 	if certificate == nil {
@@ -1160,11 +1160,6 @@ func (i *IBFT) validPC(
 		[]*proto.Message{certificate.ProposalMessage},
 		certificate.PrepareMessages...,
 	)
-
-	// Make sure the senders are unique
-	if !messages.HasUniqueSenders(allMessages) {
-		return false
-	}
 
 	// Make sure there are at least Quorum (PP + P) messages
 	// hasQuorum directly since the messages are of different types
@@ -1184,23 +1179,8 @@ func (i *IBFT) validPC(
 		}
 	}
 
-	// Make sure the proposal hashes match
-	if !messages.HaveSameProposalHash(allMessages) {
-		return false
-	}
-
-	// Make sure all the messages have a round number lower than rLimit
-	if !messages.AllHaveLowerRound(allMessages, rLimit) {
-		return false
-	}
-
-	// Make sure all the messages have the same height
-	if !messages.AllHaveSameHeight(allMessages, height) {
-		return false
-	}
-
-	// Make sure all have the same round
-	if !messages.AllHaveSameRound(allMessages) {
+	// Make sure the round, height and proposal hashes match and the senders are unique
+	if !messages.AreValidPCMessages(allMessages, height, roundLimit) {
 		return false
 	}
 

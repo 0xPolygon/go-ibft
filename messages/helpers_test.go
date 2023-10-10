@@ -8,6 +8,8 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
+var proposalHash = []byte("proposal hash")
+
 func TestMessages_ExtractCommittedSeals(t *testing.T) {
 	t.Parallel()
 
@@ -467,8 +469,6 @@ func TestMessages_HasUniqueSenders(t *testing.T) {
 func TestMessages_HaveSameProposalHash(t *testing.T) {
 	t.Parallel()
 
-	proposalHash := []byte("proposal hash")
-
 	testTable := []struct {
 		name     string
 		messages []*proto.Message
@@ -484,6 +484,11 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 			[]*proto.Message{
 				{
 					Type: proto.MessageType_ROUND_CHANGE,
+					View: &proto.View{
+						Height: 1,
+						Round:  1,
+					},
+					From: []byte("node 1"),
 				},
 			},
 			false,
@@ -498,6 +503,11 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 							ProposalHash: proposalHash,
 						},
 					},
+					View: &proto.View{
+						Height: 1,
+						Round:  1,
+					},
+					From: []byte("node 1"),
 				},
 				{
 					Type: proto.MessageType_PREPARE,
@@ -506,6 +516,11 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 							ProposalHash: []byte("differing hash"),
 						},
 					},
+					View: &proto.View{
+						Height: 1,
+						Round:  1,
+					},
+					From: []byte("node 2"),
 				},
 			},
 			false,
@@ -520,6 +535,11 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 							ProposalHash: proposalHash,
 						},
 					},
+					View: &proto.View{
+						Height: 1,
+						Round:  1,
+					},
+					From: []byte("node 1"),
 				},
 				{
 					Type: proto.MessageType_PREPARE,
@@ -528,6 +548,11 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 							ProposalHash: proposalHash,
 						},
 					},
+					View: &proto.View{
+						Height: 1,
+						Round:  1,
+					},
+					From: []byte("node 2"),
 				},
 			},
 			true,
@@ -543,7 +568,7 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 			assert.Equal(
 				t,
 				testCase.haveSame,
-				HaveSameProposalHash(testCase.messages),
+				AreValidPCMessages(testCase.messages, 1, 2),
 			)
 		})
 	}
@@ -574,12 +599,26 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Height: 0,
 						Round:  round,
 					},
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 1"),
 				},
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round + 1,
 					},
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 2"),
 				},
 			},
 			round,
@@ -593,12 +632,26 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Height: 0,
 						Round:  round + 1,
 					},
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 1"),
 				},
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round + 1,
 					},
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 2"),
 				},
 			},
 			round,
@@ -612,12 +665,26 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Height: 0,
 						Round:  round,
 					},
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 1"),
 				},
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round,
 					},
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 2"),
 				},
 			},
 			2,
@@ -634,8 +701,9 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 			assert.Equal(
 				t,
 				testCase.haveLower,
-				AllHaveLowerRound(
+				AreValidPCMessages(
 					testCase.messages,
+					0,
 					testCase.round,
 				),
 			)
@@ -665,11 +733,25 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 					View: &proto.View{
 						Height: height - 1,
 					},
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 1"),
 				},
 				{
 					View: &proto.View{
 						Height: height,
 					},
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 2"),
 				},
 			},
 			false,
@@ -680,12 +762,28 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 				{
 					View: &proto.View{
 						Height: height,
+						Round:  1,
 					},
+					Type: proto.MessageType_PREPREPARE,
+					Payload: &proto.Message_PreprepareData{
+						PreprepareData: &proto.PrePrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 1"),
 				},
 				{
 					View: &proto.View{
 						Height: height,
+						Round:  1,
 					},
+					Type: proto.MessageType_PREPARE,
+					Payload: &proto.Message_PrepareData{
+						PrepareData: &proto.PrepareMessage{
+							ProposalHash: proposalHash,
+						},
+					},
+					From: []byte("node 2"),
 				},
 			},
 			true,
@@ -701,9 +799,10 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 			assert.Equal(
 				t,
 				testCase.haveSame,
-				AllHaveSameHeight(
+				AreValidPCMessages(
 					testCase.messages,
 					height,
+					2,
 				),
 			)
 		})

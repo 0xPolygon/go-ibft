@@ -127,7 +127,7 @@ func HasUniqueSenders(messages []*proto.Message) bool {
 		return false
 	}
 
-	senderMap := make(map[string]struct{})
+	senderMap := make(map[string]struct{}, len(messages))
 
 	for _, message := range messages {
 		key := string(message.From)
@@ -141,28 +141,30 @@ func HasUniqueSenders(messages []*proto.Message) bool {
 	return true
 }
 
-// HaveSameProposalHash checks if the messages have the same proposal hash
-func HaveSameProposalHash(messages []*proto.Message) bool {
+// AreValidPCMessages validates PreparedCertificate messages
+func AreValidPCMessages(messages []*proto.Message, height uint64, roundLimit uint64) bool {
 	if len(messages) < 1 {
 		return false
 	}
 
+	round := messages[0].View.Round
+	senderMap := make(map[string]struct{})
+
 	var hash []byte
 
 	for _, message := range messages {
-		var extractedHash []byte
-
-		switch message.Type {
-		case proto.MessageType_PREPREPARE:
-			extractedHash = ExtractProposalHash(message)
-		case proto.MessageType_PREPARE:
-			extractedHash = ExtractPrepareHash(message)
-		case proto.MessageType_COMMIT, proto.MessageType_ROUND_CHANGE:
-			return false
-		default:
+		// all messages must have the same height
+		if message.View.Height != height {
 			return false
 		}
 
+		// all messages must have the same round that is not greater than round limit
+		if message.View.Round != round || message.View.Round >= roundLimit {
+			return false
+		}
+
+		// all messages must have the same proposal hash
+		extractedHash, ok := extractPCMessageHash(message)
 		if hash == nil {
 			// No previous hash for comparison,
 			// set the first one as the reference, as
@@ -170,57 +172,32 @@ func HaveSameProposalHash(messages []*proto.Message) bool {
 			hash = extractedHash
 		}
 
-		if !bytes.Equal(hash, extractedHash) {
+		if !ok || !bytes.Equal(hash, extractedHash) {
 			return false
 		}
+
+		// all messages must have unique senders
+		key := string(message.From)
+		if _, exists := senderMap[key]; exists {
+			return false
+		}
+
+		senderMap[key] = struct{}{}
 	}
 
 	return true
 }
 
-// AllHaveLowerRound checks if all messages have the same round
-func AllHaveLowerRound(messages []*proto.Message, round uint64) bool {
-	if len(messages) < 1 {
-		return false
+// extractPCMessageHash extracts the hash from a PC message
+func extractPCMessageHash(message *proto.Message) ([]byte, bool) {
+	switch message.Type {
+	case proto.MessageType_PREPREPARE:
+		return ExtractProposalHash(message), true
+	case proto.MessageType_PREPARE:
+		return ExtractPrepareHash(message), true
+	case proto.MessageType_COMMIT, proto.MessageType_ROUND_CHANGE:
+		return nil, false
+	default:
+		return nil, false
 	}
-
-	for _, message := range messages {
-		if message.View.Round >= round {
-			return false
-		}
-	}
-
-	return true
-}
-
-// AllHaveSameRound checks if all messages have the same round
-func AllHaveSameRound(messages []*proto.Message) bool {
-	if len(messages) < 1 {
-		return false
-	}
-
-	var round = messages[0].View.Round
-
-	for _, message := range messages {
-		if message.View.Round != round {
-			return false
-		}
-	}
-
-	return true
-}
-
-// AllHaveSameHeight checks if all messages have the same height
-func AllHaveSameHeight(messages []*proto.Message, height uint64) bool {
-	if len(messages) < 1 {
-		return false
-	}
-
-	for _, message := range messages {
-		if message.View.Height != height {
-			return false
-		}
-	}
-
-	return true
 }
