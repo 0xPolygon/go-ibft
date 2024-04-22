@@ -3050,7 +3050,7 @@ func TestIBFT_ExtendRoundTimer(t *testing.T) {
 	assert.Equal(t, additionalTimeout, i.additionalTimeout)
 }
 
-func TestIBFT_OverrideBaseRoundTimeout(t *testing.T) {
+func TestIBFTOverrideBaseRoundTimeout(t *testing.T) {
 	t.Parallel()
 
 	baseRoundTimeout := 50 * time.Second
