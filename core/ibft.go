@@ -46,8 +46,9 @@ type Messages interface {
 }
 
 const (
-	round0Timeout   = 10 * time.Second
-	roundFactorBase = float64(2)
+	// DefaultBaseRoundTimeout is the default base round (round 0) timeout
+	DefaultBaseRoundTimeout = 10 * time.Second
+	roundFactorBase         = float64(2)
 )
 
 var (
@@ -129,7 +130,7 @@ func NewIBFT(
 			roundStarted: false,
 			name:         newRound,
 		},
-		baseRoundTimeout: round0Timeout,
+		baseRoundTimeout: DefaultBaseRoundTimeout,
 		validatorManager: NewValidatorManager(backend, log),
 	}
 }
@@ -1033,10 +1034,10 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 		}
 
 		proposal := messages.ExtractProposal(latestPC.ProposalMessage)
-		round := proposal.Round
+		preparedCertificateRound := proposal.Round
 
 		// skip if message's round is equals to/less than maxRound
-		if previousProposal != nil && round <= maxRound {
+		if previousProposal != nil && preparedCertificateRound <= maxRound {
 			continue
 		}
 
@@ -1046,7 +1047,7 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 		}
 
 		previousProposal = lastPB.RawProposal
-		maxRound = round
+		maxRound = preparedCertificateRound
 	}
 
 	if previousProposal == nil {
@@ -1138,6 +1139,11 @@ func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
 // ExtendRoundTimeout extends each round's timer by the specified amount.
 func (i *IBFT) ExtendRoundTimeout(amount time.Duration) {
 	i.additionalTimeout = amount
+}
+
+// SetBaseRoundTimeout sets the base (round 0) timeout
+func (i *IBFT) SetBaseRoundTimeout(baseRoundTimeout time.Duration) {
+	i.baseRoundTimeout = baseRoundTimeout
 }
 
 // validPC verifies that the prepared certificate is valid
@@ -1288,9 +1294,9 @@ func (i *IBFT) subscribe(details messages.SubscriptionDetails) *messages.Subscri
 //   - round 4: 8 sec
 func getRoundTimeout(baseRoundTimeout, additionalTimeout time.Duration, round uint64) time.Duration {
 	var (
-		duration     = int(baseRoundTimeout)
+		baseDuration = int(baseRoundTimeout)
 		roundFactor  = int(math.Pow(roundFactorBase, float64(round)))
-		roundTimeout = time.Duration(duration * roundFactor)
+		roundTimeout = time.Duration(baseDuration * roundFactor)
 	)
 
 	return roundTimeout + additionalTimeout
