@@ -705,7 +705,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 	proposer := []byte("proposer")
 	round := uint64(1)
 
-	correctRoundMessage := newCorrectRoundMessage(round)
+	roundMessage := newCorrectRoundMessage(round)
 
 	generateProposalWithNoPrevious := func() *proto.Message {
 		roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
@@ -720,8 +720,8 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
-					Proposal:     correctRoundMessage.proposal,
-					ProposalHash: correctRoundMessage.hash,
+					Proposal:     roundMessage.proposal,
+					ProposalHash: roundMessage.hash,
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
 					},
@@ -740,13 +740,13 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
-					Proposal:     correctRoundMessage.proposal,
-					ProposalHash: correctRoundMessage.hash,
+					Proposal:     roundMessage.proposal,
+					ProposalHash: roundMessage.hash,
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: generateFilledRCMessages(
 							quorum,
-							correctRoundMessage.proposal,
-							correctRoundMessage.hash,
+							roundMessage.proposal,
+							roundMessage.hash,
 						),
 					},
 				},
@@ -800,7 +800,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 							Type: proto.MessageType_PREPARE,
 							Payload: &proto.Message_PrepareData{
 								PrepareData: &proto.PrepareMessage{
-									ProposalHash: correctRoundMessage.hash,
+									ProposalHash: roundMessage.hash,
 								},
 							},
 						}
@@ -857,10 +857,10 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			assert.Equal(t, prepare, i.state.name)
 
 			// Make sure the accepted proposal is the one that was sent out
-			assert.Equal(t, correctRoundMessage.proposal, i.state.getProposal())
+			assert.Equal(t, roundMessage.proposal, i.state.getProposal())
 
 			// Make sure the correct proposal hash was multicasted
-			assert.True(t, prepareHashMatches(correctRoundMessage.hash, multicastedPrepare))
+			assert.True(t, prepareHashMatches(roundMessage.hash, multicastedPrepare))
 		})
 	}
 }
@@ -1201,6 +1201,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 					},
 				}
 			)
+
 			i := NewIBFT(log, backend, transport)
 			i.state.view = testCase.stateView
 
@@ -1235,6 +1236,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 
 		wg.Add(1)
 		i.wg.Add(1)
+
 		go func() {
 			i.startRoundTimer(ctx, 0)
 
@@ -1264,6 +1266,7 @@ func TestIBFT_StartRoundTimer(t *testing.T) {
 		ctx, cancelFn := context.WithCancel(context.Background())
 
 		wg.Add(1)
+
 		go func() {
 			defer func() {
 				wg.Done()
@@ -1351,7 +1354,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 		view *proto.View,
 		roundChangeMessages []*proto.Message,
 	) *proto.Message {
-		correctRoundMessage := newCorrectRoundMessage(view.Round)
+		roundMessage := newCorrectRoundMessage(view.Round)
 
 		return &proto.Message{
 			View: view,
@@ -1359,8 +1362,8 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			Type: proto.MessageType_PREPREPARE,
 			Payload: &proto.Message_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
-					Proposal:     correctRoundMessage.proposal,
-					ProposalHash: correctRoundMessage.hash,
+					Proposal:     roundMessage.proposal,
+					ProposalHash: roundMessage.hash,
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
 					},
@@ -1464,6 +1467,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 			i.messages = mMessages
 
 			wg.Add(1)
+
 			go func() {
 				defer func() {
 					cancelFn()
@@ -1988,6 +1992,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		i := NewIBFT(log, backend, transport)
 		require.NoError(t, i.validatorManager.Init(0))
+
 		proposal := generateMessagesWithSender(1, proto.MessageType_PREPREPARE, sender)[0]
 
 		certificate := &proto.PreparedCertificate{
@@ -3045,6 +3050,18 @@ func TestIBFT_ExtendRoundTimer(t *testing.T) {
 	assert.Equal(t, additionalTimeout, i.additionalTimeout)
 }
 
+func TestIBFTOverrideBaseRoundTimeout(t *testing.T) {
+	t.Parallel()
+
+	baseRoundTimeout := 50 * time.Second
+
+	i := NewIBFT(mockLogger{}, mockBackend{}, mockTransport{})
+	i.SetBaseRoundTimeout(baseRoundTimeout)
+
+	// Make sure the base round timeout is properly set
+	assert.Equal(t, baseRoundTimeout, i.baseRoundTimeout)
+}
+
 func Test_getRoundTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -3060,7 +3077,7 @@ func Test_getRoundTimeout(t *testing.T) {
 		want time.Duration
 	}{
 		{
-			name: "first round duration",
+			name: "zero round duration",
 			args: args{
 				baseRoundTimeout:  time.Second,
 				additionalTimeout: time.Second,
@@ -3069,13 +3086,21 @@ func Test_getRoundTimeout(t *testing.T) {
 			want: time.Second * 2,
 		},
 		{
-			name: "zero round duration",
+			name: "first round duration",
 			args: args{
 				baseRoundTimeout:  time.Second,
 				additionalTimeout: time.Second,
 				round:             1,
 			},
 			want: time.Second * 3,
+		},
+		{
+			name: "third round duration",
+			args: args{
+				baseRoundTimeout: time.Second,
+				round:            3,
+			},
+			want: time.Second * 8,
 		},
 	}
 
