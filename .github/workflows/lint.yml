@@ -34,8 +34,8 @@ jobs:
           args:
             --config=./.golangci.yml
 
-      - name: staticcheck
-        uses: dominikh/staticcheck-action@v1.2.0
+      - name: Static check
+        uses: dominikh/staticcheck-action@v1
         with:
-          version: "2022.1.1"
+          version: "latest"
           install-go: false
