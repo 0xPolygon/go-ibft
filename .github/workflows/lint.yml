@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: 1.21.x
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.1
         with:
           fetch-depth: '0'
 
@@ -28,7 +28,7 @@ jobs:
         run: git fetch origin main && git branch main remotes/origin/main
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v4
         with:
           version: latest
           args:
