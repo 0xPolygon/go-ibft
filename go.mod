@@ -1,6 +1,6 @@
 module github.com/0xPolygon/go-ibft
 
-go 1.19
+go 1.21
 
 require (
 	github.com/armon/go-metrics v0.4.1
