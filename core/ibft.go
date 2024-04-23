@@ -323,6 +323,8 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	for {
 		view := i.state.getView()
 
+		i.backend.StartRound(view)
+
 		i.log.Info("round started", "round", view.Round)
 
 		currentRound := view.Round
