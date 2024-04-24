@@ -63,7 +63,7 @@ type Backend interface {
 	ValidatorBackend
 
 	// StartRound notifies the backend implementation whenever new round is about to start
-	StartRound(view *proto.View)
+	StartRound(view *proto.View) error
 
 	// BuildProposal builds a new proposal for the given view (height and round)
 	BuildProposal(view *proto.View) []byte

@@ -64,7 +64,7 @@ type buildRoundChangeMessageDelegate func(
 type insertProposalDelegate func(*proto.Proposal, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type getVotingPowerDelegate func(uint64) (map[string]*big.Int, error)
-type startRoundDelegate func(*proto.View)
+type startRoundDelegate func(*proto.View) error
 
 var _ Backend = &mockBackend{}
 
@@ -204,10 +204,12 @@ func (m mockBackend) GetVotingPowers(height uint64) (map[string]*big.Int, error)
 	return map[string]*big.Int{}, nil
 }
 
-func (m mockBackend) StartRound(view *proto.View) {
+func (m mockBackend) StartRound(view *proto.View) error {
 	if m.startRoundFn != nil {
-		m.startRoundFn(view)
+		return m.startRoundFn(view)
 	}
+
+	return nil
 }
 
 // Define delegation methods
