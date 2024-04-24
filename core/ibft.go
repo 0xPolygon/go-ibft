@@ -377,6 +377,7 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			// The consensus cycle for the block height is finished.
 			// Stop all running worker threads
 			teardown()
+			i.insertBlock()
 
 			return
 		case <-ctxRound.Done():
@@ -557,10 +558,7 @@ func (i *IBFT) runStates(ctx context.Context) {
 		case commit:
 			timeout = i.runCommit(ctx)
 		case fin:
-			i.runFin()
-			//	Block inserted without any errors,
-			// sequence is complete
-			i.signalRoundDone(ctx)
+			i.runFin(ctx)
 
 			return
 		}
@@ -964,10 +962,15 @@ func (i *IBFT) handleCommit(view *proto.View) bool {
 }
 
 // runFin runs the fin state (block insertion)
-func (i *IBFT) runFin() {
+func (i *IBFT) runFin(ctx context.Context) {
 	i.log.Debug("enter: fin state")
 	defer i.log.Debug("exit: fin state")
 
+	i.signalRoundDone(ctx)
+}
+
+// insertBlock inserts the block
+func (i *IBFT) insertBlock() {
 	// Insert the block to the node's underlying
 	// blockchain layer
 	i.backend.InsertProposal(

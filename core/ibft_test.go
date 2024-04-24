@@ -1080,19 +1080,20 @@ func TestRunCommit(t *testing.T) {
 			i.startRound(ctx)
 
 			i.wg.Wait()
+			i.insertBlock()
 
 			// Make sure the node changed the state to fin
-			assert.Equal(t, fin, i.state.name)
+			require.Equal(t, fin, i.state.name)
 
 			// Make sure the inserted proposal was the one present
-			assert.Equal(t, insertedProposal, correctRoundMessage.proposal.RawProposal)
+			require.Equal(t, insertedProposal, correctRoundMessage.proposal.RawProposal)
 
 			// Make sure the inserted committed seals were correct
-			assert.Equal(t, insertedCommittedSeals, committedSeals)
+			require.Equal(t, insertedCommittedSeals, committedSeals)
 
 			// Make sure the proper done channel was notified
 			wg.Wait()
-			assert.True(t, doneReceived)
+			require.True(t, doneReceived)
 		},
 	)
 }
