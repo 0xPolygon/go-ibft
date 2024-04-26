@@ -13,8 +13,8 @@ var (
 	errVotingPowerNotCorrect = errors.New("total voting power is zero or less")
 )
 
-// ValidatorBackend defines interface that has GetVotingPower
-type ValidatorBackend interface {
+// validatorBackend defines interface that has GetVotingPower
+type validatorBackend interface {
 	// GetVotingPowers returns map of validators addresses and their voting powers for the specified height.
 	GetVotingPowers(height uint64) (map[string]*big.Int, error)
 }
@@ -30,13 +30,13 @@ type ValidatorManager struct {
 	// the height specified in the current View
 	validatorsVotingPower map[string]*big.Int
 
-	backend ValidatorBackend
+	backend validatorBackend
 
 	log Logger
 }
 
 // NewValidatorManager creates new ValidatorManager
-func NewValidatorManager(backend ValidatorBackend, log Logger) *ValidatorManager {
+func NewValidatorManager(backend validatorBackend, log Logger) *ValidatorManager {
 	return &ValidatorManager{
 		quorumSize:            big.NewInt(0),
 		backend:               backend,

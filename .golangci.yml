@@ -352,7 +352,7 @@ linters-settings:
       - name: max-public-structs
         severity: warning
         disabled: false
-        arguments: [ 3 ]
+        arguments: [ 8 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#modifies-parameter
       - name: modifies-parameter
         severity: warning

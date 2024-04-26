@@ -64,7 +64,7 @@ type buildRoundChangeMessageDelegate func(
 type insertProposalDelegate func(*proto.Proposal, []*messages.CommittedSeal)
 type idDelegate func() []byte
 type getVotingPowerDelegate func(uint64) (map[string]*big.Int, error)
-type startRoundDelegate func(*proto.View) error
+type viewNotificationDelegate func(*proto.View) error
 
 var _ Backend = &mockBackend{}
 
@@ -84,7 +84,8 @@ type mockBackend struct {
 	insertProposalFn          insertProposalDelegate
 	idFn                      idDelegate
 	getVotingPowerFn          getVotingPowerDelegate
-	startRoundFn              startRoundDelegate
+	roundStartsFn             viewNotificationDelegate
+	sequenceCancelledFn       viewNotificationDelegate
 }
 
 func (m mockBackend) ID() []byte {
@@ -204,9 +205,17 @@ func (m mockBackend) GetVotingPowers(height uint64) (map[string]*big.Int, error)
 	return map[string]*big.Int{}, nil
 }
 
-func (m mockBackend) StartRound(view *proto.View) error {
-	if m.startRoundFn != nil {
-		return m.startRoundFn(view)
+func (m mockBackend) RoundStarts(view *proto.View) error {
+	if m.roundStartsFn != nil {
+		return m.roundStartsFn(view)
+	}
+
+	return nil
+}
+
+func (m mockBackend) SequenceCancelled(view *proto.View) error {
+	if m.sequenceCancelledFn != nil {
+		return m.sequenceCancelledFn(view)
 	}
 
 	return nil
