@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestByzanthineBehaviour(t *testing.T) {
+func TestByzantineBehaviour(t *testing.T) {
 	t.Parallel()
 
 	//nolint:dupl
