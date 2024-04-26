@@ -69,7 +69,7 @@ type Notifier interface {
 type Backend interface {
 	MessageConstructor
 	Verifier
-	validatorBackend
+	ValidatorBackend
 	Notifier
 
 	// BuildProposal builds a new proposal for the given view (height and round)
