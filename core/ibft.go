@@ -323,8 +323,8 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	for {
 		view := i.state.getView()
 
-		if err := i.backend.StartRound(view); err != nil {
-			i.log.Error("failed to handle start round callback on backend", "round", view.Round, "err", err)
+		if err := i.backend.RoundStarts(view); err != nil {
+			i.log.Error("failed to handle start round callback on backend", "view", view, "err", err)
 		}
 
 		i.log.Info("round started", "round", view.Round)
@@ -382,6 +382,11 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 			return
 		case <-ctxRound.Done():
 			teardown()
+
+			if err := i.backend.SequenceCancelled(view); err != nil {
+				i.log.Error("failed to handle sequence cancelled callback on backend", "view", view, "err", err)
+			}
+
 			i.log.Debug("sequence cancelled")
 
 			return

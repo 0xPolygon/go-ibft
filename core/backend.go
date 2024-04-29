@@ -55,15 +55,22 @@ type Verifier interface {
 	IsValidCommittedSeal(proposalHash []byte, committedSeal *messages.CommittedSeal) bool
 }
 
+// Notifier contains callback functions that notifies about consensus execution
+type Notifier interface {
+	// RoundStarts notifies the backend implementation whenever new round is about to start
+	RoundStarts(view *proto.View) error
+
+	// SequenceCancelled notifies the backend implementation whenever a sequence is cancelled
+	SequenceCancelled(view *proto.View) error
+}
+
 // Backend defines an interface all backend implementations
 // need to implement
 type Backend interface {
 	MessageConstructor
 	Verifier
 	ValidatorBackend
-
-	// StartRound notifies the backend implementation whenever new round is about to start
-	StartRound(view *proto.View) error
+	Notifier
 
 	// BuildProposal builds a new proposal for the given view (height and round)
 	BuildProposal(view *proto.View) []byte
