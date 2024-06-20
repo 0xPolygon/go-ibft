@@ -17,10 +17,10 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 		committedSeal = []byte("committed seal")
 	)
 
-	createCommitMessage := func(signer string) *proto.Message {
-		return &proto.Message{
+	createCommitMessage := func(signer string) *proto.IbftMessage {
+		return &proto.IbftMessage{
 			Type: proto.MessageType_COMMIT,
-			Payload: &proto.Message_CommitData{
+			Payload: &proto.IbftMessage_CommitData{
 				CommitData: &proto.CommitMessage{
 					CommittedSeal: committedSeal,
 				},
@@ -29,8 +29,8 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 		}
 	}
 
-	createWrongMessage := func(signer string, msgType proto.MessageType) *proto.Message {
-		return &proto.Message{
+	createWrongMessage := func(signer string, msgType proto.MessageType) *proto.IbftMessage {
+		return &proto.IbftMessage{
 			Type: msgType,
 		}
 	}
@@ -44,13 +44,13 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		messages []*proto.Message
+		messages []*proto.IbftMessage
 		expected []*CommittedSeal
 		err      error
 	}{
 		{
 			name: "contains only valid COMMIT messages",
-			messages: []*proto.Message{
+			messages: []*proto.IbftMessage{
 				createCommitMessage("signer1"),
 				createCommitMessage("signer2"),
 			},
@@ -62,7 +62,7 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 		},
 		{
 			name: "contains wrong type messages",
-			messages: []*proto.Message{
+			messages: []*proto.IbftMessage{
 				createCommitMessage("signer1"),
 				createWrongMessage("signer2", proto.MessageType_PREPREPARE),
 			},
@@ -93,14 +93,14 @@ func TestMessages_ExtractCommitHash(t *testing.T) {
 	testTable := []struct {
 		name               string
 		expectedCommitHash []byte
-		message            *proto.Message
+		message            *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			commitHash,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_COMMIT,
-				Payload: &proto.Message_CommitData{
+				Payload: &proto.IbftMessage_CommitData{
 					CommitData: &proto.CommitMessage{
 						ProposalHash: commitHash,
 					},
@@ -110,7 +110,7 @@ func TestMessages_ExtractCommitHash(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPARE,
 			},
 		},
@@ -139,14 +139,14 @@ func TestMessages_ExtractProposal(t *testing.T) {
 	testTable := []struct {
 		name             string
 		expectedProposal *proto.Proposal
-		message          *proto.Message
+		message          *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			proposal,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
-				Payload: &proto.Message_PreprepareData{
+				Payload: &proto.IbftMessage_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Proposal: proposal,
 					},
@@ -156,7 +156,7 @@ func TestMessages_ExtractProposal(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPARE,
 			},
 		},
@@ -185,14 +185,14 @@ func TestMessages_ExtractProposalHash(t *testing.T) {
 	testTable := []struct {
 		name                 string
 		expectedProposalHash []byte
-		message              *proto.Message
+		message              *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			proposalHash,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
-				Payload: &proto.Message_PreprepareData{
+				Payload: &proto.IbftMessage_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						ProposalHash: proposalHash,
 					},
@@ -202,7 +202,7 @@ func TestMessages_ExtractProposalHash(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPARE,
 			},
 		},
@@ -233,14 +233,14 @@ func TestMessages_ExtractRCC(t *testing.T) {
 	testTable := []struct {
 		name        string
 		expectedRCC *proto.RoundChangeCertificate
-		message     *proto.Message
+		message     *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			rcc,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
-				Payload: &proto.Message_PreprepareData{
+				Payload: &proto.IbftMessage_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Certificate: rcc,
 					},
@@ -250,7 +250,7 @@ func TestMessages_ExtractRCC(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPARE,
 			},
 		},
@@ -279,14 +279,14 @@ func TestMessages_ExtractPrepareHash(t *testing.T) {
 	testTable := []struct {
 		name                string
 		expectedPrepareHash []byte
-		message             *proto.Message
+		message             *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			prepareHash,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPARE,
-				Payload: &proto.Message_PrepareData{
+				Payload: &proto.IbftMessage_PrepareData{
 					PrepareData: &proto.PrepareMessage{
 						ProposalHash: prepareHash,
 					},
@@ -296,7 +296,7 @@ func TestMessages_ExtractPrepareHash(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
 			},
 		},
@@ -328,14 +328,14 @@ func TestMessages_ExtractLatestPC(t *testing.T) {
 	testTable := []struct {
 		name       string
 		expectedPC *proto.PreparedCertificate
-		message    *proto.Message
+		message    *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			latestPC,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{
+				Payload: &proto.IbftMessage_RoundChangeData{
 					RoundChangeData: &proto.RoundChangeMessage{
 						LatestPreparedCertificate: latestPC,
 					},
@@ -345,7 +345,7 @@ func TestMessages_ExtractLatestPC(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
 			},
 		},
@@ -374,14 +374,14 @@ func TestMessages_ExtractLPPB(t *testing.T) {
 	testTable := []struct {
 		name         string
 		expectedLPPB *proto.Proposal
-		message      *proto.Message
+		message      *proto.IbftMessage
 	}{
 		{
 			"valid message",
 			lastPreparedProposal,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{
+				Payload: &proto.IbftMessage_RoundChangeData{
 					RoundChangeData: &proto.RoundChangeMessage{
 						LastPreparedProposal: lastPreparedProposal,
 					},
@@ -391,7 +391,7 @@ func TestMessages_ExtractLPPB(t *testing.T) {
 		{
 			"invalid message",
 			nil,
-			&proto.Message{
+			&proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
 			},
 		},
@@ -417,7 +417,7 @@ func TestMessages_HasUniqueSenders(t *testing.T) {
 
 	testTable := []struct {
 		name      string
-		messages  []*proto.Message
+		messages  []*proto.IbftMessage
 		hasUnique bool
 	}{
 		{
@@ -427,7 +427,7 @@ func TestMessages_HasUniqueSenders(t *testing.T) {
 		},
 		{
 			"non unique senders",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					From: []byte("node 1"),
 				},
@@ -439,7 +439,7 @@ func TestMessages_HasUniqueSenders(t *testing.T) {
 		},
 		{
 			"unique senders",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					From: []byte("node 1"),
 				},
@@ -471,7 +471,7 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 
 	testTable := []struct {
 		name     string
-		messages []*proto.Message
+		messages []*proto.IbftMessage
 		haveSame bool
 	}{
 		{
@@ -481,7 +481,7 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 		},
 		{
 			"invalid message type",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					Type: proto.MessageType_ROUND_CHANGE,
 					View: &proto.View{
@@ -495,10 +495,10 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 		},
 		{
 			"hash mismatch",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -511,7 +511,7 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 				},
 				{
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: []byte("differing hash"),
 						},
@@ -527,10 +527,10 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 		},
 		{
 			"hash match",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -543,7 +543,7 @@ func TestMessages_HaveSameProposalHash(t *testing.T) {
 				},
 				{
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -581,7 +581,7 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 
 	testTable := []struct {
 		name      string
-		messages  []*proto.Message
+		messages  []*proto.IbftMessage
 		round     uint64
 		haveLower bool
 	}{
@@ -593,14 +593,14 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 		},
 		{
 			"not same lower round",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round,
 					},
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -613,7 +613,7 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Round:  round + 1,
 					},
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -626,14 +626,14 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 		},
 		{
 			"same higher round",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round + 1,
 					},
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -646,7 +646,7 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Round:  round + 1,
 					},
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -659,14 +659,14 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 		},
 		{
 			"lower round match",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					View: &proto.View{
 						Height: 0,
 						Round:  round,
 					},
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -679,7 +679,7 @@ func TestMessages_AllHaveLowerRond(t *testing.T) {
 						Round:  round,
 					},
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -718,7 +718,7 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 
 	testTable := []struct {
 		name     string
-		messages []*proto.Message
+		messages []*proto.IbftMessage
 		haveSame bool
 	}{
 		{
@@ -728,13 +728,13 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 		},
 		{
 			"not same height",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					View: &proto.View{
 						Height: height - 1,
 					},
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -746,7 +746,7 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 						Height: height,
 					},
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -758,14 +758,14 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 		},
 		{
 			"same height",
-			[]*proto.Message{
+			[]*proto.IbftMessage{
 				{
 					View: &proto.View{
 						Height: height,
 						Round:  1,
 					},
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							ProposalHash: proposalHash,
 						},
@@ -778,7 +778,7 @@ func TestMessages_AllHaveSameHeight(t *testing.T) {
 						Round:  1,
 					},
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: proposalHash,
 						},

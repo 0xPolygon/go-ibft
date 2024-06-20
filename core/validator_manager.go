@@ -96,8 +96,8 @@ func (vm *ValidatorManager) HasQuorum(sendersAddrs map[string]struct{}) bool {
 }
 
 // HasPrepareQuorum provides information on whether prepared messages have reached the quorum
-func (vm *ValidatorManager) HasPrepareQuorum(stateName stateType, proposalMessage *proto.Message,
-	msgs []*proto.Message) bool {
+func (vm *ValidatorManager) HasPrepareQuorum(stateName stateType, proposalMessage *proto.IbftMessage,
+	msgs []*proto.IbftMessage) bool {
 	if proposalMessage == nil {
 		// If the state is in prepare phase, the proposal must be set. Otherwise, just return false since
 		// this is a valid scenario e.g. proposal msg is received before prepare msg for the same view
@@ -144,7 +144,7 @@ func calculateTotalVotingPower(validatorsVotingPower map[string]*big.Int) *big.I
 }
 
 // convertMessageToAddressSet converts messages slice to addresses map
-func convertMessageToAddressSet(messages []*proto.Message) map[string]struct{} {
+func convertMessageToAddressSet(messages []*proto.IbftMessage) map[string]struct{} {
 	result := make(map[string]struct{}, len(messages))
 
 	for _, x := range messages {

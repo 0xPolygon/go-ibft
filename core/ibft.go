@@ -22,7 +22,7 @@ type Logger interface {
 // Messages represents the message managing behaviour
 type Messages interface {
 	// Messages modifiers //
-	AddMessage(message *proto.Message)
+	AddMessage(message *proto.IbftMessage)
 	PruneByHeight(height uint64)
 
 	SignalEvent(messageType proto.MessageType, view *proto.View)
@@ -31,14 +31,14 @@ type Messages interface {
 	GetValidMessages(
 		view *proto.View,
 		messageType proto.MessageType,
-		isValid func(*proto.Message) bool,
-	) []*proto.Message
+		isValid func(*proto.IbftMessage) bool,
+	) []*proto.IbftMessage
 	GetExtendedRCC(
 		height uint64,
-		isValidMessage func(message *proto.Message) bool,
-		isValidRCC func(round uint64, msgs []*proto.Message) bool,
-	) []*proto.Message
-	GetMostRoundChangeMessages(minRound, height uint64) []*proto.Message
+		isValidMessage func(message *proto.IbftMessage) bool,
+		isValidRCC func(round uint64, msgs []*proto.IbftMessage) bool,
+	) []*proto.IbftMessage
+	GetMostRoundChangeMessages(minRound, height uint64) []*proto.IbftMessage
 
 	// Messages subscription handlers //
 	Subscribe(details messages.SubscriptionDetails) *messages.Subscription
@@ -193,7 +193,7 @@ func (i *IBFT) signalNewRCC(ctx context.Context, round uint64) {
 }
 
 type newProposalEvent struct {
-	proposalMessage *proto.Message
+	proposalMessage *proto.IbftMessage
 	round           uint64
 }
 
@@ -473,7 +473,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 		hasAcceptedProposal = i.state.getProposal() != nil
 	)
 
-	isValidMsgFn := func(msg *proto.Message) bool {
+	isValidMsgFn := func(msg *proto.IbftMessage) bool {
 		proposal := messages.ExtractLastPreparedProposal(msg)
 		certificate := messages.ExtractLatestPC(msg)
 
@@ -486,7 +486,7 @@ func (i *IBFT) handleRoundChangeMessage(view *proto.View) *proto.RoundChangeCert
 		return i.proposalMatchesCertificate(proposal, certificate)
 	}
 
-	isValidRCCFn := func(round uint64, msgs []*proto.Message) bool {
+	isValidRCCFn := func(round uint64, msgs []*proto.IbftMessage) bool {
 		// In case of that ROUND-CHANGE message's round match validator's round
 		// Accept such messages only if the validator has not accepted a proposal at the round
 		if round == view.Round && hasAcceptedProposal {
@@ -626,7 +626,7 @@ func (i *IBFT) runNewRound(ctx context.Context) error {
 
 // validateProposalCommon does common validations for each proposal, no
 // matter the round
-func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool {
+func (i *IBFT) validateProposalCommon(msg *proto.IbftMessage, view *proto.View) bool {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -655,7 +655,7 @@ func (i *IBFT) validateProposalCommon(msg *proto.Message, view *proto.View) bool
 }
 
 // validateProposal0 validates the proposal for round 0
-func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
+func (i *IBFT) validateProposal0(msg *proto.IbftMessage, view *proto.View) bool {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -680,7 +680,7 @@ func (i *IBFT) validateProposal0(msg *proto.Message, view *proto.View) bool {
 }
 
 // validateProposal validates a proposal for round > 0
-func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
+func (i *IBFT) validateProposal(msg *proto.IbftMessage, view *proto.View) bool {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -789,8 +789,8 @@ func (i *IBFT) validateProposal(msg *proto.Message, view *proto.View) bool {
 
 // handlePrePrepare parses the received proposal and performs
 // a transition to PREPARE state, if the proposal is valid
-func (i *IBFT) handlePrePrepare(view *proto.View) *proto.Message {
-	isValidPrePrepare := func(message *proto.Message) bool {
+func (i *IBFT) handlePrePrepare(view *proto.View) *proto.IbftMessage {
+	isValidPrePrepare := func(message *proto.IbftMessage) bool {
 		if view.Round == 0 {
 			//	proposal must be for round 0
 			return i.validateProposal0(message, view)
@@ -853,7 +853,7 @@ func (i *IBFT) runPrepare(ctx context.Context) error {
 // handlePrepare parses available prepare messages and performs
 // a transition to COMMIT state, if quorum was reached
 func (i *IBFT) handlePrepare(view *proto.View) bool {
-	isValidPrepare := func(message *proto.Message) bool {
+	isValidPrepare := func(message *proto.IbftMessage) bool {
 		// Verify that the proposal hash is valid
 		return i.backend.IsValidProposalHash(
 			i.state.getProposal(),
@@ -929,7 +929,7 @@ func (i *IBFT) runCommit(ctx context.Context) error {
 // handleCommit parses available commit messages and performs
 // a transition to FIN state, if quorum was reached
 func (i *IBFT) handleCommit(view *proto.View) bool {
-	isValidCommit := func(message *proto.Message) bool {
+	isValidCommit := func(message *proto.IbftMessage) bool {
 		var (
 			proposalHash  = messages.ExtractCommitHash(message)
 			committedSeal = messages.ExtractCommittedSeal(message)
@@ -1002,7 +1002,7 @@ func (i *IBFT) moveToNewRound(round uint64) {
 	i.state.changeState(newRound)
 }
 
-func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Message {
+func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.IbftMessage {
 	var (
 		height = view.Height
 		round  = view.Round
@@ -1091,14 +1091,14 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.Messa
 }
 
 // acceptProposal accepts the proposal and moves the state
-func (i *IBFT) acceptProposal(proposalMessage *proto.Message) {
+func (i *IBFT) acceptProposal(proposalMessage *proto.IbftMessage) {
 	//	accept newly proposed block and move to PREPARE state
 	i.state.setProposalMessage(proposalMessage)
 	i.state.changeState(prepare)
 }
 
 // AddMessage adds a new message to the IBFT message system
-func (i *IBFT) AddMessage(message *proto.Message) {
+func (i *IBFT) AddMessage(message *proto.IbftMessage) {
 	// Make sure the message is present
 	if message == nil {
 		return
@@ -1114,7 +1114,7 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 			msgs := i.messages.GetValidMessages(
 				message.View,
 				message.Type,
-				func(_ *proto.Message) bool { return true })
+				func(_ *proto.IbftMessage) bool { return true })
 			if i.hasQuorumByMsgType(msgs, message.Type) {
 				i.messages.SignalEvent(message.Type, message.View)
 			}
@@ -1123,7 +1123,7 @@ func (i *IBFT) AddMessage(message *proto.Message) {
 }
 
 // isAcceptableMessage checks if the message can even be accepted
-func (i *IBFT) isAcceptableMessage(message *proto.Message) bool {
+func (i *IBFT) isAcceptableMessage(message *proto.IbftMessage) bool {
 	//	Make sure the message sender is ok
 	if !i.backend.IsValidValidator(message) {
 		return false
@@ -1175,7 +1175,7 @@ func (i *IBFT) validPC(
 	}
 
 	allMessages := append(
-		[]*proto.Message{certificate.ProposalMessage},
+		[]*proto.IbftMessage{certificate.ProposalMessage},
 		certificate.PrepareMessages...,
 	)
 
@@ -1231,7 +1231,7 @@ func (i *IBFT) validPC(
 }
 
 // sendPreprepareMessage sends out the preprepare message
-func (i *IBFT) sendPreprepareMessage(message *proto.Message) {
+func (i *IBFT) sendPreprepareMessage(message *proto.IbftMessage) {
 	i.transport.Multicast(message)
 }
 
@@ -1270,7 +1270,7 @@ func (i *IBFT) sendCommitMessage(view *proto.View) {
 }
 
 // hasQuorumByMsgType provides information on whether messages of specific types have reached the quorum
-func (i *IBFT) hasQuorumByMsgType(msgs []*proto.Message, msgType proto.MessageType) bool {
+func (i *IBFT) hasQuorumByMsgType(msgs []*proto.IbftMessage, msgType proto.MessageType) bool {
 	switch msgType {
 	case proto.MessageType_PREPREPARE:
 		return len(msgs) >= 1
@@ -1288,7 +1288,7 @@ func (i *IBFT) subscribe(details messages.SubscriptionDetails) *messages.Subscri
 	msgs := i.messages.GetValidMessages(
 		details.View,
 		details.MessageType,
-		func(_ *proto.Message) bool { return true })
+		func(_ *proto.IbftMessage) bool { return true })
 	// Check if any condition is already met
 	if i.hasQuorumByMsgType(msgs, details.MessageType) {
 		i.messages.SignalEvent(details.MessageType, details.View)

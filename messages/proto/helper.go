@@ -4,8 +4,8 @@ package proto
 import "google.golang.org/protobuf/proto"
 
 // PayloadNoSig returns marshaled message without signature
-func (m *Message) PayloadNoSig() ([]byte, error) {
-	mm, _ := proto.Clone(m).(*Message)
+func (m *IbftMessage) PayloadNoSig() ([]byte, error) {
+	mm, _ := proto.Clone(m).(*IbftMessage)
 	mm.Signature = nil
 
 	raw, err := proto.Marshal(mm)

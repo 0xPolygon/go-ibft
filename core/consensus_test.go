@@ -31,12 +31,12 @@ func buildBasicPreprepareMessage(
 	certificate *proto.RoundChangeCertificate,
 	from []byte,
 	view *proto.View,
-) *proto.Message {
-	return &proto.Message{
+) *proto.IbftMessage {
+	return &proto.IbftMessage{
 		View: view,
 		From: from,
 		Type: proto.MessageType_PREPREPARE,
-		Payload: &proto.Message_PreprepareData{
+		Payload: &proto.IbftMessage_PreprepareData{
 			PreprepareData: &proto.PrePrepareMessage{
 				Proposal: &proto.Proposal{
 					RawProposal: rawProposal,
@@ -54,12 +54,12 @@ func buildBasicPrepareMessage(
 	proposalHash,
 	from []byte,
 	view *proto.View,
-) *proto.Message {
-	return &proto.Message{
+) *proto.IbftMessage {
+	return &proto.IbftMessage{
 		View: view,
 		From: from,
 		Type: proto.MessageType_PREPARE,
-		Payload: &proto.Message_PrepareData{
+		Payload: &proto.IbftMessage_PrepareData{
 			PrepareData: &proto.PrepareMessage{
 				ProposalHash: proposalHash,
 			},
@@ -73,12 +73,12 @@ func buildBasicCommitMessage(
 	committedSeal,
 	from []byte,
 	view *proto.View,
-) *proto.Message {
-	return &proto.Message{
+) *proto.IbftMessage {
+	return &proto.IbftMessage{
 		View: view,
 		From: from,
 		Type: proto.MessageType_COMMIT,
-		Payload: &proto.Message_CommitData{
+		Payload: &proto.IbftMessage_CommitData{
 			CommitData: &proto.CommitMessage{
 				ProposalHash:  proposalHash,
 				CommittedSeal: committedSeal,
@@ -93,12 +93,12 @@ func buildBasicRoundChangeMessage(
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
 	from []byte,
-) *proto.Message {
-	return &proto.Message{
+) *proto.IbftMessage {
+	return &proto.IbftMessage{
 		View: view,
 		From: from,
 		Type: proto.MessageType_ROUND_CHANGE,
-		Payload: &proto.Message_RoundChangeData{
+		Payload: &proto.IbftMessage_RoundChangeData{
 			RoundChangeData: &proto.RoundChangeMessage{
 				LastPreparedProposal:      proposal,
 				LatestPreparedCertificate: certificate,
@@ -134,7 +134,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	t.Parallel()
 
 	var (
-		multicastFn func(message *proto.Message)
+		multicastFn func(message *proto.IbftMessage)
 
 		numNodes       = uint64(4)
 		nodes          = generateNodeAddresses(numNodes)
@@ -144,7 +144,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
 	commonTransportCallback := func(transport *mockTransport, _ int) {
-		transport.multicastFn = func(message *proto.Message) {
+		transport.multicastFn = func(message *proto.IbftMessage) {
 			multicastFn(message)
 		}
 	}
@@ -182,7 +182,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			rawProposal []byte,
 			certificate *proto.RoundChangeCertificate,
 			view *proto.View,
-		) *proto.Message {
+		) *proto.IbftMessage {
 			return buildBasicPreprepareMessage(
 				rawProposal,
 				correctRoundMessage.hash,
@@ -192,12 +192,12 @@ func TestConsensus_ValidFlow(t *testing.T) {
 		}
 
 		// Make sure the prepare message is built correctly
-		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.IbftMessage {
 			return buildBasicPrepareMessage(correctRoundMessage.hash, nodes[nodeIndex], view)
 		}
 
 		// Make sure the commit message is built correctly
-		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.IbftMessage {
 			return buildBasicCommitMessage(correctRoundMessage.hash, correctRoundMessage.seal, nodes[nodeIndex], view)
 		}
 
@@ -206,7 +206,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 			proposal *proto.Proposal,
 			certificate *proto.PreparedCertificate,
 			view *proto.View,
-		) *proto.Message {
+		) *proto.IbftMessage {
 			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 		}
 
@@ -231,7 +231,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 
 	// Set the multicast callback to relay the message
 	// to the entire cluster
-	multicastFn = func(message *proto.Message) {
+	multicastFn = func(message *proto.IbftMessage) {
 		cluster.pushMessage(message)
 	}
 
@@ -260,7 +260,7 @@ func TestConsensus_ValidFlow(t *testing.T) {
 func TestConsensus_InvalidBlock(t *testing.T) {
 	t.Parallel()
 
-	var multicastFn func(message *proto.Message)
+	var multicastFn func(message *proto.IbftMessage)
 
 	proposals := [][]byte{
 		[]byte("proposal 1"), // proposed by node 0
@@ -279,7 +279,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 	// commonTransportCallback is the common method modification
 	// required for Transport, for all nodes
 	commonTransportCallback := func(transport *mockTransport, _ int) {
-		transport.multicastFn = func(message *proto.Message) {
+		transport.multicastFn = func(message *proto.IbftMessage) {
 			multicastFn(message)
 		}
 	}
@@ -323,7 +323,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			rawProposal []byte,
 			certificate *proto.RoundChangeCertificate,
 			view *proto.View,
-		) *proto.Message {
+		) *proto.IbftMessage {
 			return buildBasicPreprepareMessage(
 				rawProposal,
 				proposalHashes[view.Round],
@@ -334,12 +334,12 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 		}
 
 		// Make sure the prepare message is built correctly
-		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+		backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.IbftMessage {
 			return buildBasicPrepareMessage(proposalHashes[view.Round], nodes[nodeIndex], view)
 		}
 
 		// Make sure the commit message is built correctly
-		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+		backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.IbftMessage {
 			return buildBasicCommitMessage(proposalHashes[view.Round], committedSeal, nodes[nodeIndex], view)
 		}
 
@@ -348,7 +348,7 @@ func TestConsensus_InvalidBlock(t *testing.T) {
 			proposal *proto.Proposal,
 			certificate *proto.PreparedCertificate,
 			view *proto.View,
-		) *proto.Message {
+		) *proto.IbftMessage {
 			return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 		}
 

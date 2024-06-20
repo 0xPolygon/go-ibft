@@ -42,7 +42,7 @@ func newCorrectRoundMessage(round uint64) roundMessage {
 
 // Define delegation methods
 type isValidBlockDelegate func([]byte) bool
-type IsValidValidatorDelegate func(*proto.Message) bool
+type IsValidValidatorDelegate func(*proto.IbftMessage) bool
 type isProposerDelegate func([]byte, uint64, uint64) bool
 type buildEthereumBlockDelegate func(uint64) []byte
 type isValidProposalHashDelegate func(*proto.Proposal, []byte) bool
@@ -52,14 +52,14 @@ type buildPrePrepareMessageDelegate func(
 	[]byte,
 	*proto.RoundChangeCertificate,
 	*proto.View,
-) *proto.Message
-type buildPrepareMessageDelegate func([]byte, *proto.View) *proto.Message
-type buildCommitMessageDelegate func([]byte, *proto.View) *proto.Message
+) *proto.IbftMessage
+type buildPrepareMessageDelegate func([]byte, *proto.View) *proto.IbftMessage
+type buildCommitMessageDelegate func([]byte, *proto.View) *proto.IbftMessage
 type buildRoundChangeMessageDelegate func(
 	*proto.Proposal,
 	*proto.PreparedCertificate,
 	*proto.View,
-) *proto.Message
+) *proto.IbftMessage
 
 type insertProposalDelegate func(*proto.Proposal, []*messages.CommittedSeal)
 type idDelegate func() []byte
@@ -110,7 +110,7 @@ func (m mockBackend) IsValidProposal(proposal []byte) bool {
 	return true
 }
 
-func (m mockBackend) IsValidValidator(msg *proto.Message) bool {
+func (m mockBackend) IsValidValidator(msg *proto.IbftMessage) bool {
 	if m.IsValidValidatorFn != nil {
 		return m.IsValidValidatorFn(msg)
 	}
@@ -154,7 +154,7 @@ func (m mockBackend) BuildPrePrepareMessage(
 	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
-) *proto.Message {
+) *proto.IbftMessage {
 	if m.buildPrePrepareMessageFn != nil {
 		return m.buildPrePrepareMessageFn(rawProposal, certificate, view)
 	}
@@ -162,7 +162,7 @@ func (m mockBackend) BuildPrePrepareMessage(
 	return nil
 }
 
-func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *proto.Message {
+func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *proto.IbftMessage {
 	if m.buildPrepareMessageFn != nil {
 		return m.buildPrepareMessageFn(proposal, view)
 	}
@@ -170,7 +170,7 @@ func (m mockBackend) BuildPrepareMessage(proposal []byte, view *proto.View) *pro
 	return nil
 }
 
-func (m mockBackend) BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message {
+func (m mockBackend) BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.IbftMessage {
 	if m.buildCommitMessageFn != nil {
 		return m.buildCommitMessageFn(proposalHash, view)
 	}
@@ -182,12 +182,12 @@ func (m mockBackend) BuildRoundChangeMessage(
 	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
-) *proto.Message {
+) *proto.IbftMessage {
 	if m.buildRoundChangeMessageFn != nil {
 		return m.buildRoundChangeMessageFn(proposal, certificate, view)
 	}
 
-	return &proto.Message{
+	return &proto.IbftMessage{
 		View: &proto.View{
 			Height: view.Height,
 			Round:  view.Round,
@@ -222,14 +222,14 @@ func (m mockBackend) SequenceCancelled(view *proto.View) error {
 }
 
 // Define delegation methods
-type multicastFnDelegate func(*proto.Message)
+type multicastFnDelegate func(*proto.IbftMessage)
 
 // mockTransport is the mock transport structure that is configurable
 type mockTransport struct {
 	multicastFn multicastFnDelegate
 }
 
-func (t mockTransport) Multicast(msg *proto.Message) {
+func (t mockTransport) Multicast(msg *proto.IbftMessage) {
 	if t.multicastFn != nil {
 		t.multicastFn(msg)
 	}
@@ -264,21 +264,21 @@ func (l mockLogger) Error(msg string, args ...interface{}) {
 }
 
 type mockMessages struct {
-	addMessageFn    func(message *proto.Message)
+	addMessageFn    func(message *proto.IbftMessage)
 	pruneByHeightFn func(height uint64)
 	signalEventFn   func(messageType proto.MessageType, messageView *proto.View)
 
 	getValidMessagesFn func(
 		view *proto.View,
 		messageType proto.MessageType,
-		isValid func(message *proto.Message) bool,
-	) []*proto.Message
+		isValid func(message *proto.IbftMessage) bool,
+	) []*proto.IbftMessage
 	getExtendedRCCFn func(
 		height uint64,
-		isValidMessage func(message *proto.Message) bool,
-		isValidRCC func(round uint64, messages []*proto.Message) bool,
-	) []*proto.Message
-	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.Message
+		isValidMessage func(message *proto.IbftMessage) bool,
+		isValidRCC func(round uint64, messages []*proto.IbftMessage) bool,
+	) []*proto.IbftMessage
+	getMostRoundChangeMessagesFn func(uint64, uint64) []*proto.IbftMessage
 
 	subscribeFn   func(details messages.SubscriptionDetails) *messages.Subscription
 	unsubscribeFn func(id messages.SubscriptionID)
@@ -287,8 +287,8 @@ type mockMessages struct {
 func (m mockMessages) GetValidMessages(
 	view *proto.View,
 	messageType proto.MessageType,
-	isValid func(*proto.Message) bool,
-) []*proto.Message {
+	isValid func(*proto.IbftMessage) bool,
+) []*proto.IbftMessage {
 	if m.getValidMessagesFn != nil {
 		return m.getValidMessagesFn(view, messageType, isValid)
 	}
@@ -310,7 +310,7 @@ func (m mockMessages) Unsubscribe(id messages.SubscriptionID) {
 	}
 }
 
-func (m mockMessages) AddMessage(msg *proto.Message) {
+func (m mockMessages) AddMessage(msg *proto.IbftMessage) {
 	if m.addMessageFn != nil {
 		m.addMessageFn(msg)
 	}
@@ -330,9 +330,9 @@ func (m mockMessages) SignalEvent(msgType proto.MessageType, view *proto.View) {
 
 func (m mockMessages) GetExtendedRCC(
 	height uint64,
-	isValidMessage func(message *proto.Message) bool,
-	isValidRCC func(round uint64, messages []*proto.Message) bool,
-) []*proto.Message {
+	isValidMessage func(message *proto.IbftMessage) bool,
+	isValidRCC func(round uint64, messages []*proto.IbftMessage) bool,
+) []*proto.IbftMessage {
 	if m.getExtendedRCCFn != nil {
 		return m.getExtendedRCCFn(height, isValidMessage, isValidRCC)
 	}
@@ -340,7 +340,7 @@ func (m mockMessages) GetExtendedRCC(
 	return nil
 }
 
-func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.Message {
+func (m mockMessages) GetMostRoundChangeMessages(round, height uint64) []*proto.IbftMessage {
 	if m.getMostRoundChangeMessagesFn != nil {
 		return m.getMostRoundChangeMessagesFn(round, height)
 	}
@@ -546,7 +546,7 @@ func (m *mockCluster) awaitNCompletions(
 
 // pushMessage imitates a message passing service,
 // it relays a message to all nodes in the network
-func (m *mockCluster) pushMessage(message *proto.Message) {
+func (m *mockCluster) pushMessage(message *proto.IbftMessage) {
 	for _, node := range m.nodes {
 		node.AddMessage(message)
 	}

@@ -207,7 +207,7 @@ func TestProperty(t *testing.T) {
 	t.Parallel()
 
 	rapid.Check(t, func(t *rapid.T) {
-		var multicastFn func(message *proto.Message)
+		var multicastFn func(message *proto.IbftMessage)
 
 		var (
 			setup             = generatePropertyTestEvent(t)
@@ -218,7 +218,7 @@ func TestProperty(t *testing.T) {
 		// commonTransportCallback is the common method modification
 		// required for Transport, for all nodes
 		commonTransportCallback := func(transport *mockTransport, nodeIndex int) {
-			transport.multicastFn = func(message *proto.Message) {
+			transport.multicastFn = func(message *proto.IbftMessage) {
 				if message.Type == proto.MessageType_ROUND_CHANGE {
 					setup.setRound(nodeIndex, message.View.Round)
 				}
@@ -271,7 +271,7 @@ func TestProperty(t *testing.T) {
 				proposal []byte,
 				certificate *proto.RoundChangeCertificate,
 				view *proto.View,
-			) *proto.Message {
+			) *proto.IbftMessage {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return buildBasicPreprepareMessage(
@@ -284,14 +284,14 @@ func TestProperty(t *testing.T) {
 			}
 
 			// Make sure the prepare message is built correctly
-			backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+			backend.buildPrepareMessageFn = func(proposal []byte, view *proto.View) *proto.IbftMessage {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return buildBasicPrepareMessage(message.hash, nodes[nodeIndex], view)
 			}
 
 			// Make sure the commit message is built correctly
-			backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.Message {
+			backend.buildCommitMessageFn = func(proposal []byte, view *proto.View) *proto.IbftMessage {
 				message := setup.getEvent(nodeIndex).getMessage(nodeIndex)
 
 				return buildBasicCommitMessage(message.hash, message.seal, nodes[nodeIndex], view)
@@ -302,7 +302,7 @@ func TestProperty(t *testing.T) {
 				proposal *proto.Proposal,
 				certificate *proto.PreparedCertificate,
 				view *proto.View,
-			) *proto.Message {
+			) *proto.IbftMessage {
 				return buildBasicRoundChangeMessage(proposal, certificate, view, nodes[nodeIndex])
 			}
 

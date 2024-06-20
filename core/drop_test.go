@@ -49,7 +49,7 @@ func TestDropAllAndRecover(t *testing.T) {
 						},
 						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
-					&mockTransport{multicastFn: func(message *proto.Message) {
+					&mockTransport{multicastFn: func(message *proto.IbftMessage) {
 						if currentNode.offline {
 							return
 						}
@@ -130,7 +130,7 @@ func TestMaxFaultyDroppingMessages(t *testing.T) {
 						insertProposalFn: nil,
 						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
-					&mockTransport{multicastFn: func(message *proto.Message) {
+					&mockTransport{multicastFn: func(message *proto.IbftMessage) {
 						if currentNode.faulty && rand.Intn(100) < 50 {
 							return
 						}
@@ -183,7 +183,7 @@ func TestAllFailAndGraduallyRecover(t *testing.T) {
 						},
 						getVotingPowerFn: testCommonGetVotingPowertFnForNodes(c.nodes),
 					},
-					&mockTransport{multicastFn: func(msg *proto.Message) {
+					&mockTransport{multicastFn: func(msg *proto.IbftMessage) {
 						if !currentNode.offline {
 							for _, node := range c.nodes {
 								node.core.AddMessage(msg)

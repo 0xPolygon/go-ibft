@@ -45,7 +45,7 @@ type state struct {
 	latestPreparedProposal *proto.Proposal
 
 	//	accepted proposal for current round
-	proposalMessage *proto.Message
+	proposalMessage *proto.IbftMessage
 
 	//	validated commit seals
 	seals []*messages.CommittedSeal
@@ -97,7 +97,7 @@ func (s *state) getLatestPreparedProposal() *proto.Proposal {
 	return s.latestPreparedProposal
 }
 
-func (s *state) getProposalMessage() *proto.Message {
+func (s *state) getProposalMessage() *proto.IbftMessage {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -111,7 +111,7 @@ func (s *state) getProposalHash() []byte {
 	return messages.ExtractProposalHash(s.proposalMessage)
 }
 
-func (s *state) setProposalMessage(proposalMessage *proto.Message) {
+func (s *state) setProposalMessage(proposalMessage *proto.IbftMessage) {
 	s.Lock()
 	defer s.Unlock()
 

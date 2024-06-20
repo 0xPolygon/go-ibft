@@ -15,14 +15,14 @@ type MessageConstructor interface {
 		rawProposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
-	) *proto.Message
+	) *proto.IbftMessage
 
 	// BuildPrepareMessage builds a PREPARE message based on the passed in view and proposal hash
-	BuildPrepareMessage(proposalHash []byte, view *proto.View) *proto.Message
+	BuildPrepareMessage(proposalHash []byte, view *proto.View) *proto.IbftMessage
 
 	// BuildCommitMessage builds a COMMIT message based on the passed in view and proposal hash
 	// Must create a committed seal for proposal hash and include it into the message
-	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.Message
+	BuildCommitMessage(proposalHash []byte, view *proto.View) *proto.IbftMessage
 
 	// BuildRoundChangeMessage builds a ROUND_CHANGE message based on the passed in view,
 	// latest prepared proposal, and latest prepared certificate
@@ -30,7 +30,7 @@ type MessageConstructor interface {
 		proposal *proto.Proposal,
 		certificate *proto.PreparedCertificate,
 		view *proto.View,
-	) *proto.Message
+	) *proto.IbftMessage
 }
 
 // Verifier defines the verifier interface
@@ -42,7 +42,7 @@ type Verifier interface {
 	// Must check the following things:
 	// (1) recover the signature and the signer matches from address in message
 	// (2) the signer address is one of the validators at the height in message
-	IsValidValidator(msg *proto.Message) bool
+	IsValidValidator(msg *proto.IbftMessage) bool
 
 	// IsProposer checks if the passed in ID is the Proposer for current view (sequence, round)
 	IsProposer(id []byte, height, round uint64) bool
