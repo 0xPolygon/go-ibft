@@ -532,10 +532,7 @@ func (m *mockCluster) awaitNCompletions(
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf(
-				"await exceeded timeout for %d nodes",
-				count,
-			)
+			return fmt.Errorf("await exceeded timeout for %d nodes", count) //nolint:err113
 		default:
 			if m.wg.getDone() >= count {
 				return nil

@@ -184,7 +184,7 @@ func (c *cluster) runSequences(ctx context.Context, height uint64) error {
 			// wait for the worker threads to return
 			<-sequenceDone
 
-			return errors.New("timeout")
+			return errors.New("timeout") //nolint:err113
 		}
 	}
 

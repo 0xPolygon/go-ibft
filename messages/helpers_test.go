@@ -180,8 +180,6 @@ func TestMessages_ExtractProposal(t *testing.T) {
 func TestMessages_ExtractProposalHash(t *testing.T) {
 	t.Parallel()
 
-	proposalHash := []byte("proposal hash")
-
 	testTable := []struct {
 		name                 string
 		expectedProposalHash []byte
