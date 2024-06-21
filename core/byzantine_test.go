@@ -293,7 +293,7 @@ func TestByzantineBehaviour(t *testing.T) {
 func createBadRoundRoundChangeFn(node *node) buildRoundChangeMessageDelegate {
 	return func(proposal *proto.Proposal,
 		rcc *proto.PreparedCertificate,
-		view *proto.View) *proto.Message {
+		view *proto.View) *proto.IbftMessage {
 		if node.byzantine {
 			view.Round++
 		}
@@ -312,7 +312,7 @@ func createBadRoundPrePrepareMessageFn(node *node) buildPrePrepareMessageDelegat
 		proposal []byte,
 		certificate *proto.RoundChangeCertificate,
 		view *proto.View,
-	) *proto.Message {
+	) *proto.IbftMessage {
 		if node.byzantine {
 			view.Round++
 		}
@@ -330,7 +330,7 @@ func createBadRoundPrePrepareMessageFn(node *node) buildPrePrepareMessageDelegat
 func createBadHashPrePrepareMessageFn(node *node) buildPrePrepareMessageDelegate {
 	return func(proposal []byte,
 		rcc *proto.RoundChangeCertificate,
-		view *proto.View) *proto.Message {
+		view *proto.View) *proto.IbftMessage {
 		proposalHash := validProposalHash
 		if node.byzantine {
 			proposalHash = []byte("invalid proposal hash")
@@ -347,7 +347,7 @@ func createBadHashPrePrepareMessageFn(node *node) buildPrePrepareMessageDelegate
 }
 
 func createBadHashPrepareMessageFn(node *node) buildPrepareMessageDelegate {
-	return func(_ []byte, view *proto.View) *proto.Message {
+	return func(_ []byte, view *proto.View) *proto.IbftMessage {
 		proposalHash := validProposalHash
 		if node.byzantine {
 			proposalHash = []byte("invalid proposal hash")
@@ -375,7 +375,7 @@ func createForcedRCProposerFn(c *cluster) isProposerDelegate {
 }
 
 func createBadCommitMessageFn(node *node) buildCommitMessageDelegate {
-	return func(_ []byte, view *proto.View) *proto.Message {
+	return func(_ []byte, view *proto.View) *proto.IbftMessage {
 		committedSeal := validCommittedSeal
 		if node.byzantine {
 			committedSeal = []byte("invalid committed seal")

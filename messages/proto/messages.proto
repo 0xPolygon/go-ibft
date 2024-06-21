@@ -20,8 +20,8 @@ message View {
   uint64 round = 2;
 }
 
-// Message defines the base message structure
-message Message {
+// IbftMessage defines the base message structure
+message IbftMessage {
   // view is the current view for the message
   View view = 1;
 
@@ -87,17 +87,17 @@ message RoundChangeMessage {
 message PreparedCertificate {
   // proposalMessage is the proposal message to reach
   // at least Q(N) - 1 PREPARE messages
-  Message proposalMessage = 1;
+  IbftMessage proposalMessage = 1;
 
   // prepareMessages are the PREPARE messages at least Q(N) - 1
-  repeated Message prepareMessages = 2;
+  repeated IbftMessage prepareMessages = 2;
 }
 
 // RoundChangeCertificate is a collection of
 // round change messages for a certain round
 message RoundChangeCertificate {
   // roundChangeMessages are the ROUND CHANGE messages
-  repeated Message roundChangeMessages = 1;
+  repeated IbftMessage roundChangeMessages = 1;
 }
 
 // Proposal is the tuple (raw_proposal, round)

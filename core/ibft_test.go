@@ -16,7 +16,7 @@ import (
 	"github.com/0xPolygon/go-ibft/messages/proto"
 )
 
-func proposalMatches(proposal *proto.Proposal, message *proto.Message) bool {
+func proposalMatches(proposal *proto.Proposal, message *proto.IbftMessage) bool {
 	if message == nil || message.Type != proto.MessageType_PREPREPARE {
 		return false
 	}
@@ -30,33 +30,33 @@ func proposalMatches(proposal *proto.Proposal, message *proto.Message) bool {
 		bytes.Equal(proposal.RawProposal, extractedProposal.RawProposal)
 }
 
-func prepareHashMatches(prepareHash []byte, message *proto.Message) bool {
+func prepareHashMatches(prepareHash []byte, message *proto.IbftMessage) bool {
 	if message == nil || message.Type != proto.MessageType_PREPARE {
 		return false
 	}
 
-	prepareData, _ := message.Payload.(*proto.Message_PrepareData)
+	prepareData, _ := message.Payload.(*proto.IbftMessage_PrepareData)
 	extractedPrepareHash := prepareData.PrepareData.ProposalHash
 
 	return bytes.Equal(prepareHash, extractedPrepareHash)
 }
 
-func commitHashMatches(commitHash []byte, message *proto.Message) bool {
+func commitHashMatches(commitHash []byte, message *proto.IbftMessage) bool {
 	if message == nil || message.Type != proto.MessageType_COMMIT {
 		return false
 	}
 
-	commitData, _ := message.Payload.(*proto.Message_CommitData)
+	commitData, _ := message.Payload.(*proto.IbftMessage_CommitData)
 	extractedCommitHash := commitData.CommitData.ProposalHash
 
 	return bytes.Equal(commitHash, extractedCommitHash)
 }
 
-func generateMessages(count uint64, messageType proto.MessageType) []*proto.Message {
-	messages := make([]*proto.Message, count)
+func generateMessages(count uint64, messageType proto.MessageType) []*proto.IbftMessage {
+	messages := make([]*proto.IbftMessage, count)
 
 	for index := uint64(0); index < count; index++ {
-		message := &proto.Message{
+		message := &proto.IbftMessage{
 			View: &proto.View{
 				Height: 0,
 				Round:  0,
@@ -66,19 +66,19 @@ func generateMessages(count uint64, messageType proto.MessageType) []*proto.Mess
 
 		switch message.Type {
 		case proto.MessageType_PREPREPARE:
-			message.Payload = &proto.Message_PreprepareData{
+			message.Payload = &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{},
 			}
 		case proto.MessageType_PREPARE:
-			message.Payload = &proto.Message_PrepareData{
+			message.Payload = &proto.IbftMessage_PrepareData{
 				PrepareData: &proto.PrepareMessage{},
 			}
 		case proto.MessageType_COMMIT:
-			message.Payload = &proto.Message_CommitData{
+			message.Payload = &proto.IbftMessage_CommitData{
 				CommitData: &proto.CommitMessage{},
 			}
 		case proto.MessageType_ROUND_CHANGE:
-			message.Payload = &proto.Message_RoundChangeData{
+			message.Payload = &proto.IbftMessage_RoundChangeData{
 				RoundChangeData: &proto.RoundChangeMessage{},
 			}
 		}
@@ -89,7 +89,7 @@ func generateMessages(count uint64, messageType proto.MessageType) []*proto.Mess
 	return messages
 }
 
-func generateMessagesWithSender(count uint64, messageType proto.MessageType, sender []byte) []*proto.Message {
+func generateMessagesWithSender(count uint64, messageType proto.MessageType, sender []byte) []*proto.IbftMessage {
 	messages := generateMessages(count, messageType)
 
 	for _, message := range messages {
@@ -99,7 +99,7 @@ func generateMessagesWithSender(count uint64, messageType proto.MessageType, sen
 	return messages
 }
 
-func generateMessagesWithUniqueSender(count uint64, messageType proto.MessageType) []*proto.Message {
+func generateMessagesWithUniqueSender(count uint64, messageType proto.MessageType) []*proto.IbftMessage {
 	messages := generateMessages(count, messageType)
 
 	for index, message := range messages {
@@ -109,16 +109,16 @@ func generateMessagesWithUniqueSender(count uint64, messageType proto.MessageTyp
 	return messages
 }
 
-func appendProposalHash(messages []*proto.Message, proposalHash []byte) {
+func appendProposalHash(messages []*proto.IbftMessage, proposalHash []byte) {
 	for _, message := range messages {
 		switch message.Type {
 		case proto.MessageType_PREPREPARE:
-			ppData, _ := message.Payload.(*proto.Message_PreprepareData)
+			ppData, _ := message.Payload.(*proto.IbftMessage_PreprepareData)
 			payload := ppData.PreprepareData
 
 			payload.ProposalHash = proposalHash
 		case proto.MessageType_PREPARE:
-			pData, _ := message.Payload.(*proto.Message_PrepareData)
+			pData, _ := message.Payload.(*proto.IbftMessage_PrepareData)
 			payload := pData.PrepareData
 
 			payload.ProposalHash = proposalHash
@@ -127,7 +127,7 @@ func appendProposalHash(messages []*proto.Message, proposalHash []byte) {
 	}
 }
 
-func setRoundForMessages(messages []*proto.Message, round uint64) {
+func setRoundForMessages(messages []*proto.IbftMessage, round uint64) {
 	for _, message := range messages {
 		message.View.Round = round
 	}
@@ -143,8 +143,8 @@ func generateSeals(count int) [][]byte {
 	return seals
 }
 
-func filterMessages(messages []*proto.Message, isValid func(message *proto.Message) bool) []*proto.Message {
-	newMessages := make([]*proto.Message, 0)
+func filterMessages(messages []*proto.IbftMessage, isValid func(message *proto.IbftMessage) bool) []*proto.IbftMessage {
+	newMessages := make([]*proto.IbftMessage, 0)
 
 	for _, message := range messages {
 		if isValid(message) {
@@ -158,14 +158,14 @@ func filterMessages(messages []*proto.Message, isValid func(message *proto.Messa
 func generateFilledRCMessages(
 	quorum uint64,
 	proposal *proto.Proposal,
-	proposalHash []byte) []*proto.Message {
+	proposalHash []byte) []*proto.IbftMessage {
 	// Generate random RC messages
 	roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
 	prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
 
 	// Fill up the prepare message hashes
 	for index, message := range prepareMessages {
-		message.Payload = &proto.Message_PrepareData{
+		message.Payload = &proto.IbftMessage_PrepareData{
 			PrepareData: &proto.PrepareMessage{
 				ProposalHash: proposalHash,
 			},
@@ -178,14 +178,14 @@ func generateFilledRCMessages(
 	}
 
 	lastPreparedCertificate := &proto.PreparedCertificate{
-		ProposalMessage: &proto.Message{
+		ProposalMessage: &proto.IbftMessage{
 			View: &proto.View{
 				Height: 0,
 				Round:  1,
 			},
 			From: []byte("unique node"),
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal:     proposal,
 					ProposalHash: proposalHash,
@@ -198,7 +198,7 @@ func generateFilledRCMessages(
 
 	// Fill up their certificates
 	for _, message := range roundChangeMessages {
-		message.Payload = &proto.Message_RoundChangeData{
+		message.Payload = &proto.IbftMessage_RoundChangeData{
 			RoundChangeData: &proto.RoundChangeMessage{
 				LastPreparedProposal:      proposal,
 				LatestPreparedCertificate: lastPreparedCertificate,
@@ -226,11 +226,11 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
-				newRawProposal                     = []byte("new block")
-				multicastedProposal *proto.Message = nil
+				newRawProposal                         = []byte("new block")
+				multicastedProposal *proto.IbftMessage = nil
 
 				log       = mockLogger{}
-				transport = mockTransport{func(message *proto.Message) {
+				transport = mockTransport{func(message *proto.IbftMessage) {
 					if message != nil && message.Type == proto.MessageType_PREPREPARE {
 						multicastedProposal = message
 					}
@@ -247,11 +247,11 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						rawProposal []byte,
 						certificate *proto.RoundChangeCertificate,
 						view *proto.View,
-					) *proto.Message {
-						return &proto.Message{
+					) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
-							Payload: &proto.Message_PreprepareData{
+							Payload: &proto.IbftMessage_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal: &proto.Proposal{
 										RawProposal: rawProposal,
@@ -313,12 +313,12 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			setRoundForMessages(roundChangeMessages, 1)
 
 			var (
-				multicastedPreprepare *proto.Message = nil
-				multicastedPrepare    *proto.Message = nil
-				notifyCh                             = make(chan uint64, 1)
+				multicastedPreprepare *proto.IbftMessage = nil
+				multicastedPrepare    *proto.IbftMessage = nil
+				notifyCh                                 = make(chan uint64, 1)
 
 				log       = mockLogger{}
-				transport = mockTransport{func(message *proto.Message) {
+				transport = mockTransport{func(message *proto.IbftMessage) {
 					switch message.Type {
 					case proto.MessageType_PREPREPARE:
 						multicastedPreprepare = message
@@ -336,11 +336,11 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					buildProposalFn: func(_ uint64) []byte {
 						return correctRoundMessage.proposal.GetRawProposal()
 					},
-					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-						return &proto.Message{
+					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_PREPARE,
-							Payload: &proto.Message_PrepareData{
+							Payload: &proto.IbftMessage_PrepareData{
 								PrepareData: &proto.PrepareMessage{
 									ProposalHash: correctRoundMessage.hash,
 								},
@@ -351,11 +351,11 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						_ []byte,
 						_ *proto.RoundChangeCertificate,
 						view *proto.View,
-					) *proto.Message {
-						return &proto.Message{
+					) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
-							Payload: &proto.Message_PreprepareData{
+							Payload: &proto.IbftMessage_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal:     correctRoundMessage.proposal,
 									ProposalHash: correctRoundMessage.hash,
@@ -377,8 +377,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					getValidMessagesFn: func(
 						view *proto.View,
 						messageType proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
+						isValid func(message *proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
 							roundChangeMessages,
 							isValid,
@@ -386,9 +386,9 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 					getExtendedRCCFn: func(
 						height uint64,
-						isValidMessage func(message *proto.Message) bool,
-						isValidRCC func(round uint64, messages []*proto.Message,
-						) bool) []*proto.Message {
+						isValidMessage func(message *proto.IbftMessage) bool,
+						isValidRCC func(round uint64, messages []*proto.IbftMessage,
+						) bool) []*proto.IbftMessage {
 						return filterMessages(
 							roundChangeMessages,
 							isValidMessage,
@@ -442,7 +442,7 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			prepareMessages := generateMessages(quorum-1, proto.MessageType_PREPARE)
 
 			for index, message := range prepareMessages {
-				message.Payload = &proto.Message_PrepareData{
+				message.Payload = &proto.IbftMessage_PrepareData{
 					PrepareData: &proto.PrepareMessage{
 						ProposalHash: correctRoundMessage.hash,
 					},
@@ -454,19 +454,19 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			setRoundForMessages(roundChangeMessages, 1)
 
 			// Make sure at least one RC message has a PC
-			payload, _ := roundChangeMessages[1].Payload.(*proto.Message_RoundChangeData)
+			payload, _ := roundChangeMessages[1].Payload.(*proto.IbftMessage_RoundChangeData)
 			rcData := payload.RoundChangeData
 
 			rcData.LastPreparedProposal = lastPreparedProposedProposal
 			rcData.LatestPreparedCertificate = &proto.PreparedCertificate{
-				ProposalMessage: &proto.Message{
+				ProposalMessage: &proto.IbftMessage{
 					View: &proto.View{
 						Height: 0,
 						Round:  0,
 					},
 					From: []byte("unique node"),
 					Type: proto.MessageType_PREPREPARE,
-					Payload: &proto.Message_PreprepareData{
+					Payload: &proto.IbftMessage_PreprepareData{
 						PreprepareData: &proto.PrePrepareMessage{
 							Proposal:     lastPreparedProposedProposal,
 							ProposalHash: correctRoundMessage.hash,
@@ -478,14 +478,14 @@ func TestRunNewRound_Proposer(t *testing.T) {
 			}
 
 			var (
-				proposerID                           = []byte("unique node")
-				multicastedPreprepare *proto.Message = nil
-				multicastedPrepare    *proto.Message = nil
-				proposal                             = []byte("proposal")
-				notifyCh                             = make(chan uint64, 1)
+				proposerID                               = []byte("unique node")
+				multicastedPreprepare *proto.IbftMessage = nil
+				multicastedPrepare    *proto.IbftMessage = nil
+				proposal                                 = []byte("proposal")
+				notifyCh                                 = make(chan uint64, 1)
 
 				log       = mockLogger{}
-				transport = mockTransport{func(message *proto.Message) {
+				transport = mockTransport{func(message *proto.IbftMessage) {
 					switch message.Type {
 					case proto.MessageType_PREPREPARE:
 						multicastedPreprepare = message
@@ -503,11 +503,11 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					buildProposalFn: func(_ uint64) []byte {
 						return proposal
 					},
-					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-						return &proto.Message{
+					buildPrepareMessageFn: func(_ []byte, view *proto.View) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_PREPARE,
-							Payload: &proto.Message_PrepareData{
+							Payload: &proto.IbftMessage_PrepareData{
 								PrepareData: &proto.PrepareMessage{
 									ProposalHash: correctRoundMessage.hash,
 								},
@@ -518,11 +518,11 @@ func TestRunNewRound_Proposer(t *testing.T) {
 						rawProposal []byte,
 						certificate *proto.RoundChangeCertificate,
 						view *proto.View,
-					) *proto.Message {
-						return &proto.Message{
+					) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_PREPREPARE,
-							Payload: &proto.Message_PreprepareData{
+							Payload: &proto.IbftMessage_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal: &proto.Proposal{
 										RawProposal: rawProposal,
@@ -548,8 +548,8 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					getValidMessagesFn: func(
 						view *proto.View,
 						messageType proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
+						isValid func(message *proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
 							roundChangeMessages,
 							isValid,
@@ -557,9 +557,9 @@ func TestRunNewRound_Proposer(t *testing.T) {
 					},
 					getExtendedRCCFn: func(
 						height uint64,
-						isValidMessage func(message *proto.Message) bool,
-						isValidRCC func(round uint64, messages []*proto.Message) bool,
-					) []*proto.Message {
+						isValidMessage func(message *proto.IbftMessage) bool,
+						isValidRCC func(round uint64, messages []*proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
 							roundChangeMessages,
 							isValidMessage,
@@ -606,13 +606,13 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 	ctx, cancelFn := context.WithCancel(context.Background())
 
 	var (
-		proposer                          = []byte("proposer")
-		multicastedPrepare *proto.Message = nil
-		notifyCh                          = make(chan uint64, 1)
+		proposer                              = []byte("proposer")
+		multicastedPrepare *proto.IbftMessage = nil
+		notifyCh                              = make(chan uint64, 1)
 
 		log       = mockLogger{}
 		transport = mockTransport{
-			func(message *proto.Message) {
+			func(message *proto.IbftMessage) {
 				if message != nil && message.Type == proto.MessageType_PREPARE {
 					multicastedPrepare = message
 				}
@@ -623,11 +623,11 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 				return []byte("non proposer")
 			},
 			getVotingPowerFn: testCommonGetVotingPowertFnForCnt(1),
-			buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
-				return &proto.Message{
+			buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.IbftMessage {
+				return &proto.IbftMessage{
 					View: view,
 					Type: proto.MessageType_PREPARE,
-					Payload: &proto.Message_PrepareData{
+					Payload: &proto.IbftMessage_PrepareData{
 						PrepareData: &proto.PrepareMessage{
 							ProposalHash: correctRoundMessage.hash,
 						},
@@ -654,15 +654,15 @@ func TestRunNewRound_Validator_Zero(t *testing.T) {
 			getValidMessagesFn: func(
 				view *proto.View,
 				_ proto.MessageType,
-				isValid func(message *proto.Message) bool,
-			) []*proto.Message {
+				isValid func(message *proto.IbftMessage) bool,
+			) []*proto.IbftMessage {
 				return filterMessages(
-					[]*proto.Message{
+					[]*proto.IbftMessage{
 						{
 							View: view,
 							From: proposer,
 							Type: proto.MessageType_PREPREPARE,
-							Payload: &proto.Message_PreprepareData{
+							Payload: &proto.IbftMessage_PreprepareData{
 								PreprepareData: &proto.PrePrepareMessage{
 									Proposal: correctRoundMessage.proposal,
 								},
@@ -707,18 +707,18 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 
 	roundMessage := newCorrectRoundMessage(round)
 
-	generateProposalWithNoPrevious := func() *proto.Message {
+	generateProposalWithNoPrevious := func() *proto.IbftMessage {
 		roundChangeMessages := generateMessagesWithUniqueSender(quorum, proto.MessageType_ROUND_CHANGE)
 		setRoundForMessages(roundChangeMessages, round)
 
-		return &proto.Message{
+		return &proto.IbftMessage{
 			View: &proto.View{
 				Height: 0,
 				Round:  round,
 			},
 			From: proposer,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal:     roundMessage.proposal,
 					ProposalHash: roundMessage.hash,
@@ -730,15 +730,15 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 		}
 	}
 
-	generateProposalWithPrevious := func() *proto.Message {
-		return &proto.Message{
+	generateProposalWithPrevious := func() *proto.IbftMessage {
+		return &proto.IbftMessage{
 			View: &proto.View{
 				Height: 0,
 				Round:  1,
 			},
 			From: proposer,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal:     roundMessage.proposal,
 					ProposalHash: roundMessage.hash,
@@ -756,7 +756,7 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 
 	testTable := []struct {
 		name            string
-		proposalMessage *proto.Message
+		proposalMessage *proto.IbftMessage
 	}{
 		{
 			"validator receives valid block proposal (round > 0, new block)",
@@ -778,12 +778,12 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 			defer cancelFn()
 
 			var (
-				multicastedPrepare *proto.Message = nil
-				notifyCh                          = make(chan uint64, 1)
+				multicastedPrepare *proto.IbftMessage = nil
+				notifyCh                              = make(chan uint64, 1)
 
 				log       = mockLogger{}
 				transport = mockTransport{
-					func(message *proto.Message) {
+					func(message *proto.IbftMessage) {
 						if message != nil && message.Type == proto.MessageType_PREPARE {
 							multicastedPrepare = message
 						}
@@ -794,11 +794,11 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 						return []byte("non proposer")
 					},
 					getVotingPowerFn: testCommonGetVotingPowertFnForCnt(quorum),
-					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.Message {
-						return &proto.Message{
+					buildPrepareMessageFn: func(proposal []byte, view *proto.View) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_PREPARE,
-							Payload: &proto.Message_PrepareData{
+							Payload: &proto.IbftMessage_PrepareData{
 								PrepareData: &proto.PrepareMessage{
 									ProposalHash: roundMessage.hash,
 								},
@@ -825,10 +825,10 @@ func TestRunNewRound_Validator_NonZero(t *testing.T) {
 					getValidMessagesFn: func(
 						view *proto.View,
 						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
+						isValid func(message *proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
-							[]*proto.Message{
+							[]*proto.IbftMessage{
 								testCase.proposalMessage,
 							},
 							isValid,
@@ -878,21 +878,21 @@ func TestRunPrepare(t *testing.T) {
 			ctx, cancelFn := context.WithCancel(context.Background())
 
 			var (
-				multicastedCommit *proto.Message = nil
-				notifyCh                         = make(chan uint64, 1)
+				multicastedCommit *proto.IbftMessage = nil
+				notifyCh                             = make(chan uint64, 1)
 
 				log       = mockLogger{}
-				transport = mockTransport{func(message *proto.Message) {
+				transport = mockTransport{func(message *proto.IbftMessage) {
 					if message != nil && message.Type == proto.MessageType_COMMIT {
 						multicastedCommit = message
 					}
 				}}
 				backend = mockBackend{
-					buildCommitMessageFn: func(_ []byte, view *proto.View) *proto.Message {
-						return &proto.Message{
+					buildCommitMessageFn: func(_ []byte, view *proto.View) *proto.IbftMessage {
+						return &proto.IbftMessage{
 							View: view,
 							Type: proto.MessageType_COMMIT,
-							Payload: &proto.Message_CommitData{
+							Payload: &proto.IbftMessage_CommitData{
 								CommitData: &proto.CommitMessage{
 									ProposalHash: correctRoundMessage.hash,
 								},
@@ -917,14 +917,14 @@ func TestRunPrepare(t *testing.T) {
 					getValidMessagesFn: func(
 						view *proto.View,
 						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
+						isValid func(message *proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
-							[]*proto.Message{
+							[]*proto.IbftMessage{
 								{
 									View: view,
 									Type: proto.MessageType_PREPARE,
-									Payload: &proto.Message_PrepareData{
+									Payload: &proto.IbftMessage_PrepareData{
 										PrepareData: &proto.PrepareMessage{
 											ProposalHash: correctRoundMessage.hash,
 										},
@@ -942,8 +942,8 @@ func TestRunPrepare(t *testing.T) {
 			require.NoError(t, i.validatorManager.Init(0))
 			i.state.name = prepare
 			i.state.roundStarted = true
-			i.state.proposalMessage = &proto.Message{
-				Payload: &proto.Message_PreprepareData{
+			i.state.proposalMessage = &proto.IbftMessage{
+				Payload: &proto.IbftMessage_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Proposal:     correctRoundMessage.proposal,
 						ProposalHash: correctRoundMessage.hash,
@@ -1019,14 +1019,14 @@ func TestRunCommit(t *testing.T) {
 					getValidMessagesFn: func(
 						view *proto.View,
 						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
+						isValid func(message *proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
-							[]*proto.Message{
+							[]*proto.IbftMessage{
 								{
 									View: view,
 									Type: proto.MessageType_COMMIT,
-									Payload: &proto.Message_CommitData{
+									Payload: &proto.IbftMessage_CommitData{
 										CommitData: &proto.CommitMessage{
 											ProposalHash:  correctRoundMessage.hash,
 											CommittedSeal: committedSeals[0].Signature,
@@ -1044,8 +1044,8 @@ func TestRunCommit(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			require.NoError(t, i.validatorManager.Init(0))
 			i.messages = messages
-			i.state.proposalMessage = &proto.Message{
-				Payload: &proto.Message_PreprepareData{
+			i.state.proposalMessage = &proto.IbftMessage{
+				Payload: &proto.IbftMessage_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Proposal:     correctRoundMessage.proposal,
 						ProposalHash: correctRoundMessage.hash,
@@ -1197,7 +1197,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 				log       = mockLogger{}
 				transport = mockTransport{}
 				backend   = mockBackend{
-					IsValidValidatorFn: func(message *proto.Message) bool {
+					IsValidValidatorFn: func(message *proto.IbftMessage) bool {
 						return !testCase.invalidSender
 					},
 				}
@@ -1206,7 +1206,7 @@ func TestIBFT_IsAcceptableMessage(t *testing.T) {
 			i := NewIBFT(log, backend, transport)
 			i.state.view = testCase.stateView
 
-			message := &proto.Message{
+			message := &proto.IbftMessage{
 				View: testCase.msgView,
 			}
 
@@ -1332,13 +1332,13 @@ func TestIBFT_FutureProposal(t *testing.T) {
 	proposer := []byte("proposer")
 	quorum := uint64(4)
 
-	generateEmptyRCMessages := func(count uint64, round uint64) []*proto.Message {
+	generateEmptyRCMessages := func(count uint64, round uint64) []*proto.IbftMessage {
 		// Generate random RC messages
 		roundChangeMessages := generateMessagesWithUniqueSender(count, proto.MessageType_ROUND_CHANGE)
 
 		// Fill up their certificates
 		for _, message := range roundChangeMessages {
-			message.Payload = &proto.Message_RoundChangeData{
+			message.Payload = &proto.IbftMessage_RoundChangeData{
 				RoundChangeData: &proto.RoundChangeMessage{
 					LastPreparedProposal:      nil,
 					LatestPreparedCertificate: nil,
@@ -1353,15 +1353,15 @@ func TestIBFT_FutureProposal(t *testing.T) {
 
 	generateValidProposal := func(
 		view *proto.View,
-		roundChangeMessages []*proto.Message,
-	) *proto.Message {
+		roundChangeMessages []*proto.IbftMessage,
+	) *proto.IbftMessage {
 		roundMessage := newCorrectRoundMessage(view.Round)
 
-		return &proto.Message{
+		return &proto.IbftMessage{
 			View: view,
 			From: proposer,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal:     roundMessage.proposal,
 					ProposalHash: roundMessage.hash,
@@ -1373,7 +1373,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 		}
 	}
 
-	generateFilledRCMessagesWithRound := func(quorum, round uint64) []*proto.Message {
+	generateFilledRCMessagesWithRound := func(quorum, round uint64) []*proto.IbftMessage {
 		messages := generateFilledRCMessages(quorum, correctRoundMessage.proposal, correctRoundMessage.hash)
 		setRoundForMessages(messages, round)
 
@@ -1383,7 +1383,7 @@ func TestIBFT_FutureProposal(t *testing.T) {
 	testTable := []struct {
 		name                string
 		proposalView        *proto.View
-		roundChangeMessages []*proto.Message
+		roundChangeMessages []*proto.IbftMessage
 		notifyRound         uint64
 	}{
 		{
@@ -1451,10 +1451,10 @@ func TestIBFT_FutureProposal(t *testing.T) {
 					getValidMessagesFn: func(
 						view *proto.View,
 						_ proto.MessageType,
-						isValid func(message *proto.Message) bool,
-					) []*proto.Message {
+						isValid func(message *proto.IbftMessage) bool,
+					) []*proto.IbftMessage {
 						return filterMessages(
-							[]*proto.Message{
+							[]*proto.IbftMessage{
 								validProposal,
 							},
 							isValid,
@@ -1539,13 +1539,13 @@ func TestIBFT_ValidPC(t *testing.T) {
 
 		certificate := &proto.PreparedCertificate{
 			ProposalMessage: nil,
-			PrepareMessages: make([]*proto.Message, 0),
+			PrepareMessages: make([]*proto.IbftMessage, 0),
 		}
 
 		assert.False(t, i.validPC(certificate, 0, 0))
 
 		certificate = &proto.PreparedCertificate{
-			ProposalMessage: &proto.Message{},
+			ProposalMessage: &proto.IbftMessage{},
 			PrepareMessages: nil,
 		}
 
@@ -1568,7 +1568,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
-			ProposalMessage: &proto.Message{},
+			ProposalMessage: &proto.IbftMessage{},
 			PrepareMessages: generateMessages(quorum-2, proto.MessageType_PREPARE),
 		}
 
@@ -1591,7 +1591,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
-			ProposalMessage: &proto.Message{
+			ProposalMessage: &proto.IbftMessage{
 				Type: proto.MessageType_PREPARE,
 			},
 			PrepareMessages: generateMessages(quorum-1, proto.MessageType_PREPARE),
@@ -1616,7 +1616,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
-			ProposalMessage: &proto.Message{
+			ProposalMessage: &proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
 			},
 			PrepareMessages: generateMessages(quorum-1, proto.MessageType_PREPARE),
@@ -1645,7 +1645,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		certificate := &proto.PreparedCertificate{
-			ProposalMessage: &proto.Message{
+			ProposalMessage: &proto.IbftMessage{
 				Type: proto.MessageType_PREPREPARE,
 				From: sender,
 			},
@@ -1679,7 +1679,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure the proposal has a different hash than the prepare messages
-		appendProposalHash([]*proto.Message{certificate.ProposalMessage}, []byte("proposal hash 1"))
+		appendProposalHash([]*proto.IbftMessage{certificate.ProposalMessage}, []byte("proposal hash 1"))
 		appendProposalHash(certificate.PrepareMessages, []byte("proposal hash 2"))
 
 		assert.False(t, i.validPC(certificate, 0, 0))
@@ -1710,7 +1710,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1752,7 +1752,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1791,7 +1791,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1834,7 +1834,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1860,7 +1860,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
-				IsValidValidatorFn: func(message *proto.Message) bool {
+				IsValidValidatorFn: func(message *proto.IbftMessage) bool {
 					// One of the messages will be invalid
 					return !bytes.Equal(message.From, []byte("node 1"))
 				},
@@ -1877,7 +1877,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1903,7 +1903,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
-				IsValidValidatorFn: func(message *proto.Message) bool {
+				IsValidValidatorFn: func(message *proto.IbftMessage) bool {
 					// Proposer is invalid
 					return !bytes.Equal(message.From, sender)
 				},
@@ -1920,7 +1920,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1959,7 +1959,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -1985,7 +1985,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, sender)
 				},
-				IsValidValidatorFn: func(message *proto.Message) bool {
+				IsValidValidatorFn: func(message *proto.IbftMessage) bool {
 					return true
 				},
 			}
@@ -2002,7 +2002,7 @@ func TestIBFT_ValidPC(t *testing.T) {
 		}
 
 		// Make sure they all have the same proposal hash
-		allMessages := append([]*proto.Message{certificate.ProposalMessage}, certificate.PrepareMessages...)
+		allMessages := append([]*proto.IbftMessage{certificate.ProposalMessage}, certificate.PrepareMessages...)
 		appendProposalHash(
 			allMessages,
 			correctRoundMessage.hash,
@@ -2036,10 +2036,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal: &proto.Proposal{
 						Round: baseView.Round,
@@ -2073,10 +2073,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal: &proto.Proposal{
 						Round: 0,
@@ -2110,10 +2110,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal: &proto.Proposal{
 						Round: baseView.Round,
@@ -2144,10 +2144,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: nil,
 					Proposal: &proto.Proposal{
@@ -2192,10 +2192,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			msg.From = []byte("non unique node id")
 		}
 
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: messages,
@@ -2232,10 +2232,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: generateMessages(quorum-1, proto.MessageType_ROUND_CHANGE),
@@ -2280,11 +2280,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: generateMessages(quorum, proto.MessageType_ROUND_CHANGE),
@@ -2324,10 +2324,10 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  0,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal: &proto.Proposal{
 						Round: baseView.Round,
@@ -2373,11 +2373,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  round,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: generateMessages(quorum, proto.MessageType_ROUND_CHANGE),
@@ -2416,39 +2416,39 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages + 1 COMMIT message (wrong type message)
-		roundChangeMessages := make([]*proto.Message, 0)
+		roundChangeMessages := make([]*proto.IbftMessage, 0)
 
 		for idx := 0; idx < int(quorum); idx++ {
-			roundChangeMessages = append(roundChangeMessages, &proto.Message{
+			roundChangeMessages = append(roundChangeMessages, &proto.IbftMessage{
 				From: []byte(fmt.Sprintf("node%d", idx)),
 				View: &proto.View{
 					Height: 0,
 					Round:  round,
 				},
 				Type:    proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{},
+				Payload: &proto.IbftMessage_RoundChangeData{},
 			})
 		}
 
-		roundChangeMessages = append(roundChangeMessages, &proto.Message{
+		roundChangeMessages = append(roundChangeMessages, &proto.IbftMessage{
 			From: []byte(fmt.Sprintf("node%d", quorum)),
 			View: &proto.View{
 				Height: 0,
 				Round:  0,
 			},
 			Type:    proto.MessageType_COMMIT,
-			Payload: &proto.Message_RoundChangeData{},
+			Payload: &proto.IbftMessage_RoundChangeData{},
 		})
 
 		baseView := &proto.View{
 			Height: 0,
 			Round:  round,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
@@ -2487,17 +2487,17 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages
-		roundChangeMessages := make([]*proto.Message, quorum)
+		roundChangeMessages := make([]*proto.IbftMessage, quorum)
 
 		for idx := range roundChangeMessages {
-			roundChangeMessages[idx] = &proto.Message{
+			roundChangeMessages[idx] = &proto.IbftMessage{
 				From: []byte(fmt.Sprintf("node%d", idx)),
 				View: &proto.View{
 					Height: 100, // wrong height
 					Round:  round,
 				},
 				Type:    proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{},
+				Payload: &proto.IbftMessage_RoundChangeData{},
 			}
 		}
 
@@ -2505,11 +2505,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  round,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
@@ -2548,17 +2548,17 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages with wrong round
-		roundChangeMessages := make([]*proto.Message, quorum)
+		roundChangeMessages := make([]*proto.IbftMessage, quorum)
 
 		for idx := range roundChangeMessages {
-			roundChangeMessages[idx] = &proto.Message{
+			roundChangeMessages[idx] = &proto.IbftMessage{
 				From: []byte(fmt.Sprintf("node%d", idx)),
 				View: &proto.View{
 					Height: 0,
 					Round:  round + 1, // wrong round
 				},
 				Type:    proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{},
+				Payload: &proto.IbftMessage_RoundChangeData{},
 			}
 		}
 
@@ -2566,11 +2566,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			Height: 0,
 			Round:  round,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
@@ -2603,7 +2603,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, _ uint64) bool {
 					return bytes.Equal(proposer, uniqueNode)
 				},
-				IsValidValidatorFn: func(m *proto.Message) bool {
+				IsValidValidatorFn: func(m *proto.IbftMessage) bool {
 					return !bytes.Equal(m.From, nonValidator)
 				},
 			}
@@ -2613,39 +2613,39 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		// 4 ROUND-CHANGE messages by validators + 1 ROUND-CHANGE message by non-validator
-		roundChangeMessages := make([]*proto.Message, 0)
+		roundChangeMessages := make([]*proto.IbftMessage, 0)
 
 		for idx := 0; idx < int(quorum); idx++ {
-			roundChangeMessages = append(roundChangeMessages, &proto.Message{
+			roundChangeMessages = append(roundChangeMessages, &proto.IbftMessage{
 				From: []byte(fmt.Sprintf("node%d", idx)),
 				View: &proto.View{
 					Height: 0,
 					Round:  round,
 				},
 				Type:    proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{},
+				Payload: &proto.IbftMessage_RoundChangeData{},
 			})
 		}
 
-		roundChangeMessages = append(roundChangeMessages, &proto.Message{
+		roundChangeMessages = append(roundChangeMessages, &proto.IbftMessage{
 			From: nonValidator,
 			View: &proto.View{
 				Height: 0,
 				Round:  round,
 			},
 			Type:    proto.MessageType_ROUND_CHANGE,
-			Payload: &proto.Message_RoundChangeData{},
+			Payload: &proto.IbftMessage_RoundChangeData{},
 		})
 
 		baseView := &proto.View{
 			Height: 0,
 			Round:  round,
 		}
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: baseView,
 			From: uniqueNode,
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
@@ -2690,7 +2690,7 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 				isProposerFn: func(proposer []byte, _ uint64, round uint64) bool {
 					return bytes.Equal(proposer, proposers[round])
 				},
-				IsValidValidatorFn: func(m *proto.Message) bool {
+				IsValidValidatorFn: func(m *proto.IbftMessage) bool {
 					return !bytes.Equal(m.From, nonValidator)
 				},
 				isValidProposalHashFn: func(p *proto.Proposal, b []byte) bool {
@@ -2723,11 +2723,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		i := NewIBFT(log, backend, transport)
 
 		// previous PREPREPARE + PREPARE messages whose proposal hashes are not correct
-		previousProposal := &proto.Message{
+		previousProposal := &proto.IbftMessage{
 			View: views[0],
 			From: proposers[0],
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					// the hash should be (proposal, 0)
 					Proposal: &proto.Proposal{
@@ -2740,13 +2740,13 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 			},
 		}
 
-		previousPrepares := make([]*proto.Message, quorum)
+		previousPrepares := make([]*proto.IbftMessage, quorum)
 		for idx := range previousPrepares {
-			previousPrepares[idx] = &proto.Message{
+			previousPrepares[idx] = &proto.IbftMessage{
 				From: []byte(fmt.Sprintf("node%d", idx)),
 				View: views[0],
 				Type: proto.MessageType_PREPARE,
-				Payload: &proto.Message_PrepareData{
+				Payload: &proto.IbftMessage_PrepareData{
 					PrepareData: &proto.PrepareMessage{
 						ProposalHash: correctProposalHash,
 					},
@@ -2755,14 +2755,14 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		}
 
 		// ROUND-CHANGE messages for round 2
-		roundChangeMessages := make([]*proto.Message, quorum)
+		roundChangeMessages := make([]*proto.IbftMessage, quorum)
 
 		for idx := range roundChangeMessages {
-			roundChangeMessages[idx] = &proto.Message{
+			roundChangeMessages[idx] = &proto.IbftMessage{
 				From: []byte(fmt.Sprintf("node%d", idx)),
 				View: views[2],
 				Type: proto.MessageType_ROUND_CHANGE,
-				Payload: &proto.Message_RoundChangeData{
+				Payload: &proto.IbftMessage_RoundChangeData{
 					RoundChangeData: &proto.RoundChangeMessage{
 						LatestPreparedCertificate: &proto.PreparedCertificate{
 							ProposalMessage: previousProposal,
@@ -2774,11 +2774,11 @@ func TestIBFT_ValidateProposal(t *testing.T) {
 		}
 
 		// proposal with RoundChangeCertificate
-		proposal := &proto.Message{
+		proposal := &proto.IbftMessage{
 			View: views[2],
 			From: proposers[2],
 			Type: proto.MessageType_PREPREPARE,
-			Payload: &proto.Message_PreprepareData{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Certificate: &proto.RoundChangeCertificate{
 						RoundChangeMessages: roundChangeMessages,
@@ -2831,8 +2831,8 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 			getValidMessagesFn: func(
 				view *proto.View,
 				messageType proto.MessageType,
-				isValid func(message *proto.Message) bool,
-			) []*proto.Message {
+				isValid func(message *proto.IbftMessage) bool,
+			) []*proto.IbftMessage {
 				return filterMessages(
 					roundChangeMessages,
 					isValid,
@@ -2840,9 +2840,9 @@ func TestIBFT_WatchForFutureRCC(t *testing.T) {
 			},
 			getExtendedRCCFn: func(
 				height uint64,
-				isValidMessage func(message *proto.Message) bool,
-				isValidRCC func(round uint64, messages []*proto.Message) bool,
-			) []*proto.Message {
+				isValidMessage func(message *proto.IbftMessage) bool,
+				isValidRCC func(round uint64, messages []*proto.IbftMessage) bool,
+			) []*proto.IbftMessage {
 				messages := filterMessages(
 					roundChangeMessages,
 					isValidMessage,
@@ -2945,8 +2945,8 @@ func TestIBFT_RunSequence_NewProposal(t *testing.T) {
 	i.newProposal = make(chan newProposalEvent, 1)
 
 	ev := newProposalEvent{
-		proposalMessage: &proto.Message{
-			Payload: &proto.Message_PreprepareData{
+		proposalMessage: &proto.IbftMessage{
+			Payload: &proto.IbftMessage_PreprepareData{
 				PreprepareData: &proto.PrePrepareMessage{
 					Proposal: proposal,
 				},
@@ -3129,7 +3129,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	var validSender = []byte("node 0")
 
 	executeTest := func(
-		msg *proto.Message, shouldAddMessageCalled, shouldSignalEventCalled bool, quorumSize uint64) {
+		msg *proto.IbftMessage, shouldAddMessageCalled, shouldSignalEventCalled bool, quorumSize uint64) {
 		var (
 			signalEventCalled = false
 			addMessageCalled  = false
@@ -3139,7 +3139,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 			messages          = mockMessages{}
 		)
 
-		backend.IsValidValidatorFn = func(m *proto.Message) bool {
+		backend.IsValidValidatorFn = func(m *proto.IbftMessage) bool {
 			return bytes.Equal(m.From, validSender)
 		}
 
@@ -3148,12 +3148,12 @@ func TestIBFT_AddMessage(t *testing.T) {
 		messages.getValidMessagesFn = func(
 			view *proto.View,
 			messageType proto.MessageType,
-			isValid func(message *proto.Message) bool,
-		) []*proto.Message {
-			return []*proto.Message{msg}
+			isValid func(message *proto.IbftMessage) bool,
+		) []*proto.IbftMessage {
+			return []*proto.IbftMessage{msg}
 		}
 
-		messages.addMessageFn = func(m *proto.Message) {
+		messages.addMessageFn = func(m *proto.IbftMessage) {
 			addMessageCalled = true
 
 			assert.Equal(t, msg, m)
@@ -3183,7 +3183,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	t.Run("!isAcceptableMessage - invalid sender", func(t *testing.T) {
 		t.Parallel()
 
-		msg := &proto.Message{
+		msg := &proto.IbftMessage{
 			View: &proto.View{Height: validHeight, Round: validRound},
 			Type: validMsgType,
 		}
@@ -3193,7 +3193,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	t.Run("!isAcceptableMessage - invalid view", func(t *testing.T) {
 		t.Parallel()
 
-		msg := &proto.Message{
+		msg := &proto.IbftMessage{
 			From: validSender,
 			Type: validMsgType,
 		}
@@ -3203,7 +3203,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	t.Run("!isAcceptableMessage - invalid height", func(t *testing.T) {
 		t.Parallel()
 
-		msg := &proto.Message{
+		msg := &proto.IbftMessage{
 			From: validSender,
 			Type: validMsgType,
 			View: &proto.View{Height: validHeight - 1, Round: validRound},
@@ -3214,7 +3214,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	t.Run("!isAcceptableMessage - invalid round", func(t *testing.T) {
 		t.Parallel()
 
-		msg := &proto.Message{
+		msg := &proto.IbftMessage{
 			From: validSender,
 			Type: validMsgType,
 			View: &proto.View{Height: validHeight, Round: validRound - 1},
@@ -3225,7 +3225,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	t.Run("correct - but quorum not reached", func(t *testing.T) {
 		t.Parallel()
 
-		msg := &proto.Message{
+		msg := &proto.IbftMessage{
 			From: validSender,
 			Type: proto.MessageType_PREPARE,
 			View: &proto.View{Height: validHeight, Round: validRound},
@@ -3236,7 +3236,7 @@ func TestIBFT_AddMessage(t *testing.T) {
 	t.Run("correct - quorum reached", func(t *testing.T) {
 		t.Parallel()
 
-		msg := &proto.Message{
+		msg := &proto.IbftMessage{
 			From: validSender,
 			Type: validMsgType,
 			View: &proto.View{Height: validHeight, Round: validRound},

@@ -16,12 +16,12 @@ func generateRandomMessages(
 	count int,
 	view *proto.View,
 	messageTypes ...proto.MessageType,
-) []*proto.Message {
-	messages := make([]*proto.Message, 0)
+) []*proto.IbftMessage {
+	messages := make([]*proto.IbftMessage, 0)
 
 	for index := 0; index < count; index++ {
 		for _, messageType := range messageTypes {
-			message := &proto.Message{
+			message := &proto.IbftMessage{
 				From: []byte(strconv.Itoa(index)),
 				View: view,
 				Type: messageType,
@@ -29,19 +29,19 @@ func generateRandomMessages(
 
 			switch messageType {
 			case proto.MessageType_PREPREPARE:
-				message.Payload = &proto.Message_PreprepareData{
+				message.Payload = &proto.IbftMessage_PreprepareData{
 					PreprepareData: &proto.PrePrepareMessage{
 						Proposal: nil,
 					},
 				}
 			case proto.MessageType_PREPARE:
-				message.Payload = &proto.Message_PrepareData{
+				message.Payload = &proto.IbftMessage_PrepareData{
 					PrepareData: &proto.PrepareMessage{
 						ProposalHash: nil,
 					},
 				}
 			case proto.MessageType_COMMIT:
-				message.Payload = &proto.Message_CommitData{
+				message.Payload = &proto.IbftMessage_CommitData{
 					CommitData: &proto.CommitMessage{
 						ProposalHash:  nil,
 						CommittedSeal: nil,
@@ -148,7 +148,7 @@ func TestMessages_Prune(t *testing.T) {
 	}
 
 	// Append random message types
-	randomMessages := make([]*proto.Message, 0)
+	randomMessages := make([]*proto.IbftMessage, 0)
 	for _, view := range views {
 		randomMessages = append(
 			randomMessages,
@@ -213,7 +213,7 @@ func TestMessages_GetValidMessagesMessage(t *testing.T) {
 		},
 	}
 
-	alwaysInvalidFn := func(_ *proto.Message) bool {
+	alwaysInvalidFn := func(_ *proto.IbftMessage) bool {
 		return false
 	}
 
@@ -282,7 +282,7 @@ func TestMessages_GetExtendedRCC(t *testing.T) {
 	defer messages.Close()
 
 	// Generate round messages
-	randomMessages := map[uint64][]*proto.Message{
+	randomMessages := map[uint64][]*proto.IbftMessage{
 		0: generateRandomMessages(quorum-1, &proto.View{
 			Height: height,
 			Round:  0,
@@ -313,10 +313,10 @@ func TestMessages_GetExtendedRCC(t *testing.T) {
 
 	extendedRCC := messages.GetExtendedRCC(
 		height,
-		func(message *proto.Message) bool {
+		func(message *proto.IbftMessage) bool {
 			return true
 		},
-		func(round uint64, messages []*proto.Message) bool {
+		func(round uint64, messages []*proto.IbftMessage) bool {
 			return len(messages) >= quorum
 		},
 	)
@@ -341,7 +341,7 @@ func TestMessages_GetMostRoundChangeMessages(t *testing.T) {
 	mostMessagesRound := uint64(2)
 
 	// Generate round messages
-	randomMessages := map[uint64][]*proto.Message{
+	randomMessages := map[uint64][]*proto.IbftMessage{
 		0: generateRandomMessages(mostMessageCount-2, &proto.View{
 			Height: 0,
 			Round:  0,

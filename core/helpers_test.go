@@ -52,7 +52,7 @@ func (n *node) buildPrePrepare(
 	rawProposal []byte,
 	certificate *proto.RoundChangeCertificate,
 	view *proto.View,
-) *proto.Message {
+) *proto.IbftMessage {
 	return buildBasicPreprepareMessage(
 		rawProposal,
 		validProposalHash,
@@ -65,7 +65,7 @@ func (n *node) buildPrePrepare(
 func (n *node) buildPrepare(
 	_ []byte,
 	view *proto.View,
-) *proto.Message {
+) *proto.IbftMessage {
 	return buildBasicPrepareMessage(
 		validProposalHash,
 		n.address,
@@ -76,7 +76,7 @@ func (n *node) buildPrepare(
 func (n *node) buildCommit(
 	_ []byte,
 	view *proto.View,
-) *proto.Message {
+) *proto.IbftMessage {
 	return buildBasicCommitMessage(
 		validProposalHash,
 		validCommittedSeal,
@@ -89,7 +89,7 @@ func (n *node) buildRoundChange(
 	proposal *proto.Proposal,
 	certificate *proto.PreparedCertificate,
 	view *proto.View,
-) *proto.Message {
+) *proto.IbftMessage {
 	return buildBasicRoundChangeMessage(
 		proposal,
 		certificate,
@@ -184,7 +184,7 @@ func (c *cluster) runSequences(ctx context.Context, height uint64) error {
 			// wait for the worker threads to return
 			<-sequenceDone
 
-			return errors.New("timeout")
+			return errors.New("timeout") //nolint:err113
 		}
 	}
 
@@ -224,7 +224,7 @@ func (c *cluster) isProposer(
 	)
 }
 
-func (c *cluster) gossip(msg *proto.Message) {
+func (c *cluster) gossip(msg *proto.IbftMessage) {
 	for _, node := range c.nodes {
 		node.core.AddMessage(msg)
 	}
