@@ -29,7 +29,7 @@ func TestMessages_ExtractCommittedSeals(t *testing.T) {
 		}
 	}
 
-	createWrongMessage := func(signer string, msgType proto.MessageType) *proto.IbftMessage {
+	createWrongMessage := func(_ string, msgType proto.MessageType) *proto.IbftMessage {
 		return &proto.IbftMessage{
 			Type: msgType,
 		}
