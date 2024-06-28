@@ -83,20 +83,6 @@ func (s *state) reset(height uint64) {
 	}
 }
 
-func (s *state) getLatestPC() *proto.PreparedCertificate {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.latestPC
-}
-
-func (s *state) getLatestPreparedProposal() *proto.Proposal {
-	s.RLock()
-	defer s.RUnlock()
-
-	return s.latestPreparedProposal
-}
-
 func (s *state) getProposalMessage() *proto.IbftMessage {
 	s.RLock()
 	defer s.RUnlock()

@@ -1032,56 +1032,15 @@ func (i *IBFT) buildProposal(ctx context.Context, view *proto.View) *proto.IbftM
 		return nil
 	}
 
-	//	check the messages for any previous proposal (if they have any, it's the same proposal)
-	var (
-		previousProposal []byte
-		maxRound         uint64
-	)
-
-	// take previous proposal among the round change messages for the highest round
-	for _, msg := range rcc.RoundChangeMessages {
-		latestPC := messages.ExtractLatestPC(msg)
-		if latestPC == nil {
-			continue
-		}
-
-		proposal := messages.ExtractProposal(latestPC.ProposalMessage)
-		preparedCertificateRound := proposal.Round
-
-		// skip if message's round is equals to/less than maxRound
-		if previousProposal != nil && preparedCertificateRound <= maxRound {
-			continue
-		}
-
-		lastPB := messages.ExtractLastPreparedProposal(msg)
-		if lastPB == nil {
-			continue
-		}
-
-		previousProposal = lastPB.RawProposal
-		maxRound = preparedCertificateRound
-	}
-
-	if previousProposal == nil {
-		//	build new proposal
-		proposal := i.backend.BuildProposal(
-			&proto.View{
-				Height: height,
-				Round:  round,
-			})
-
-		return i.backend.BuildPrePrepareMessage(
-			proposal,
-			rcc,
-			&proto.View{
-				Height: height,
-				Round:  round,
-			},
-		)
-	}
+	//	build always new proposal
+	proposal := i.backend.BuildProposal(
+		&proto.View{
+			Height: height,
+			Round:  round,
+		})
 
 	return i.backend.BuildPrePrepareMessage(
-		previousProposal,
+		proposal,
 		rcc,
 		&proto.View{
 			Height: height,
@@ -1239,8 +1198,8 @@ func (i *IBFT) sendPreprepareMessage(message *proto.IbftMessage) {
 func (i *IBFT) sendRoundChangeMessage(height, newRound uint64) {
 	i.transport.Multicast(
 		i.backend.BuildRoundChangeMessage(
-			i.state.getLatestPreparedProposal(),
-			i.state.getLatestPC(),
+			nil,
+			nil,
 			&proto.View{
 				Height: height,
 				Round:  newRound,
