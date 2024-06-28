@@ -4,7 +4,6 @@ go 1.21
 
 require (
 	github.com/armon/go-metrics v0.4.1
-	github.com/golang/protobuf v1.5.0
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/goleak v1.2.0
