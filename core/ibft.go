@@ -319,79 +319,91 @@ func (i *IBFT) RunSequence(ctx context.Context, h uint64) {
 	i.log.Info("sequence started", "height", h)
 	defer i.log.Info("sequence done", "height", h)
 	defer SetMeasurementTime("sequence", startTime)
-
+	// Run the rounds until the sequence is done (block inserted or context cancelled)
 	for {
-		view := i.state.getView()
-
-		if err := i.backend.RoundStarts(view); err != nil {
-			i.log.Error("failed to handle start round callback on backend", "view", view, "err", err)
-		}
-
-		i.log.Info("round started", "round", view.Round)
-
-		currentRound := view.Round
-		ctxRound, cancelRound := context.WithCancel(ctx)
-
-		i.wg.Add(4)
-
-		// Start the round timer worker
-		go i.startRoundTimer(ctxRound, currentRound)
-
-		//	Jump round on proposals from higher rounds
-		go i.watchForFutureProposal(ctxRound)
-
-		//	Jump round on certificates
-		go i.watchForRoundChangeCertificates(ctxRound)
-
-		// Start the state machine worker
-		go i.startRound(ctxRound)
-
-		teardown := func() {
-			cancelRound()
-			i.wg.Wait()
-		}
-
-		select {
-		case ev := <-i.newProposal:
-			teardown()
-			i.log.Info("received future proposal", "round", ev.round)
-
-			i.moveToNewRound(ev.round)
-			i.acceptProposal(ev.proposalMessage)
-			i.state.setRoundStarted(true)
-			i.sendPrepareMessage(view)
-		case round := <-i.roundCertificate:
-			teardown()
-			i.log.Info("received future RCC", "round", round)
-
-			i.moveToNewRound(round)
-		case <-i.roundExpired:
-			teardown()
-			i.log.Info("round timeout expired", "round", currentRound)
-
-			newRound := currentRound + 1
-			i.moveToNewRound(newRound)
-
-			i.sendRoundChangeMessage(h, newRound)
-		case <-i.roundDone:
-			// The consensus cycle for the block height is finished.
-			// Stop all running worker threads
-			teardown()
-			i.insertBlock()
-
-			return
-		case <-ctxRound.Done():
-			teardown()
-
-			if err := i.backend.SequenceCancelled(view); err != nil {
-				i.log.Error("failed to handle sequence cancelled callback on backend", "view", view, "err", err)
-			}
-
-			i.log.Debug("sequence cancelled")
-
-			return
+		if !i.runRound(ctx, h) {
+			break
 		}
 	}
+}
+
+// runRound runs a single round of the IBFT state machine and returns true
+// to continue running additional rounds, and false when the sequence is
+// complete (block inserted or context cancelled).
+func (i *IBFT) runRound(ctx context.Context, h uint64) bool {
+	view := i.state.getView()
+	currentRound := view.Round
+
+	if err := i.backend.RoundStarts(view); err != nil {
+		i.log.Error("failed to handle start round callback on backend", "view", view, "err", err)
+	}
+
+	i.log.Info("round started", "round", currentRound)
+
+	ctxRound, cancelRound := context.WithCancel(ctx)
+	defer cancelRound()
+
+	i.wg.Add(4)
+
+	// Start the round timer worker
+	go i.startRoundTimer(ctxRound, currentRound)
+
+	//	Jump round on proposals from higher rounds
+	go i.watchForFutureProposal(ctxRound)
+
+	//	Jump round on certificates
+	go i.watchForRoundChangeCertificates(ctxRound)
+
+	// Start the state machine worker
+	go i.startRound(ctxRound)
+
+	teardown := func() {
+		cancelRound()
+		i.wg.Wait()
+	}
+
+	select {
+	case ev := <-i.newProposal:
+		teardown()
+		i.log.Info("received future proposal", "round", ev.round)
+
+		i.moveToNewRound(ev.round)
+		i.acceptProposal(ev.proposalMessage)
+		i.state.setRoundStarted(true)
+		i.sendPrepareMessage(view)
+	case round := <-i.roundCertificate:
+		teardown()
+		i.log.Info("received future RCC", "round", round)
+
+		i.moveToNewRound(round)
+	case <-i.roundExpired:
+		teardown()
+		i.log.Info("round timeout expired", "round", currentRound)
+
+		newRound := currentRound + 1
+		i.moveToNewRound(newRound)
+
+		i.sendRoundChangeMessage(h, newRound)
+	case <-i.roundDone:
+		// The consensus cycle for the block height is finished.
+		// Stop all running worker threads
+		teardown()
+		i.insertBlock()
+
+		return false
+	case <-ctxRound.Done():
+		teardown()
+
+		if err := i.backend.SequenceCancelled(view); err != nil {
+			i.log.Error("failed to handle sequence cancelled callback on backend", "view", view, "err", err)
+		}
+
+		i.log.Debug("sequence cancelled")
+
+		return false
+	}
+
+	return true
 }
 
 // startRound runs the state machine loop for the current round
@@ -1124,13 +1136,13 @@ func (i *IBFT) AddMessage(message *proto.IbftMessage) {
 
 // isAcceptableMessage checks if the message can even be accepted
 func (i *IBFT) isAcceptableMessage(message *proto.IbftMessage) bool {
-	//	Make sure the message sender is ok
-	if !i.backend.IsValidValidator(message) {
+	// Invalid messages are discarded
+	if message == nil || message.View == nil {
 		return false
 	}
 
-	// Invalid messages are discarded
-	if message.View == nil {
+	//	Make sure the message sender is ok
+	if !i.backend.IsValidValidator(message) {
 		return false
 	}
 

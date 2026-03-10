@@ -42,7 +42,6 @@ linters:
     - contextcheck # check the function whether use a non-inherited context
     - decorder # check declaration order and count of types, constants, variables and functions
     - exhaustive # check exhaustiveness of enum switch statements and map literals
-    - exportloopref # checks for pointers to enclosing loop variables
     - gocognit
     - gomoddirectives
     - nestif # Reports deeply nested if statements
